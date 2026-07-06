@@ -26,7 +26,7 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 - **Notification Permission** – On Android 13+ the app politely asks for notification access so you never miss a beat.  
 - **Logout Restored** – The logout button is back and easy to find.
 
-*(Full release notes are available on the [Releases page](https://github.com/yourusername/deadfest/releases).)*
+*(Full release notes are available on the [Releases page](https://github.com/CyberLifeYT/Dead-Fest/releases).)*
 
 ---
 
