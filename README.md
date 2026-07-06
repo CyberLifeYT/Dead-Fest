@@ -1,12 +1,18 @@
 # DeadFest 🎮💀
 
+> ⚠️ **PRIVATE APP – FRIENDS & FAMILY ONLY**  
+> This application is strictly for my personal circle of friends and family.  
+> **Do not download, install, or attempt to use it.**  
+> Unauthorized access will result in an **immediate and permanent IP ban**, and may lead to further action.  
+> If you’re not personally invited, you are not welcome here.
+
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0-blueviolet?logo=kotlin)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)](https://developer.android.com)
 
-**DeadFest** is a real‑time multiplayer, Firebase‑powered mobile application built for community‑driven games and interactive experiences.  
-A central administrative backend allows full control over global game states, player stats, and live content – all in real time.
+**DeadFest** is a real‑time multiplayer mobile experience built for a small, private community.  
+It’s a space to play mini‑games, track stats, customise your profile, and hang out together.
 
 ---
 
@@ -15,13 +21,9 @@ A central administrative backend allows full control over global game states, pl
 - [Features](#-features)
   - [🎮 Gameplay & Interactive Elements](#-gameplay--interactive-elements)
   - [👥 Player & Social Features](#-player--social-features)
-  - [🛠️ Administrative Control](#️-administrative-control)
   - [📡 Infrastructure](#-infrastructure)
 - [Tech Stack](#-tech-stack)
-- [Getting Started](#-getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Firebase Setup](#firebase-setup)
-  - [Build & Run](#build--run)
+- [Getting Started (Invited Users Only)](#-getting-started-invited-users-only)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -31,51 +33,45 @@ A central administrative backend allows full control over global game states, pl
 
 ### 🎮 Gameplay & Interactive Elements
 
-- **Sectors System** – Dynamic, admin‑managed game sectors where players track deaths and progress.
-- **Flappy Bird Mini‑Game** – Built‑in arcade game with persistent highscore tracking via Firebase.
-- **Virtual Wheel of Fortune** – Interactive spin‑the‑wheel mechanic with configurable outcomes (coin rewards/penalties, status effects).
-- **Shop System** – Digital economy; players spend coins on items that affect gameplay or other players.
+- **Sectors System** – Dynamic game sectors where you track deaths and progress.
+- **Flappy Bird Mini‑Game** – A built‑in arcade game with persistent highscore tracking.
+- **Virtual Wheel of Fortune** – Spin the wheel and see what fate (coins, status effects, etc.) brings you.
+- **Shop System** – Spend your earned coins on items that can shake up the game.
 
 ### 👥 Player & Social Features
 
-- **User Identity** – Customisable profiles: unique display names, avatar selection, theme colour choices.
-- **Communication** – Integrated real‑time messaging with optional persistent chat history.
-- **Social Connectivity** – Tracks coins, deaths, achievements, and other stats per user. Import/export user data for cross‑platform event management.
-
-### 🛠️ Administrative Control
-
-- **Dynamic Admin Dashboard** – Dedicated UI to manage the entire game ecosystem in real time.
-  - *Sector Management* – Add/remove, lock/unlock, and reorder game sectors.
-  - *Player Administration* – Manually adjust stats, add/remove deaths, and reward users.
-  - *Global Event Controls* – Activate temporary multipliers (e.g., x2 XP/coins for a duration).
-  - *Broadcasts* – Send global push notifications to all users.
-- **Auto‑Updater System** – Admins publish new APK versions (with release notes and forced‑update toggles); clients automatically download and show an update overlay.
+- **User Identity** – Create a unique profile with your own display name, avatar, and theme colour.
+- **Communication** – Chat in real time with other players (history can be turned on when needed).
+- **Social Connectivity** – Your coins, deaths, and achievements are always up to date.  
+  You can even export/import your data if we ever take the fun somewhere else.
 
 ### 📡 Infrastructure
 
-- **Firebase Core** – Firestore (database), Auth (Google/Email login), Cloud Messaging (FCM for real‑time alerts), Remote Config (instant feature toggles like Maintenance Mode).
-- **Security** – Encrypted connectivity, admin‑privilege verification, internal caching for seamless updates.
-- **Modern Android Architecture** – Built entirely with Kotlin, Jetpack Compose, Coroutines, and Flow.
+- **Firebase Core** – Firestore (database), Auth (Google/Email login), and Cloud Messaging (instant alerts).
+- **Remote Config** – Allows the app to enter a quiet “Maintenance Mode” when needed, without an update.
+- **Modern Android Architecture** – Built with Kotlin, Jetpack Compose, Coroutines, and Flow.
 
 ---
 
 ## 🧰 Tech Stack
 
-| Category             | Technology                                                            |
-|----------------------|-----------------------------------------------------------------------|
-| Language             | Kotlin                                                                |
-| UI Framework         | Jetpack Compose                                                       |
-| Reactive Layer       | Kotlin Coroutines + Flow                                              |
-| Image Loading        | Coil                                                                  |
-| Backend / Database   | Firebase Firestore                                                    |
-| Authentication       | Firebase Auth (Google, Email/Password)                                |
-| Push Notifications   | Firebase Cloud Messaging (FCM)                                        |
-| Feature Flags        | Firebase Remote Config                                                |
-| Build System         | Gradle (Kotlin DSL)                                                   |
+| Category             | Technology                            |
+|----------------------|---------------------------------------|
+| Language             | Kotlin                                |
+| UI Framework         | Jetpack Compose                       |
+| Reactive Layer       | Kotlin Coroutines + Flow              |
+| Image Loading        | Coil                                  |
+| Backend / Database   | Firebase Firestore                    |
+| Authentication       | Firebase Auth (Google, Email/Password)|
+| Push Notifications   | Firebase Cloud Messaging (FCM)        |
+| Feature Flags        | Firebase Remote Config                |
+| Build System         | Gradle (Kotlin DSL)                   |
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Getting Started (Invited Users Only)
+
+*This section is only relevant for the handful of people who have explicit permission to run the app.*
 
 ### Prerequisites
 
@@ -86,16 +82,14 @@ A central administrative backend allows full control over global game states, pl
 ### Firebase Setup
 
 1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
-2. Register your Android app with the package name `com.deadfest.app` (or your chosen package).
-3. Download the `google-services.json` file and place it in the `app/` module directory.
+2. Register the Android app with the correct package name.
+3. Download `google-services.json` and place it in the `app/` directory.
 4. Enable **Firestore Database**, **Authentication** (Google & Email/Password), and **Cloud Messaging**.
-5. Set up **Remote Config** with your desired feature flags (e.g., `maintenance_mode`, `update_required`).
+5. Set up **Remote Config** with a `maintenance_mode` flag (optional).
 
 ### Build & Run
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/deadfest.git
 cd deadfest
-
 # Open in Android Studio, sync Gradle, and run on a device/emulator
