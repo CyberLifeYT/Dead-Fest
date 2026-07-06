@@ -16,6 +16,20 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 
 ---
 
+## 🔄 What’s New in v1.1
+
+- **Shop Reimagined** – Items are now organised into tabs (All, Combat, Economy, Titles, Other).  
+- **Player Titles** – Purchase and equip special titles like “Market Mogul”. Your collection is saved to your profile.  
+- **Smarter Shop Pricing** – If Remote Config pricing isn’t set, the shop automatically falls back to the fair base prices stored in Firestore.  
+- **Settings Overhaul** – Clean new tabbed layout (Settings & About).  
+- **Version Awareness** – Your current app version is displayed, with a direct **Update App** button and automatic out‑of‑date detection.  
+- **Notification Permission** – On Android 13+ the app politely asks for notification access so you never miss a beat.  
+- **Logout Restored** – The logout button is back and easy to find.
+
+*(Full release notes are available on the [Releases page](https://github.com/yourusername/deadfest/releases).)*
+
+---
+
 ## 📖 Table of Contents
 
 - [Features](#-features)
@@ -36,19 +50,19 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 - **Sectors System** – Dynamic game sectors where you track deaths and progress.
 - **Flappy Bird Mini‑Game** – A built‑in arcade game with persistent highscore tracking.
 - **Virtual Wheel of Fortune** – Spin the wheel and see what fate (coins, status effects, etc.) brings you.
-- **Shop System** – Spend your earned coins on items that can shake up the game.
+- **Shop System** – Spend your earned coins on items that can shake up the game. Now with organised tabs and a shiny new Titles section.
 
 ### 👥 Player & Social Features
 
-- **User Identity** – Create a unique profile with your own display name, avatar, and theme colour.
+- **User Identity** – Create a unique profile with your own display name, avatar, and theme colour. Active titles are shown right on your profile.
 - **Communication** – Chat in real time with other players (history can be turned on when needed).
-- **Social Connectivity** – Your coins, deaths, and achievements are always up to date.  
-  You can even export/import your data if we ever take the fun somewhere else.
+- **Social Connectivity** – Your coins, deaths, achievements, and title collection are always up to date.  
+  Export/import your data if we ever take the fun somewhere else.
 
 ### 📡 Infrastructure
 
 - **Firebase Core** – Firestore (database), Auth (Google/Email login), and Cloud Messaging (instant alerts).
-- **Remote Config** – Allows the app to enter a quiet “Maintenance Mode” when needed, without an update.
+- **Remote Config** – Allows the app to enter a quiet “Maintenance Mode” when needed, and dynamically controls shop prices without an update.
 - **Modern Android Architecture** – Built with Kotlin, Jetpack Compose, Coroutines, and Flow.
 
 ---
@@ -86,10 +100,3 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 3. Download `google-services.json` and place it in the `app/` directory.
 4. Enable **Firestore Database**, **Authentication** (Google & Email/Password), and **Cloud Messaging**.
 5. Set up **Remote Config** with a `maintenance_mode` flag (optional).
-
-### Build & Run
-
-```bash
-git clone https://github.com/yourusername/deadfest.git
-cd deadfest
-# Open in Android Studio, sync Gradle, and run on a device/emulator
