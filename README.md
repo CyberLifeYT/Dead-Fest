@@ -49,7 +49,6 @@ It’s a space to compete, track stats, customise your profile, and survive toge
 ### 🎮 Gameplay & Interactive Elements
 
 - **Runs (Seasons)** – Take part in isolated events where your coins, deaths, and progress stay separate. Perfect for fresh starts without resetting your profile.
-- **Flappy Dead Mini‑Game** – The arcade is live! Dodge pipes and chase high scores directly inside DeadFest.
 - **Virtual Wheel of Fate** – Spin the wheel and let fate decide: coins, status effects, and more. Now with a completely overhauled precise landing engine.
 - **Black Market Shop** – Spend your coins on game‑changing items. Timed **Flash Sales** drop discounts in real time – act fast!
 - **Sectors System** – Dynamic game zones where you track deaths and progress. Visualised on a tactical dashboard.
