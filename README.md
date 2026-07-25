@@ -12,21 +12,21 @@
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)](https://developer.android.com)
 
 **DeadFest** is a real‑time multiplayer mobile experience built for a small, private community.  
-It’s a space to play mini‑games, track stats, customise your profile, and hang out together.
+It’s a space to compete, track stats, customise your profile, and survive together – now sharper, faster, and packed with new ways to play.
 
 ---
 
-## 🔄 What’s New in v1.1
+## 🔄 What’s New in v1.4 (The Definitive Apocalypse)
 
-- **Shop Reimagined** – Items are now organised into tabs (All, Combat, Economy, Titles, Other).  
-- **Player Titles** – Purchase and equip special titles like “Market Mogul”. Your collection is saved to your profile.  
-- **Smarter Shop Pricing** – If Remote Config pricing isn’t set, the shop automatically falls back to the fair base prices stored in Firestore.  
-- **Settings Overhaul** – Clean new tabbed layout (Settings & About).  
-- **Version Awareness** – Your current app version is displayed, with a direct **Update App** button and automatic out‑of‑date detection.  
-- **Notification Permission** – On Android 13+ the app politely asks for notification access so you never miss a beat.  
-- **Logout Restored** – The logout button is back and easy to find.
+- **Total Visual Modernisation** – Every screen (Dashboard, Shop, Players, Settings) has been redesigned with a sleek, professional dark‑mode aesthetic and a unified component system.
+- **Runs System** – Play isolated seasons or events. Coins, deaths, and progress are unique to each Run, so you can start fresh without losing your history.
+- **Flappy Dead Arcade** – Take a break and compete for high scores in the built‑in Flappy‑style mini‑game.
+- **Flash Sales** – Timed discounts appear in the Black Market – grab items while they’re cheap!
+- **Voting Box** – Propose and vote on new ideas, games, or features directly inside the app.
+- **Dynamic Leaderboards** – Compete to be the Top Survivor by Coin Wealth or Survival Prowess (Least Deaths).
+- **Hall of Fame** – Relive past events with historical MVPs and deadliest sectors archived forever.
 
-*(Full release notes are available on the [Releases page](https://github.com/CyberLifeYT/Dead-Fest/releases).)*
+*(Full release notes for every version are on the [Releases page](https://github.com/CyberLifeYT/Dead-Fest/releases).)*
 
 ---
 
@@ -35,6 +35,7 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 - [Features](#-features)
   - [🎮 Gameplay & Interactive Elements](#-gameplay--interactive-elements)
   - [👥 Player & Social Features](#-player--social-features)
+  - [🗳️ Community & Competition](#-community--competition)
   - [📡 Infrastructure](#-infrastructure)
 - [Tech Stack](#-tech-stack)
 - [Getting Started (Invited Users Only)](#-getting-started-invited-users-only)
@@ -47,23 +48,30 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 
 ### 🎮 Gameplay & Interactive Elements
 
-- **Sectors System** – Dynamic game sectors where you track deaths and progress.
-- **Flappy Bird Mini‑Game** – A built‑in arcade game with persistent highscore tracking.
-- **Virtual Wheel of Fortune** – Spin the wheel and see what fate (coins, status effects, etc.) brings you.
-- **Shop System** – Spend your earned coins on items that can shake up the game. Now with organised tabs and a shiny new Titles section.
+- **Runs (Seasons)** – Take part in isolated events where your coins, deaths, and progress stay separate. Perfect for fresh starts without resetting your profile.
+- **Flappy Dead Mini‑Game** – The arcade is live! Dodge pipes and chase high scores directly inside DeadFest.
+- **Virtual Wheel of Fate** – Spin the wheel and let fate decide: coins, status effects, and more. Now with a completely overhauled precise landing engine.
+- **Black Market Shop** – Spend your coins on game‑changing items. Timed **Flash Sales** drop discounts in real time – act fast!
+- **Sectors System** – Dynamic game zones where you track deaths and progress. Visualised on a tactical dashboard.
 
 ### 👥 Player & Social Features
 
-- **User Identity** – Create a unique profile with your own display name, avatar, and theme colour. Active titles are shown right on your profile.
-- **Communication** – Chat in real time with other players (history can be turned on when needed).
-- **Social Connectivity** – Your coins, deaths, achievements, and title collection are always up to date.  
-  Export/import your data if we ever take the fun somewhere else.
+- **Survivor Identity** – Create your unique profile with a display name, bio, avatar, theme colour, and earnable **Titles**.
+- **Encrypted Comms** – Real‑time chat with asymmetric message bubbles and optional persistent history.
+- **Stats & Connectivity** – Coins, deaths, achievements, and titles are always up to date. Export/import your data if needed.
+- **Daily Supply Drops** – Log in after 24 hours to claim a pulsing crate of **+100 Coins** automatically.
+
+### 🗳️ Community & Competition
+
+- **The Voting Box** – Submit and upvote ideas for future updates, mini‑games, or DLC. Your voice shapes the apocalypse.
+- **Dynamic Leaderboards** – Two ranking categories: **Top Survivor (Wealth)** and **Survival Prowess (Least Deaths)**.
+- **Hall of Fame** – A cinematic timeline of past runs, complete with historical MVPs, deadliest sectors, and per‑event charts.
 
 ### 📡 Infrastructure
 
-- **Firebase Core** – Firestore (database), Auth (Google/Email login), and Cloud Messaging (instant alerts).
-- **Remote Config** – Allows the app to enter a quiet “Maintenance Mode” when needed, and dynamically controls shop prices without an update.
-- **Modern Android Architecture** – Built with Kotlin, Jetpack Compose, Coroutines, and Flow.
+- **Firebase Core** – Firestore (database), Auth (Google/Email login), Cloud Messaging (FCM), and Remote Config.
+- **Real‑time Everything** – Live updates on the dashboard, leaderboards, shop, and wheel – no manual refreshes needed.
+- **Modern Android Architecture** – Built with Kotlin, Jetpack Compose, Coroutines, Flow, and Coil for a smooth, responsive experience.
 
 ---
 
@@ -100,3 +108,8 @@ It’s a space to play mini‑games, track stats, customise your profile, and ha
 3. Download `google-services.json` and place it in the `app/` directory.
 4. Enable **Firestore Database**, **Authentication** (Google & Email/Password), and **Cloud Messaging**.
 5. Set up **Remote Config** with a `maintenance_mode` flag (optional).
+
+📄 License
+This project is currently unlicensed. All rights are reserved. Unauthorized use, distribution, or access is strictly prohibited.
+
+<p align="center">Made with ❤️ for the people who matter – using Kotlin, Jetpack Compose, and Firebase</p>
