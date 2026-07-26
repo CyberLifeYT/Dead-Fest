@@ -20,7 +20,6 @@ It’s a space to compete, track stats, customise your profile, and survive toge
 
 - **Total Visual Modernisation** – Every screen (Dashboard, Shop, Players, Settings) has been redesigned with a sleek, professional dark‑mode aesthetic and a unified component system.
 - **Runs System** – Play isolated seasons or events. Coins, deaths, and progress are unique to each Run, so you can start fresh without losing your history.
-- **Flappy Dead Arcade** – Take a break and compete for high scores in the built‑in Flappy‑style mini‑game.
 - **Flash Sales** – Timed discounts appear in the Black Market – grab items while they’re cheap!
 - **Voting Box** – Propose and vote on new ideas, games, or features directly inside the app.
 - **Dynamic Leaderboards** – Compete to be the Top Survivor by Coin Wealth or Survival Prowess (Least Deaths).
