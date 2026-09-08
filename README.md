@@ -12,11 +12,29 @@
 [![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)](https://developer.android.com)
 
 **DeadFest** is a real‑time multiplayer mobile experience built for a small, private community.  
-It’s a space to compete, track stats, customise your profile, and survive together – now with a fully self‑hosted media hub, live Telegram sync, and deep community tools.
+It’s a space to compete, track stats, customise your profile, and survive together – now with a fully self‑hosted media hub, Discord integration, and deep community tools.
 
 ---
 
-## 🔄 What’s New in v1.5
+## ⚠️ IMPORTANT ANNOUNCEMENT – PROJECT REBUILD IN PROGRESS
+
+**Survivors, listen up.**
+
+The source project backups have been lost. I am currently **rebuilding DeadFest from the ground up**.
+
+**What this means for you:**
+
+- ✅ **Servers stay online** – The app continues to work. The database, authentication, and all core systems remain operational.
+- ✅ **All data is safe** – Your coins, deaths, titles, themes, progress, and history are **not affected**.
+- ✅ **The event continues** – The apocalypse has **not been stopped**. The current run remains active and fully playable.
+- ⏸️ **App updates delayed** – New features and patches will be paused until the rebuild is complete.
+- 🔄 **No action required** – You can keep playing as normal. Your current version will continue to connect.
+
+I’m working hard to get things back to full speed. Thank you for your patience, survivors. The terminal will rise again stronger than before.
+
+---
+
+## 🔄 What’s New in v1.5 (Latest Stable)
 
 ### 💎 Visual Revolution
 - **High‑End UI Overhaul** – A total redesign with a sleek, high‑contrast design language, layered depth, and glassmorphism accents.
@@ -24,24 +42,23 @@ It’s a space to compete, track stats, customise your profile, and survive toge
 - **Modern Typography** – Refined SansSerif hierarchy for a crisp, industrial feel.
 
 ### 🎬 Media & Utility Hub
-- **"More" Terminal Tab** – A new navigation hub consolidating the Voting Box and Media Feed.
-- **Live Telegram Sync** – Full integration with the private *Dead‑Fest | Media* channel.
+- **"More" Terminal Tab** – A new navigation hub consolidating the Voting Box, Games Hub, and Media Feed.
+- **Discord Media Uplink** – Full integration with the private Dead‑Fest Discord server.
   - **In‑App Media Player** – Watch videos and view photos directly inside the app via Media3 (ExoPlayer). No external apps needed.
-  - **Smart Detection** – Automatically sorts content into Images and Videos by scanning message types and captions.
-- **Portable Termux Bridge** – A specialised Python bridge runs 24/7 on your phone via Termux, making your media feed fully self‑hosted without a PC.
-- **Bridge Cache Acceleration** – Caches media to your phone after the first view; subsequent loads are instant.
-- **Purge Cache Tool** – Remotely clear the bridge’s storage from Settings.
+  - **Smart Detection** – Automatically sorts content into Images and Videos.
+- **Instant Cache** – Media is saved locally after the first view; subsequent loads are instant.
 
 ### 🛠️ Admin & System Operations
-- **Telegram Auth Terminal** – Manage MTProto sessions directly in the app (request login codes, generate permanent session strings).
 - **Advanced Flash Sales** – Set exact duration and discount % (e.g., 20%–90% off); the Black Market updates instantly.
-- **Full Data Restoration** – Restore your entire app state (Users, Sectors, Settings) from a JSON backup file.
-- **Enhanced Security** – Custom Network Security Policy for secure local communication with the Termux bridge.
+- **Full Data Restoration** – Restore your entire app state from a JSON backup file.
+- **Root Overrides** – Grant/revoke assets, manage game modules, and control the economy from the Admin Hub.
 
-### 📡 v1.5.1 Patch – Network Bridge Auto‑Sync
-- **Network Bridge Config** – New section in Admin > Telegram.
-- **IP Broadcasting** – Enter your phone’s local IP and tap **BROADCAST IP**.
-- **Automatic Sync** – All users instantly switch to the new bridge IP via Firestore – no restarts or updates needed.
+### 📡 Latest Patches
+- **Sector Overloads** – Admin-triggered events with 3x–10x coin rewards and disabled revives.
+- **Survival Tax & Bankruptcy** – Dynamic death penalties and economic pressure mechanics.
+- **Games Hub** – Browse all active game modules with detailed intel.
+- **Signal Filtering** – Control exactly which notifications you receive.
+- **20+ New Items** – Titles and Terminal Themes added to the Black Market.
 
 *(Full release notes for every version are on the [Releases page](https://github.com/CyberLifeYT/Dead-Fest/releases).)*
 
@@ -71,33 +88,38 @@ It’s a space to compete, track stats, customise your profile, and survive toge
 - **Virtual Wheel of Fate** – Spin the wheel and let fate decide: coins, status effects, and more. Now with a completely overhauled precise landing engine.
 - **Black Market Shop** – Spend your coins on game‑changing items. Timed **Flash Sales** drop discounts in real time – act fast!
 - **Sectors System** – Dynamic game zones where you track deaths and progress. Visualised on a tactical dashboard.
+- **Sector Overloads** – Admin-triggered dynamic events with 3x–10x coin rewards and disabled revives.
+- **Survival Tax & Bankruptcy** – Dynamic death penalties based on wealth, forced spins, and economic risk.
+- **Lucky Coin** – One-time purchase that doubles your next wheel spin winnings.
 
 ### 👥 Player & Social Features
 
-- **Survivor Identity** – Create your unique profile with a display name, bio, avatar, theme colour, and earnable **Titles**.
+- **Survivor Identity** – Create your unique profile with a display name, bio, avatar, theme, and earnable **Titles**.
+- **Terminal Themes** – Choose from over 11 visual styles including Cyber Blue, Blood Moon, Toxic Hazard, and Sunset Strip.
 - **Encrypted Comms** – Real‑time chat with asymmetric message bubbles and optional persistent history.
 - **Stats & Connectivity** – Coins, deaths, achievements, and titles are always up to date. Export/import your data if needed.
 - **Daily Supply Drops** – Log in after 24 hours to claim a pulsing crate of **+100 Coins** automatically.
+- **Signal Filtering** – Control exactly which notifications you receive (deaths, wheel, shop, broadcasts).
 
 ### 🎬 Media & Self-Hosting
 
-- **Live Telegram Sync** – Your private media channel streams photos and videos straight into the app.
+- **Discord Media Uplink** – Your private Discord channel streams photos and videos straight into the app.
 - **In‑App Playback** – Watch everything with the built‑in Media3 (ExoPlayer) viewer – no switching apps.
-- **Termux Bridge** – A self‑hosted Python server runs on your phone, serving media to everyone without a PC.
 - **Instant Cache** – Media is saved locally after the first view for lightning‑fast reloads.
-- **Network Bridge Auto‑Sync** – Admins can broadcast their bridge IP; all users instantly connect to the correct address.
+- **Real-time Deletion Sync** – Deleting a message in Discord instantly removes it from the app.
 
 ### 🗳️ Community & Competition
 
 - **The Voting Box** – Submit and upvote ideas for future updates, mini‑games, or DLC. Your voice shapes the apocalypse.
 - **Dynamic Leaderboards** – Two ranking categories: **Top Survivor (Wealth)** and **Survival Prowess (Least Deaths)**.
 - **Hall of Fame** – A cinematic timeline of past runs, complete with historical MVPs, deadliest sectors, and per‑event charts.
+- **Games Hub** – Browse all active game modules with detailed intel and capacity logs.
 
 ### 📡 Infrastructure
 
 - **Firebase Core** – Firestore (database), Auth (Google/Email login), Cloud Messaging (FCM), and Remote Config.
 - **Real‑time Everything** – Live updates on the dashboard, leaderboards, shop, wheel, and media feed – no manual refreshes needed.
-- **Admin Over‑the‑Air Control** – Broadcast new bridge IPs, toggle features, and push updates without user intervention.
+- **Admin Over‑the‑Air Control** – Toggle features, trigger flash sales, and push updates without user intervention.
 - **Modern Android Architecture** – Built with Kotlin, Jetpack Compose, Coroutines, Flow, Coil, and Media3.
 
 ---
@@ -115,7 +137,7 @@ It’s a space to compete, track stats, customise your profile, and survive toge
 | Authentication       | Firebase Auth (Google, Email/Password)|
 | Push Notifications   | Firebase Cloud Messaging (FCM)        |
 | Feature Flags        | Firebase Remote Config                |
-| Self‑Hosted Bridge   | Python + Termux                       |
+| Media Hosting        | Discord + Cloudinary                  |
 | Build System         | Gradle (Kotlin DSL)                   |
 
 ---
@@ -129,7 +151,6 @@ It’s a space to compete, track stats, customise your profile, and survive toge
 - Android Studio Hedgehog (2023.1.1) or newer
 - A Firebase project with Firestore, Auth, FCM, and Remote Config enabled
 - A physical or emulated Android device running API 26+
-- (For media hosting) Termux installed on the admin’s phone with the Python bridge script
 
 ### Firebase Setup
 
