@@ -1,161 +1,125 @@
-# DeadFest 🎮💀
+DeadFest 🎮💀
+⚠️ PRIVATE APP – FRIENDS & FAMILY ONLY
+This application is strictly for my personal circle of friends and family.
+Do not download, install, or attempt to use it.
+Unauthorized access will result in an immediate and permanent IP ban, and may lead to further action.
+If you’re not personally invited, you are not welcome here.
 
-> ⚠️ **PRIVATE APP – FRIENDS & FAMILY ONLY**  
-> This application is strictly for my personal circle of friends and family.  
-> **Do not download, install, or attempt to use it.**  
-> Unauthorized access will result in an **immediate and permanent IP ban**, and may lead to further action.  
-> If you’re not personally invited, you are not welcome here.
+Kotlin Jetpack Compose Firebase Platform Version APK
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.0-blueviolet?logo=kotlin)](https://kotlinlang.org)
-[![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
-[![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
-[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)](https://developer.android.com)
+DeadFest is a real‑time multiplayer survival companion built for a small, private community.
+Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
 
-**DeadFest** is a real‑time multiplayer mobile experience built for a small, private community.  
-It’s a space to compete, track stats, customise your profile, and survive together – now with a fully self‑hosted media hub, Discord integration, and deep community tools.
+✅ PROJECT STATUS – REBUILD COMPLETE
+Survivors, the terminal has risen.
 
----
+The original source was lost to a failed hard drive, so DeadFest was rebuilt from scratch (v2.0.0) while the event kept running. The rebuild is now complete and receiving regular updates.
 
-## ⚠️ IMPORTANT ANNOUNCEMENT – PROJECT REBUILD IN PROGRESS
+✅ All data survived – coins, deaths, titles and history were never affected.
+✅ The event never stopped – the current run stays live.
+✅ Updates are back – new versions arrive in‑app (update prompt / Settings → System Updates).
+🪶 Built for every phone – small APK, Performance Mode, and live data that disconnects in the background to save battery.
+🔄 What’s New
+v2.0.6 – Presence, Images & Battery
+🟢 Live Online/Offline Status – You're online while the app is open and offline the moment you leave. Crashed or lost signal? You drop offline within ~2.5 minutes. Shown on Players ("last seen 5m ago"), the Dashboard, the Admin Live Dashboard and the home‑screen widget.
+🖼️ Images Gallery (More → Images) – Share photos with every survivor. Auto‑rotated, compressed, thumbnails for fast scrolling, full‑screen pinch‑to‑zoom, uploader/admin delete, offline uploads queued.
+🔋 Battery Optimisation Setting – One‑time first‑launch prompt + Settings → System → Background Activity, so alerts and updates aren't delayed by battery savers.
+v2.0.5 – The Economy Update
+💰 Daily Rations – Claim free coins once a day (50, or 100 with the permanent Ration Upgrade). Survive a full day for bonus XP.
+💀 Casualty Tax – Every death costs coins: 30% (>5,000), 20% (>1,000), 15% (>500), or a flat 25.
+📉 Bankruptcy Levels 1 & 2 – Hit 0 coins and payouts are halved; die again while broke and you must clear penalty spins to escape.
+🎡 Forced Spin Protocol – Every death adds a pending penalty spin on the Wheel.
+🤝 Mutual Survival Reward – When someone dies, everyone else gets paid.
+🎟️ Scratch Cards – Instant‑win mini‑game with coins, Shields and Lucky Coins.
+🛡️ Insurance Policy – Absorbs 50% of your next casualty tax.
+🏦 Wealth Insulation – Four permanent tiers cutting your tax by up to 100%.
+⭐ Levels, XP & Prestige – Earn XP from everything; unlock badge colours, avatar frames and titles; prestige at level 50.
+📡 Admin Live Event Dashboard – Real‑time online count, death rate, overloads, pending spins, wealth distribution and bankruptcy tracker.
+v2.0.4 – Smoother & Stronger
+Faster, smaller (3.7 MB) and battery‑friendly; Performance Mode for low‑end phones.
+Shop items and Wheel payouts fully working (Shield, Curse, Revive, Lucky Coin).
+Dozens of crash and logic fixes; new consistent design across every screen.
+(Full release notes for every version are on the Releases page.)
 
-**Survivors, listen up.**
+📖 Table of Contents
+Features
+🎮 Gameplay & Economy
+👥 Player & Social Features
+🗳️ Community & Competition
+🛡️ Admin Override Suite
+📡 Infrastructure
+Tech Stack
+Getting Started (Invited Users Only)
+Contributing
+License
+✨ Features
+🎮 Gameplay & Economy
+Sectors System – Game zones where every death is recorded to a specific sector, shown on a tactical dashboard.
+Casualty Tax – Wealth‑based death penalty calculated from your live balance.
+Bankruptcy & Forced Spins – Economic pressure with escalating penalties and a live pending‑spin counter.
+Wheel of Fate – Weighted spins (decimal odds for ultra‑rare loot) that really give or take coins; penalty spins when you owe the Wheel.
+Scratch Cards – Instant prizes using the same odds engine as the Wheel.
+Black Market – Shield, Curse, Double Curse, Revive, Lucky Coin, Insurance, Ration Upgrade, Wealth Insulation tiers and Titles.
+Daily Rations – Free daily coins with a live countdown.
+Sector Overloads – Admin‑triggered events with multipliers and optional timers.
+Runs (Seasons) – Archive a season and reset coins, deaths and penalties; levels and permanent upgrades carry over.
+👥 Player & Social Features
+Survivor Identity – Display name, avatar, badge colour, avatar frame and earnable Titles.
+Levels, XP & Prestige – A long‑term progression track with cosmetic rewards and a permanent prestige badge.
+Live Presence – See who's in the app right now and when others were last seen.
+Images Gallery – A shared photo wall for the whole community.
+Survivor Dossiers – Tap any survivor for deaths per sector, coins, level, gear, bankruptcy and status.
+Feed & Alert Filters – Choose which events show in your live ticker and push notifications.
+🗳️ Community & Competition
+Leaderboards – Wealth (most coins) and Survival Prowess (fewest deaths).
+Wasteland Archives – Past seasons with champions and full standings.
+Live Ticker – Deaths, purchases, spins, scratches, level‑ups and image shares as they happen.
+🛡️ Admin Override Suite
+Live Event Dashboard – Online count, deaths/minute, overloads, pending spins, wealth chart, bankruptcy and insulation tracker.
+Shop & Economy Control – Enable/disable and price every item, tune insurance, rations, survival reward and insulation tiers.
+Scratch & Wheel Editors – Prize pools with decimal weights and live odds.
+XP & Levels – Configure every XP source and the level curve.
+Player Control – Coins, death injection (full tax pipeline), admin rights, clear penalties.
+System Switches – Market, Wheel, Revives, Lockdown, firmware publishing (with forced updates) and broadcasts.
+📡 Infrastructure
+Firebase Core – Firestore (database + image storage), Auth (Email/Password) and Cloud Messaging (FCM).
+Real‑time Everything – Live dashboard, leaderboards, shop, wheel, presence and gallery – no manual refreshes.
+Transaction‑Safe Economy – Every coin, death and XP change runs in a Firestore transaction on live data.
+Low‑End Friendly – R8‑shrunk 3.8 MB APK, Performance Mode, lifecycle‑aware listeners, no background service.
+In‑App OTA Updates – Progress dialog and automatic installer handoff.
+Home Screen Widget – Global eliminations, online survivors and overload status.
+🧰 Tech Stack
+Category	Technology
+Platform	Android 7.0+ (minSdk 24, targetSdk 37)
+Language	Kotlin 2.2
+UI Framework	Jetpack Compose + Material 3
+Reactive Layer	Kotlin Coroutines + Flow
+Architecture	ViewModel + Repository, pure domain rules
+Backend / Database	Firebase Firestore
+Image Sharing	Firestore blobs (thumbnail + full image)
+Authentication	Firebase Auth (Email/Password)
+Push Notifications	Firebase Cloud Messaging (FCM)
+Testing	JUnit (economy & presence rules)
+Build System	Gradle (Kotlin DSL), R8
+🚀 Getting Started (Invited Users Only)
+This section is only relevant for the handful of people who have explicit permission to run the app.
 
-The source project backups have been lost. I am currently **rebuilding DeadFest from the ground up**.
+Prerequisites
+A recent Android Studio (with the bundled JBR / JDK 17+)
+A Firebase project with Firestore, Auth and FCM enabled
+A physical or emulated Android device running Android 7.0 (API 24) or newer
+Firebase Setup
+Create a Firebase project at console.firebase.google.com.
+Register the Android app with the package name com.deadfest.
+Download google-services.json and place it in the app/ directory.
+Enable Firestore Database, Authentication (Email/Password) and Cloud Messaging.
+Add Firestore rules allowing signed‑in survivors to read/write the images and imageBlobs collections (see the v2.0.6 release notes).
+Build
+./gradlew assembleRelease
+Sign the release APK with the project keystore before distributing it.
 
-**What this means for you:**
+🤝 Contributing
+This is a private project. Contributions are by invitation only.
 
-- ✅ **Servers stay online** – The app continues to work. The database, authentication, and all core systems remain operational.
-- ✅ **All data is safe** – Your coins, deaths, titles, themes, progress, and history are **not affected**.
-- ✅ **The event continues** – The apocalypse has **not been stopped**. The current run remains active and fully playable.
-- ⏸️ **App updates delayed** – New features and patches will be paused until the rebuild is complete.
-- 🔄 **No action required** – You can keep playing as normal. Your current version will continue to connect.
-
-I’m working hard to get things back to full speed. Thank you for your patience, survivors. The terminal will rise again stronger than before.
-
----
-
-## 🔄 What’s New in v1.5 (Latest Stable)
-
-### 💎 Visual Revolution
-- **High‑End UI Overhaul** – A total redesign with a sleek, high‑contrast design language, layered depth, and glassmorphism accents.
-- **Unified Design System** – Every button, card, and header now uses a custom DeadFest component library for 100% consistency.
-- **Modern Typography** – Refined SansSerif hierarchy for a crisp, industrial feel.
-
-### 🎬 Media & Utility Hub
-- **"More" Terminal Tab** – A new navigation hub consolidating the Voting Box, Games Hub, and Media Feed.
-- **Discord Media Uplink** – Full integration with the private Dead‑Fest Discord server.
-  - **In‑App Media Player** – Watch videos and view photos directly inside the app via Media3 (ExoPlayer). No external apps needed.
-  - **Smart Detection** – Automatically sorts content into Images and Videos.
-- **Instant Cache** – Media is saved locally after the first view; subsequent loads are instant.
-
-### 🛠️ Admin & System Operations
-- **Advanced Flash Sales** – Set exact duration and discount % (e.g., 20%–90% off); the Black Market updates instantly.
-- **Full Data Restoration** – Restore your entire app state from a JSON backup file.
-- **Root Overrides** – Grant/revoke assets, manage game modules, and control the economy from the Admin Hub.
-
-### 📡 Latest Patches
-- **Sector Overloads** – Admin-triggered events with 3x–10x coin rewards and disabled revives.
-- **Survival Tax & Bankruptcy** – Dynamic death penalties and economic pressure mechanics.
-- **Games Hub** – Browse all active game modules with detailed intel.
-- **Signal Filtering** – Control exactly which notifications you receive.
-- **20+ New Items** – Titles and Terminal Themes added to the Black Market.
-
-*(Full release notes for every version are on the [Releases page](https://github.com/CyberLifeYT/Dead-Fest/releases).)*
-
----
-
-## 📖 Table of Contents
-
-- [Features](#-features)
-  - [🎮 Gameplay & Interactive Elements](#-gameplay--interactive-elements)
-  - [👥 Player & Social Features](#-player--social-features)
-  - [🎬 Media & Self-Hosting](#-media--self-hosting)
-  - [🗳️ Community & Competition](#-community--competition)
-  - [📡 Infrastructure](#-infrastructure)
-- [Tech Stack](#-tech-stack)
-- [Getting Started (Invited Users Only)](#-getting-started-invited-users-only)
-- [Contributing](#-contributing)
-- [License](#-license)
-
----
-
-## ✨ Features
-
-### 🎮 Gameplay & Interactive Elements
-
-- **Runs (Seasons)** – Take part in isolated events where your coins, deaths, and progress stay separate. Perfect for fresh starts without resetting your profile.
-- **Flappy Dead Mini‑Game** – The arcade is live! Dodge pipes and chase high scores directly inside DeadFest.
-- **Virtual Wheel of Fate** – Spin the wheel and let fate decide: coins, status effects, and more. Now with a completely overhauled precise landing engine.
-- **Black Market Shop** – Spend your coins on game‑changing items. Timed **Flash Sales** drop discounts in real time – act fast!
-- **Sectors System** – Dynamic game zones where you track deaths and progress. Visualised on a tactical dashboard.
-- **Sector Overloads** – Admin-triggered dynamic events with 3x–10x coin rewards and disabled revives.
-- **Survival Tax & Bankruptcy** – Dynamic death penalties based on wealth, forced spins, and economic risk.
-- **Lucky Coin** – One-time purchase that doubles your next wheel spin winnings.
-
-### 👥 Player & Social Features
-
-- **Survivor Identity** – Create your unique profile with a display name, bio, avatar, theme, and earnable **Titles**.
-- **Terminal Themes** – Choose from over 11 visual styles including Cyber Blue, Blood Moon, Toxic Hazard, and Sunset Strip.
-- **Encrypted Comms** – Real‑time chat with asymmetric message bubbles and optional persistent history.
-- **Stats & Connectivity** – Coins, deaths, achievements, and titles are always up to date. Export/import your data if needed.
-- **Daily Supply Drops** – Log in after 24 hours to claim a pulsing crate of **+100 Coins** automatically.
-- **Signal Filtering** – Control exactly which notifications you receive (deaths, wheel, shop, broadcasts).
-
-### 🎬 Media & Self-Hosting
-
-- **Discord Media Uplink** – Your private Discord channel streams photos and videos straight into the app.
-- **In‑App Playback** – Watch everything with the built‑in Media3 (ExoPlayer) viewer – no switching apps.
-- **Instant Cache** – Media is saved locally after the first view for lightning‑fast reloads.
-- **Real-time Deletion Sync** – Deleting a message in Discord instantly removes it from the app.
-
-### 🗳️ Community & Competition
-
-- **The Voting Box** – Submit and upvote ideas for future updates, mini‑games, or DLC. Your voice shapes the apocalypse.
-- **Dynamic Leaderboards** – Two ranking categories: **Top Survivor (Wealth)** and **Survival Prowess (Least Deaths)**.
-- **Hall of Fame** – A cinematic timeline of past runs, complete with historical MVPs, deadliest sectors, and per‑event charts.
-- **Games Hub** – Browse all active game modules with detailed intel and capacity logs.
-
-### 📡 Infrastructure
-
-- **Firebase Core** – Firestore (database), Auth (Google/Email login), Cloud Messaging (FCM), and Remote Config.
-- **Real‑time Everything** – Live updates on the dashboard, leaderboards, shop, wheel, and media feed – no manual refreshes needed.
-- **Admin Over‑the‑Air Control** – Toggle features, trigger flash sales, and push updates without user intervention.
-- **Modern Android Architecture** – Built with Kotlin, Jetpack Compose, Coroutines, Flow, Coil, and Media3.
-
----
-
-## 🧰 Tech Stack
-
-| Category             | Technology                            |
-|----------------------|---------------------------------------|
-| Language             | Kotlin                                |
-| UI Framework         | Jetpack Compose                       |
-| Reactive Layer       | Kotlin Coroutines + Flow              |
-| Image Loading        | Coil                                  |
-| Media Playback       | Media3 (ExoPlayer)                    |
-| Backend / Database   | Firebase Firestore                    |
-| Authentication       | Firebase Auth (Google, Email/Password)|
-| Push Notifications   | Firebase Cloud Messaging (FCM)        |
-| Feature Flags        | Firebase Remote Config                |
-| Media Hosting        | Discord + Cloudinary                  |
-| Build System         | Gradle (Kotlin DSL)                   |
-
----
-
-## 🚀 Getting Started (Invited Users Only)
-
-*This section is only relevant for the handful of people who have explicit permission to run the app.*
-
-### Prerequisites
-
-- Android Studio Hedgehog (2023.1.1) or newer
-- A Firebase project with Firestore, Auth, FCM, and Remote Config enabled
-- A physical or emulated Android device running API 26+
-
-### Firebase Setup
-
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
-2. Register the Android app with the correct package name.
-3. Download `google-services.json` and place it in the `app/` directory.
-4. Enable **Firestore Database**, **Authentication** (Google & Email/Password), and **Cloud Messaging**.
-5. Set up **Remote Config** with a `maintenance_mode` flag (optional).
+📄 License
+All rights reserved. Not licensed for public use or redistribution.
