@@ -1,0 +1,13 @@
+# Build output & IDE
+build/
+.gradle/
+.kotlin/
+.idea/
+*.iml
+local.properties
+captures/
+# Secrets - keep a private backup of these!
+app/google-services.json
+*.jks
+*.keystore
+*.apk

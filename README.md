@@ -4,25 +4,25 @@
 > This application is strictly for my personal circle of friends and family.  
 > **Do not download, install, or attempt to use it.**  
 > Unauthorized access will result in an **immediate and permanent IP ban**, and may lead to further action.  
-> If you're not personally invited, you are not welcome here.
+> If you’re not personally invited, you are not welcome here.
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blueviolet?logo=kotlin)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
-[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.6-blue)](https://github.com/CyberLifeYT/Dead-Fest/releases)
-[![APK](https://img.shields.io/badge/APK-3.9%20MB-brightgreen)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
+[![Version](https://img.shields.io/badge/Version-2.0.6-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![APK](https://img.shields.io/badge/APK-3.8%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
 Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
 
 ---
 
-## ✅ Project Status – Rebuild Complete
+## ✅ PROJECT STATUS – REBUILD COMPLETE
 
-Survivors, the terminal has risen.
+**Survivors, the terminal has risen.**
 
-The original source was lost to a failed hard drive, so DeadFest was rebuilt from scratch (v2.0.0) while the event kept running. The rebuild is now complete and receiving regular updates.
+The original source was lost to a failed hard drive, so DeadFest was **rebuilt from scratch** (v2.0.0) while the event kept running. The rebuild is now complete and receiving regular updates.
 
 - ✅ **All data survived** – coins, deaths, titles and history were never affected.
 - ✅ **The event never stopped** – the current run stays live.
@@ -31,29 +31,26 @@ The original source was lost to a failed hard drive, so DeadFest was rebuilt fro
 
 ---
 
-## 🔄 What's New
+## 🔄 What’s New
 
 ### v2.0.6 – Presence, Images & Battery
-
-- 🟢 **Live Online/Offline Status** – You're online while the app is open and offline the moment you leave. Crashed or lost signal? You drop offline within ~2.5 minutes. Shown on Players ("last seen 5m ago"), the Dashboard, the Admin Live Dashboard and the home‑screen widget.
-- 🖼️ **Images Gallery** (More → Images) – Share photos with every survivor. Auto‑rotated, compressed, thumbnails for fast scrolling, full‑screen pinch‑to‑zoom, uploader/admin delete, offline uploads queued.
-- 🔋 **Battery Optimisation Setting** – One‑time first‑launch prompt + Settings → System → Background Activity, so alerts and updates aren't delayed by battery savers.
+- **🟢 Live Online/Offline Status** – You're **online** while the app is open and **offline** the moment you leave. Crashed or lost signal? You drop offline within ~2.5 minutes. Shown on Players ("last seen 5m ago"), the Dashboard, the Admin Live Dashboard and the home‑screen widget.
+- **🖼️ Images Gallery** (More → Images) – Share photos with every survivor. Auto‑rotated, compressed, thumbnails for fast scrolling, full‑screen pinch‑to‑zoom, uploader/admin delete, offline uploads queued.
+- **🔋 Battery Optimisation Setting** – One‑time first‑launch prompt + Settings → System → Background Activity, so alerts and updates aren't delayed by battery savers.
 
 ### v2.0.5 – The Economy Update
-
-- 💰 **Daily Rations** – Claim free coins once a day (50, or 100 with the permanent Ration Upgrade). Survive a full day for bonus XP.
-- 💀 **Casualty Tax** – Every death costs coins: 30% (>5,000), 20% (>1,000), 15% (>500), or a flat 25.
-- 📉 **Bankruptcy Levels 1 & 2** – Hit 0 coins and payouts are halved; die again while broke and you must clear penalty spins to escape.
-- 🎡 **Forced Spin Protocol** – Every death adds a pending penalty spin on the Wheel.
-- 🤝 **Mutual Survival Reward** – When someone dies, everyone else gets paid.
-- 🎟️ **Scratch Cards** – Instant‑win mini‑game with coins, Shields and Lucky Coins.
-- 🛡️ **Insurance Policy** – Absorbs 50% of your next casualty tax.
-- 🏦 **Wealth Insulation** – Four permanent tiers cutting your tax by up to 100%.
-- ⭐ **Levels, XP & Prestige** – Earn XP from everything; unlock badge colours, avatar frames and titles; prestige at level 50.
-- 📡 **Admin Live Event Dashboard** – Real‑time online count, death rate, overloads, pending spins, wealth distribution and bankruptcy tracker.
+- **💰 Daily Rations** – Claim free coins once a day (50, or 100 with the permanent **Ration Upgrade**). Survive a full day for bonus XP.
+- **💀 Casualty Tax** – Every death costs coins: 30% (>5,000), 20% (>1,000), 15% (>500), or a flat 25.
+- **📉 Bankruptcy Levels 1 & 2** – Hit 0 coins and payouts are halved; die again while broke and you must clear penalty spins to escape.
+- **🎡 Forced Spin Protocol** – Every death adds a pending penalty spin on the Wheel.
+- **🤝 Mutual Survival Reward** – When someone dies, everyone else gets paid.
+- **🎟️ Scratch Cards** – Instant‑win mini‑game with coins, Shields and Lucky Coins.
+- **🛡️ Insurance Policy** – Absorbs 50% of your next casualty tax.
+- **🏦 Wealth Insulation** – Four permanent tiers cutting your tax by up to 100%.
+- **⭐ Levels, XP & Prestige** – Earn XP from everything; unlock badge colours, avatar frames and titles; prestige at level 50.
+- **📡 Admin Live Event Dashboard** – Real‑time online count, death rate, overloads, pending spins, wealth distribution and bankruptcy tracker.
 
 ### v2.0.4 – Smoother & Stronger
-
 - Faster, smaller (3.7 MB) and battery‑friendly; Performance Mode for low‑end phones.
 - Shop items and Wheel payouts fully working (Shield, Curse, Revive, Lucky Coin).
 - Dozens of crash and logic fixes; new consistent design across every screen.
@@ -93,7 +90,7 @@ The original source was lost to a failed hard drive, so DeadFest was rebuilt fro
 
 ### 👥 Player & Social Features
 
-- **Survivor Identity** – Display name, avatar, badge colour, avatar frame and earnable Titles.
+- **Survivor Identity** – Display name, avatar, badge colour, avatar frame and earnable **Titles**.
 - **Levels, XP & Prestige** – A long‑term progression track with cosmetic rewards and a permanent prestige badge.
 - **Live Presence** – See who's in the app right now and when others were last seen.
 - **Images Gallery** – A shared photo wall for the whole community.
@@ -102,7 +99,7 @@ The original source was lost to a failed hard drive, so DeadFest was rebuilt fro
 
 ### 🗳️ Community & Competition
 
-- **Leaderboards** – Wealth (most coins) and Survival Prowess (fewest deaths).
+- **Leaderboards** – **Wealth** (most coins) and **Survival Prowess** (fewest deaths).
 - **Wasteland Archives** – Past seasons with champions and full standings.
 - **Live Ticker** – Deaths, purchases, spins, scratches, level‑ups and image shares as they happen.
 
@@ -128,19 +125,19 @@ The original source was lost to a failed hard drive, so DeadFest was rebuilt fro
 
 ## 🧰 Tech Stack
 
-| Category             | Technology                              |
-|----------------------|-----------------------------------------|
-| Platform             | Android 7.0+ (minSdk 24, targetSdk 37)  |
-| Language             | Kotlin 2.2                              |
-| UI Framework         | Jetpack Compose + Material 3            |
-| Reactive Layer       | Kotlin Coroutines + Flow                |
-| Architecture         | ViewModel + Repository, pure domain rules |
-| Backend / Database   | Firebase Firestore                      |
-| Image Sharing        | Firestore blobs (thumbnail + full image)|
-| Authentication       | Firebase Auth (Email/Password)          |
-| Push Notifications   | Firebase Cloud Messaging (FCM)          |
-| Testing              | JUnit (economy & presence rules)        |
-| Build System         | Gradle (Kotlin DSL), R8                 |
+| Category             | Technology                                   |
+|----------------------|----------------------------------------------|
+| Platform             | Android 7.0+ (minSdk 24, targetSdk 37)       |
+| Language             | Kotlin 2.2                                   |
+| UI Framework         | Jetpack Compose + Material 3                 |
+| Reactive Layer       | Kotlin Coroutines + Flow                     |
+| Architecture         | ViewModel + Repository, pure domain rules    |
+| Backend / Database   | Firebase Firestore                           |
+| Image Sharing        | Firestore blobs (thumbnail + full image)     |
+| Authentication       | Firebase Auth (Email/Password)               |
+| Push Notifications   | Firebase Cloud Messaging (FCM)               |
+| Testing              | JUnit (economy & presence rules)             |
+| Build System         | Gradle (Kotlin DSL), R8                      |
 
 ---
 
@@ -150,9 +147,9 @@ The original source was lost to a failed hard drive, so DeadFest was rebuilt fro
 
 ### Prerequisites
 
-- A recent **Android Studio** (with the bundled JBR / JDK 17+)
-- A **Firebase project** with Firestore, Auth and FCM enabled
-- A physical or emulated Android device running **Android 7.0 (API 24)** or newer
+- A recent Android Studio (with the bundled JBR / JDK 17+)
+- A Firebase project with Firestore, Auth and FCM enabled
+- A physical or emulated Android device running Android 7.0 (API 24) or newer
 
 ### Firebase Setup
 
@@ -160,12 +157,22 @@ The original source was lost to a failed hard drive, so DeadFest was rebuilt fro
 2. Register the Android app with the package name `com.deadfest`.
 3. Download `google-services.json` and place it in the `app/` directory.
 4. Enable **Firestore Database**, **Authentication** (Email/Password) and **Cloud Messaging**.
-5. Add Firestore rules allowing signed‑in survivors to read/write the `images` and `imageBlobs` collections (see the [v2.0.6 release notes](https://github.com/CyberLifeYT/Dead-Fest/releases)).
+5. Add Firestore rules allowing signed‑in survivors to read/write the `images` and `imageBlobs` collections (see the v2.0.6 release notes).
+
+### Build
+
+```bash
+./gradlew assembleRelease
+```
 
 Sign the release APK with the project keystore before distributing it.
 
-🤝 Contributing
+---
+
+## 🤝 Contributing
+
 This is a private project. Contributions are by invitation only.
 
-📄 License
+## 📄 License
+
 All rights reserved. Not licensed for public use or redistribution.
