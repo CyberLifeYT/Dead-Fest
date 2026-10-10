@@ -1,10 +1,9 @@
 # DeadFest 🎮💀
 
-> ⚠️ **PRIVATE APP – FRIENDS & FAMILY ONLY**  
-> This application is strictly for my personal circle of friends and family.  
-> **Do not download, install, or attempt to use it.**  
-> Unauthorized access will result in an **immediate and permanent IP ban**, and may lead to further action.  
-> If you’re not personally invited, you are not welcome here.
+> ⚠️ **THE OFFICIAL DEAD-FEST SERVER IS PRIVATE – FRIENDS & FAMILY ONLY**  
+> The official app and its database are strictly for my personal circle of friends and family.  
+> **Do not try to join, sign in to, or install the official build.** Unauthorized access will result in an **immediate and permanent IP ban**.  
+> The **source code** is published so it can never be lost again – and so you can [build and host **your own** private copy](#-host-your-own-dead-fest-full-guide) with your own Firebase project.
 
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-blueviolet?logo=kotlin)](https://kotlinlang.org)
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
@@ -68,7 +67,19 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
   - [🛡️ Admin Override Suite](#️-admin-override-suite)
   - [📡 Infrastructure](#-infrastructure)
 - [Tech Stack](#-tech-stack)
-- [Getting Started (Invited Users Only)](#-getting-started-invited-users-only)
+- [Host Your Own Dead-Fest (Full Guide)](#-host-your-own-dead-fest-full-guide)
+  - [1. What You Need](#1-what-you-need)
+  - [2. Download the Source](#2-download-the-source)
+  - [3. Create Your Firebase Project](#3-create-your-firebase-project)
+  - [4. Get google-services.json](#4-get-google-servicesjson)
+  - [5. Firestore Security Rules](#5-firestore-security-rules)
+  - [6. Build & Run](#6-build--run)
+  - [7. Make Yourself Admin & Set Up the Game](#7-make-yourself-admin--set-up-the-game)
+  - [8. Sign & Distribute (Deploy)](#8-sign--distribute-deploy)
+  - [9. Publishing Updates (OTA)](#9-publishing-updates-ota)
+  - [10. Editing the App](#10-editing-the-app)
+  - [11. Costs & Limits](#11-costs--limits)
+  - [12. Troubleshooting](#12-troubleshooting)
 - [Contributing](#-contributing)
 - [License](#-license)
 
@@ -141,31 +152,236 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ---
 
-## 🚀 Getting Started (Invited Users Only)
+## 🚀 Host Your Own Dead-Fest (Full Guide)
 
-*This section is only relevant for the handful of people who have explicit permission to run the app.*
+Want to run Dead-Fest for **your own** group? The app has **no server of its own to host**. Everything runs on Firebase (Google's backend), and the free tier is plenty for a friends-and-family group. You build the Android app, connect it to *your* Firebase project, and share the APK with your people.
 
-### Prerequisites
+> **Your copy is completely separate.** It has its own database, accounts and admins. It never connects to the official Dead-Fest server.
 
-- A recent Android Studio (with the bundled JBR / JDK 17+)
-- A Firebase project with Firestore, Auth and FCM enabled
-- A physical or emulated Android device running Android 7.0 (API 24) or newer
+### 1. What You Need
 
-### Firebase Setup
+| Thing | Why | Cost |
+|-------|-----|------|
+| A computer (Windows, macOS or Linux) | To build the app | – |
+| [Android Studio](https://developer.android.com/studio) (latest) | Editing + building (includes the JDK and Android SDK) | Free |
+| A Google account | For Firebase | Free |
+| A Firebase project | Database, logins, push notifications | Free (Spark plan) |
+| An Android phone (Android 7.0+) or the Android Studio emulator | Testing | – |
+| [Git](https://git-scm.com/downloads) *(optional)* | Cloning and keeping your copy updated | Free |
 
-1. Create a Firebase project at [console.firebase.google.com](https://console.firebase.google.com).
-2. Register the Android app with the package name `com.deadfest`.
-3. Download `google-services.json` and place it in the `app/` directory.
-4. Enable **Firestore Database**, **Authentication** (Email/Password) and **Cloud Messaging**.
-5. Add Firestore rules allowing signed‑in survivors to read/write the `images` and `imageBlobs` collections (see the v2.0.6 release notes).
+### 2. Download the Source
 
-### Build
-
+**Option A: Git (recommended)**
 ```bash
-./gradlew assembleRelease
+git clone https://github.com/CyberLifeYT/Dead-Fest.git
+cd Dead-Fest
 ```
 
-Sign the release APK with the project keystore before distributing it.
+**Option B: ZIP.** On the GitHub page click **Code → Download ZIP**, then extract it.
+
+Then open Android Studio → **File → Open** → select the `Dead-Fest` folder. Let Gradle sync finish; the first sync downloads dependencies and can take several minutes.
+
+> The project will **not build yet**. It needs your own `google-services.json` (step 4). That file is deliberately **not** in this repo.
+
+### 3. Create Your Firebase Project
+
+1. Go to the **[Firebase console](https://console.firebase.google.com)** → **Add project** → give it a name, e.g. `my-deadfest`. Google Analytics is optional.
+2. **Authentication:** go to Build → **Authentication** → Get started → **Sign-in method** → enable **Email/Password**.
+3. **Firestore:** go to Build → **Firestore Database** → **Create database**. Pick a location close to your players (this can't be changed later). Start in **production mode**; you'll paste the rules in step 5.
+4. **Cloud Messaging** (push notifications) is enabled automatically. Nothing to do.
+
+> You do **not** need Cloud Storage, Realtime Database or the paid Blaze plan. Shared images are stored inside Firestore.
+
+### 4. Get `google-services.json`
+
+This file tells the app which Firebase project to talk to.
+
+1. In the Firebase console, open ⚙️ **Project settings** → **General** → **Your apps** → click the **Android** icon.
+2. **Android package name:** enter **`com.deadfest`**.
+   - Want a different package name (for example, to install alongside another copy)? Change `namespace` and `applicationId` in `app/build.gradle.kts` **and** the `com.deadfest.provider` authority in `AndroidManifest.xml` and `UpdateManager.kt` to match, then register *that* name instead.
+3. Nickname and SHA-1 are optional (email login doesn't need SHA-1). Click **Register app**.
+4. Click **Download google-services.json**.
+5. Put the file at **`app/google-services.json`**, inside the `app` folder, next to `build.gradle.kts`.
+6. In Android Studio: **File → Sync Project with Gradle Files**.
+
+> 🔒 **Never commit `google-services.json` to a public repo.** It's already in `.gitignore`. Keep a backup somewhere safe; you can always re-download it from Project settings.
+
+### 5. Firestore Security Rules
+
+In the Firebase console go to **Firestore Database → Rules**, replace everything with the rules below, and click **Publish**. These are sensible starter rules:
+- **Signed-in players** can play the game.
+- **Admins** (users with `admin: true`) can change global settings.
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
+    }
+
+    // Player profiles. Other players' docs must be writable for curses and the
+    // Mutual Survival Reward, but nobody except an admin can change the admin flag.
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == uid
+                    && request.resource.data.get('admin', false) == false;
+      allow update: if signedIn() && (isAdmin()
+                    || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['admin']));
+      allow delete: if isAdmin();
+    }
+
+    // Global game state: everyone reads; admins configure.
+    // Signed-in players may only bump the global death counter.
+    match /gameState/{doc} {
+      allow read: if signedIn();
+      allow write: if isAdmin()
+        || (signedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['grandTotal']));
+    }
+
+    // Live feed
+    match /eventLog/{id} {
+      allow read, create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Admin-managed content
+    match /archives/{id}      { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /scratchPrizes/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /levelRewards/{id}  { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // Shared images (thumbnail doc + full-size blob doc)
+    match /images/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uploaderUid == request.auth.uid
+                    && request.resource.data.thumb.size() < 100 * 1024;
+      allow delete: if signedIn() && (resource.data.uploaderUid == request.auth.uid || isAdmin());
+    }
+    match /imageBlobs/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uploaderUid == request.auth.uid
+                    && request.resource.data.data.size() < 900 * 1024;
+      allow delete: if signedIn() && (resource.data.uploaderUid == request.auth.uid || isAdmin());
+    }
+
+    // Optional / future features
+    match /messages/{id} { allow read, create: if signedIn(); allow delete: if isAdmin(); }
+    match /votes/{id}    { allow read, update: if signedIn(); allow create, delete: if isAdmin(); }
+  }
+}
+```
+
+> These rules trust the app for game logic (coin amounts and so on), which is fine for a group of friends. A determined player with technical skills could still cheat. For stricter control you'd move the economy into Cloud Functions, which needs the Blaze plan.
+
+### 6. Build & Run
+
+**From Android Studio:** plug in your phone (with USB debugging on) or start an emulator, select the `app` configuration, and press ▶ **Run**.
+
+**From the command line** (from the project folder):
+```bash
+# Windows
+gradlew.bat assembleDebug
+# macOS / Linux
+./gradlew assembleDebug
+```
+The debug APK lands in `app/build/outputs/apk/debug/app-debug.apk`.
+
+Run the unit tests (the economy and presence rules):
+```bash
+./gradlew testDebugUnitTest
+```
+
+### 7. Make Yourself Admin & Set Up the Game
+
+1. Open the app → **Sign up** with your email. This creates your document in `users`.
+2. In the Firebase console → **Firestore** → `users` → your document → add or edit the field **`admin`** (boolean) = **`true`**.
+3. Restart the app. An **Admin** tab appears in the bottom bar.
+4. Set up your world from the Admin tab:
+   - **Sectors:** add your games or zones (e.g. "World War Z", "Dying Light").
+   - **Wheel:** add slices (label, coins, give/take, weight, colour).
+   - **Scratch:** tap **LOAD DEFAULTS** for a starter prize pool.
+   - **Shop / Global:** tune prices, daily rations, XP and system switches.
+   - Make other trusted people admins from **Admin → Players**.
+
+> The `gameState/global` document is created automatically the first time an admin saves a setting. Every value has a safe default.
+
+### 8. Sign & Distribute (Deploy)
+
+Release builds must be **signed**. Phones only accept updates signed with the **same key**, so create one key and guard it forever.
+
+1. **Create a keystore** (once): Android Studio → **Build → Generate Signed App Bundle / APK** → **APK** → **Create new…**
+   - Save it somewhere safe *outside* the project, e.g. `deadfest-release.jks`, and **back it up** to cloud storage or a password manager along with the passwords.
+   - ⚠️ **Lose the keystore and no one can ever update the app.** Everyone would have to uninstall and reinstall.
+2. **Build a signed release:** in the same wizard pick your keystore → **release** → **Create**. The APK lands in `app/release/` (about 4 MB, shrunk with R8).
+3. **Share it with your players:**
+   - Upload the APK to a **GitHub Release** in *your* repo (Releases → Draft a new release → attach the APK), or Google Drive, Discord, etc.
+   - Players download it and allow **"Install unknown apps"** for their browser or file manager when Android asks.
+   - Dead-Fest isn't on the Play Store; it's sideloaded.
+
+*(Optional)* Automate signing via `signingConfigs` in `app/build.gradle.kts`, reading the passwords from `local.properties` or environment variables. **Never** commit passwords or the `.jks` file.
+
+### 9. Publishing Updates (OTA)
+
+Dead-Fest updates itself; players never need to re-download manually.
+
+1. Make your changes, then bump **both** `versionCode` (+1) and `versionName` in `app/build.gradle.kts`.
+2. Build a **signed** release APK with the **same keystore**.
+3. Upload it somewhere with a **direct download link**:
+   - **GitHub Release asset:** right-click the asset → copy link. It looks like `https://github.com/<you>/<repo>/releases/download/v2.0.7/DeadFest-v2.0.7.apk`.
+4. In the app: **Admin → Global → Publish Firmware**. Enter the new version code, version name, APK URL and notes, and tick **Force** if the update is mandatory.
+5. Every player gets an **update prompt**. The app downloads the APK with a progress bar and opens the installer.
+
+### 10. Editing the App
+
+| Want to change… | Look in |
+|-----------------|---------|
+| Colours / theme | `app/src/main/java/com/deadfest/ui/theme/` |
+| Shared UI pieces (cards, badges, dialogs) | `ui/components/Common.kt`, `ResultDialogs.kt` |
+| Screens | `ui/screens/` (Home, Players, Shop, Wheel, Scratch, Images, Progression, Admin, Settings…) |
+| Game rules: tax, bankruptcy, XP, odds, daily reset | `domain/Economy.kt` (unit-tested in `app/src/test/`) |
+| Online/offline rules | `domain/Presence.kt` |
+| Shop items, prices, level rewards | `data/model/ShopItem.kt` (prices can also be changed live in Admin → Shop) |
+| Firestore reads/writes & transactions | `data/repository/FirebaseRepository.kt` |
+| App logic and state | `ui/viewmodel/MainViewModel.kt` |
+| App name | `app/src/main/res/values/strings.xml` |
+| App icon | Android Studio → right-click `res` → **New → Image Asset** |
+| Version | `app/build.gradle.kts` (`versionCode`, `versionName`) |
+
+**Tips:**
+- **Test the release build** (`assembleRelease`) before shipping. R8 shrinking can break reflection; Firestore models are already protected in `app/proguard-rules.pro`.
+- **Keep new Firestore models** in `data/model/` so they stay covered by that rule.
+- **Turn on Performance Mode** (Settings → System) to check how the app feels on low-end phones.
+- **Keep your copy updated** with upstream changes: `git pull`.
+
+### 11. Costs & Limits
+
+The Firebase **Spark (free)** plan is enough for a typical group of 5–50 players:
+
+| Limit (free) | What it means here |
+|--------------|-------------------|
+| 1 GiB Firestore storage | Roughly 1,500–3,000 shared images plus all game data |
+| 50,000 reads / day | Comfortable for dozens of active players (listeners only run while the app is open) |
+| 20,000 writes / day | Each death writes once, plus once per other player for the survival reward. Set the reward to 0 in Admin → Shop for very large groups. |
+| Auth, FCM | Free |
+
+Watch usage in the Firebase console → **Usage and billing**. Nothing is charged on Spark; the app just gets errors if you hit a daily limit.
+
+### 12. Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| `File google-services.json is missing` | Put it in `app/` (step 4) and re-sync Gradle. |
+| `No matching client found for package name` | The package name registered in Firebase must exactly match `applicationId` (`com.deadfest`). |
+| "access denied by server rules" in the app | Publish the rules from step 5, and make sure you're signed in. |
+| No Admin tab | Set `admin: true` on your user doc (step 7) and restart the app. |
+| Gradle / JDK errors | Use the latest Android Studio. It bundles the right JDK (File → Settings → Build Tools → Gradle → Gradle JDK = *jbr*). |
+| "App not installed" when updating | The new APK was signed with a different key, or `versionCode` wasn't increased. |
+| Update prompt never appears | `latestVersionCode` in Admin → Global must be **higher** than the installed `versionCode`, and the URL must be a direct `.apk` link. |
+| Notifications don't arrive | Allow notifications when asked (Android 13+), and disable battery optimisation in Settings → System. |
+| Images won't upload | Check the `images` / `imageBlobs` rules (step 5). Very large photos are compressed automatically. |
 
 ---
 
@@ -175,4 +391,4 @@ This is a private project. Contributions are by invitation only.
 
 ## 📄 License
 
-All rights reserved. Not licensed for public use or redistribution.
+All rights reserved. You may build and run a **private, non-commercial** copy for your own friends and family using your own Firebase project. Redistribution, resale or publishing it to app stores is not permitted without permission.
