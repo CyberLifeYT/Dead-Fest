@@ -26,6 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,8 +51,14 @@ private enum class PlayerView(val label: String) { SURVIVORS("Survivors"), WEALT
 private val User.totalDeaths: Long get() = playerData.games.values.sumOf { it.deaths }
 
 @Composable
-private fun PlayerAvatar(player: User, size: Int) =
-    FramedAvatar(player.playerData.avatar, player.playerData.avatarFrame, player.playerData.color, size, player.playerData.onlineNow())
+private fun PlayerAvatar(player: User, size: Int) {
+    val online = player.playerData.onlineNow()
+    // The green presence dot is colour-only, so state it: TalkBack hears "Online" with the row.
+    val presence = if (online) Modifier.semantics { contentDescription = "Online" } else Modifier
+    Box(presence) {
+        FramedAvatar(player.playerData.avatar, player.playerData.avatarFrame, player.playerData.color, size, online)
+    }
+}
 
 /**
  * Survivor network.
@@ -105,7 +114,11 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
                 PillChip(
                     text = option.label,
                     selected = view == option,
-                    onClick = { view = option }
+                    onClick = { view = option },
+                    // ~28dp pills: reserve a 48dp touch target and announce the active lens.
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .semantics { selected = view == option }
                 )
             }
         }

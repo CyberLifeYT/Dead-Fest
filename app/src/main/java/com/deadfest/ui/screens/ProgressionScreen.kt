@@ -15,6 +15,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -182,13 +184,25 @@ private fun LevelHeroCard(
             FramedAvatar(avatar, frame, badgeColor, 56)
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
-                KeyValueRow("Total XP", formatNumber(xp), valueColor = Ember)
+                // Each stat line is one item: the label and its value are announced together.
+                KeyValueRow(
+                    "Total XP",
+                    formatNumber(xp),
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                    valueColor = Ember
+                )
                 KeyValueRow(
                     label = "To next level",
                     value = if (maxed) "MAX LEVEL" else "${formatNumber(toNext)} XP",
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
                     valueColor = if (maxed) Amber else TextHi
                 )
-                KeyValueRow("Prestiges", "$prestige", valueColor = Prestige)
+                KeyValueRow(
+                    "Prestiges",
+                    "$prestige",
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                    valueColor = Prestige
+                )
             }
         }
         Spacer(Modifier.height(Spacing.sm))
@@ -205,7 +219,8 @@ private fun XpRow(icon: ImageVector, label: String, xp: Long) {
             label = label,
             value = "+${formatNumber(xp)} XP",
             valueColor = Amber,
-            modifier = Modifier.weight(1f)
+            // Decorative icon; the row itself is one item: "label, +N XP".
+            modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {}
         )
     }
 }
@@ -225,7 +240,13 @@ private fun PrestigeCard(
             IconTile(Icons.Default.AutoAwesome, tint = if (ready) Prestige else TextLow, size = 44)
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
-                Text("PRESTIGE", color = TextHi, style = DeadFestType.cardTitle)
+                // Prestige is its own block on this screen, so its title reads as a heading.
+                Text(
+                    "PRESTIGE",
+                    color = TextHi,
+                    style = DeadFestType.cardTitle,
+                    modifier = Modifier.semantics { heading() }
+                )
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (ready) "You've hit the cap. Reset to level 1 for a permanent badge."

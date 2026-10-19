@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -143,9 +145,25 @@ fun LoginScreen(viewModel: MainViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Mode switch is a pair of pills, so the current mode is obvious at a glance.
+                // Pills are ~28dp tall: each reserves a 48dp touch target here, and the selected
+                // mode is announced rather than being signalled by colour alone.
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                    PillChip("Log in", isLogin, { isLogin = true; viewModel.resetAuthState() })
-                    PillChip("Sign up", !isLogin, { isLogin = false; viewModel.resetAuthState() })
+                    PillChip(
+                        "Log in",
+                        isLogin,
+                        { isLogin = true; viewModel.resetAuthState() },
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .semantics { selected = isLogin }
+                    )
+                    PillChip(
+                        "Sign up",
+                        !isLogin,
+                        { isLogin = false; viewModel.resetAuthState() },
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .semantics { selected = !isLogin }
+                    )
                 }
                 Spacer(Modifier.height(Spacing.lg))
 

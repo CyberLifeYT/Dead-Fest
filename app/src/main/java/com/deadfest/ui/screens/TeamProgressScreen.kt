@@ -14,12 +14,14 @@ import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Paid
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -204,7 +206,11 @@ private fun SectorBreakdown(sectors: List<Pair<String, Long>>, modifier: Modifie
         sectors.take(8).forEachIndexed { index, (name, deaths) ->
             if (index > 0) Spacer(Modifier.height(Spacing.sm))
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // One sector line: the sector name and its count read as one item.
+                Row(
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         name,
                         color = TextHi,
@@ -271,7 +277,11 @@ private fun LeaderColumn(
         } else {
             entries.forEachIndexed { index, (user, value) ->
                 if (index > 0) Spacer(Modifier.height(Spacing.xs))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // One leaderboard entry: rank, name and value read as a single item.
+                Row(
+                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     RankBadge(index + 1)
                     Spacer(Modifier.width(Spacing.xs))
                     // Two lines: half-width columns ellipsize a name + value on one line.
@@ -375,7 +385,9 @@ private fun SeasonDetail(
                                     text = entry.name,
                                     selected = entry.id == archive.id,
                                     onClick = { onSelect(entry.id) },
-                                    accent = Amber
+                                    accent = Amber,
+                                    // Small pill, but it still needs the 48dp minimum touch target.
+                                    modifier = Modifier.minimumInteractiveComponentSize()
                                 )
                             }
                         }
@@ -398,7 +410,13 @@ private fun SeasonDetail(
                     )
                     archive.champion?.let { champ ->
                         Spacer(Modifier.height(Spacing.xs))
-                        KeyValueRow("Champion", champ.displayName?.takeIf { it.isNotBlank() } ?: "Unknown", valueColor = Amber)
+                        // Label and value stay in one announcement, and this card is not clickable.
+                        KeyValueRow(
+                            "Champion",
+                            champ.displayName?.takeIf { it.isNotBlank() } ?: "Unknown",
+                            modifier = Modifier.semantics(mergeDescendants = true) {},
+                            valueColor = Amber
+                        )
                     }
                     if (archive.notes.isNotBlank()) {
                         Spacer(Modifier.height(Spacing.xs))
@@ -422,7 +440,11 @@ private fun SeasonDetail(
                         sectors.forEachIndexed { index, (name, deaths) ->
                             if (index > 0) Spacer(Modifier.height(Spacing.sm))
                             Column {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                // One sector line: the sector name and its count read as one item.
+                                Row(
+                                    modifier = Modifier.semantics(mergeDescendants = true) {},
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
                                         name,
                                         color = TextHi,
@@ -468,7 +490,12 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
         2 -> Bronze
         else -> null
     }
-    SurfaceCard(accent = medal, padding = Spacing.sm) {
+    // One leaderboard row: rank, survivor details and coins read as a single item.
+    SurfaceCard(
+        modifier = Modifier.semantics(mergeDescendants = true) {},
+        accent = medal,
+        padding = Spacing.sm
+    ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             RankBadge(index + 1)
             Spacer(Modifier.width(Spacing.xs))
@@ -538,7 +565,8 @@ private fun StatGrid(stats: List<StatSpec>, columns: Int = 3) {
                         label = spec.label,
                         value = spec.value,
                         accent = spec.accent,
-                        modifier = Modifier.weight(1f)
+                        // A tile is one item: its label is announced with the value it names.
+                        modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {}
                     )
                 }
                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }

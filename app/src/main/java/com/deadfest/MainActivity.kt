@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -66,6 +67,11 @@ import com.deadfest.ui.components.UpdateDownloader
 import com.deadfest.ui.screens.*
 import com.deadfest.ui.theme.*
 import com.deadfest.ui.viewmodel.MainViewModel
+import com.google.firebase.auth.FirebaseAuth
+import java.util.concurrent.atomic.AtomicBoolean
+
+/** Longest the branded splash may ever stay up, in milliseconds. See [MainActivity.splashHeld]. */
+private const val SPLASH_MAX_MS = 2_000L
 
 class MainActivity : ComponentActivity() {
     // Same instance that viewModel() returns inside setContent (same owner).
@@ -74,7 +80,27 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    /**
+     * True while the splash is deliberately held over the first frame.
+     *
+     * A returning survivor is signed in from a session on disk, but Firebase hands that session
+     * back asynchronously. Without this the app would draw its first frame before the user object
+     * exists — an empty dashboard, and for a split second possibly even the login screen, which
+     * looks like the app has forgotten you. Holding the splash until the user lands removes that
+     * entirely.
+     *
+     * It is bounded twice over: a device with no saved session releases immediately (there is
+     * nothing to wait for), and [SPLASH_MAX_MS] caps the wait so a broken session can never trap
+     * anyone behind a logo.
+     */
+    private val splashHeld = AtomicBoolean(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Must run before super.onCreate() so the splash exists before the window is created.
+        val splash = installSplashScreen()
+        splashHeld.set(FirebaseAuth.getInstance().currentUser != null)
+        splash.setKeepOnScreenCondition { splashHeld.get() }
+
         super.onCreate(savedInstanceState)
         requestNotificationPermissionOnce()
 
@@ -103,6 +129,14 @@ class MainActivity : ComponentActivity() {
                 val viewModel: MainViewModel = viewModel()
                 val user by viewModel.user.collectAsStateWithLifecycle()
                 val performanceMode by viewModel.prefs.performanceMode.collectAsStateWithLifecycle()
+
+                // Hand the screen over the instant the survivor is known — and unconditionally
+                // after SPLASH_MAX_MS, so an expired session can never strand anyone on the logo.
+                LaunchedEffect(user) { if (user != null) splashHeld.set(false) }
+                LaunchedEffect(Unit) {
+                    delay(SPLASH_MAX_MS)
+                    splashHeld.set(false)
+                }
 
                 CompositionLocalProvider(LocalPerformanceMode provides performanceMode) {
                     // One ambient background paints the whole app: the ink base, the ember and
@@ -161,7 +195,12 @@ fun DeadFestApp(viewModel: MainViewModel) {
     // ---- OTA update prompt (force update is enforced here) ----
     var dismissedUpdateCode by rememberSaveable { mutableIntStateOf(0) }
     var downloading by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val updateAvailable = globalState.latestVersionCode > BuildConfig.VERSION_CODE && globalState.updateUrl.isNotBlank()
+    // Which of the two published builds this device wants, resolved to a concrete URL. Resolved
+    // here as well as inside checkUpdate so the prompt and the button can never disagree about
+    // what is about to be installed.
+    val updateVariant by viewModel.prefs.updateVariant.collectAsStateWithLifecycle()
+    val updateUrl = globalState.updateUrlFor(updateVariant)
+    val updateAvailable = globalState.latestVersionCode > BuildConfig.VERSION_CODE && updateUrl.isNotBlank()
     if (downloading != null) {
         UpdateDownloader(
             url = downloading!!.first,
@@ -173,7 +212,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
             versionName = globalState.latestVersionName,
             notes = globalState.updateNotes,
             forced = globalState.forceUpdate,
-            onUpdate = { downloading = globalState.updateUrl to globalState.latestVersionName },
+            onUpdate = { downloading = updateUrl to globalState.latestVersionName },
             onLater = { dismissedUpdateCode = globalState.latestVersionCode }
         )
     }

@@ -2,6 +2,7 @@ package com.deadfest
 
 import com.deadfest.ui.components.countdownParts
 import com.deadfest.ui.components.formatCountdown
+import com.deadfest.ui.components.spokenCountdown
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -91,10 +92,42 @@ class CountdownTest {
         assertEquals("1D 1H 1M", formatCountdown(90_061_000))
     }
 
-    @Test fun compactLabelNeverShowsNegativeNumbers() {
-        for (ms in listOf(1L, 999L, 1_000L, 60_000L, 3_600_000L, 86_400_000L)) {
-            val label = formatCountdown(ms)
-            assertTrue("negative component in '$label'", !label.contains("-"))
+    // ------------------------------------------------------------ spoken form
+
+    @Test fun spokenFormDropsSecondsAndRoundsDown() {
+        assertEquals("Less than a minute to go", spokenCountdown(0))
+        assertEquals("Less than a minute to go", spokenCountdown(59))
+        assertEquals("Starts in 1 minute", spokenCountdown(60))
+        // Seconds are deliberately not spoken: rounding down is what keeps the phrasing stable for
+        // a whole minute, which is the entire point of speaking it coarsely.
+        assertEquals("Starts in 1 minute", spokenCountdown(119))
+        assertEquals("Starts in 2 minutes", spokenCountdown(120))
+        assertEquals("Starts in 1 hour", spokenCountdown(3_600))
+        assertEquals("Starts in 1 hour 1 minute", spokenCountdown(3_660))
+        assertEquals("Starts in 1 day", spokenCountdown(86_400))
+        assertEquals(
+            "Starts in 2 days 5 hours 30 minutes",
+            spokenCountdown(2 * 86_400 + 5 * 3_600 + 30 * 60)
+        )
+    }
+
+    @Test fun spokenFormHoldsStillWhileTheTilesTick() {
+        // Every second inside one minute must read identically. A description that changed every
+        // tick would be rewritten under a focused TalkBack node sixty times a minute.
+        val base = 3_600L + 120L
+        for (second in 0L until 60L) {
+            assertEquals(
+                "tick $second changed the spoken time",
+                "Starts in 1 hour 2 minutes",
+                spokenCountdown(base + second)
+            )
+        }
+    }
+
+    @Test fun spokenFormNeverShowsNegativeNumbers() {
+        for (seconds in listOf(-1L, -60L, -86_400L)) {
+            val spoken = spokenCountdown(seconds)
+            assertTrue("negative component in '$spoken'", !spoken.contains("-"))
         }
     }
 }

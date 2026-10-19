@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -38,6 +39,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -141,8 +146,12 @@ fun ScreenHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onBack != null) {
+                // The tile is 38dp because that is what looks right in the header, but 38dp is under
+                // the 48dp minimum touch target. minimumInteractiveComponentSize widens the hit area
+                // without changing how the tile looks.
                 Box(
                     modifier = Modifier
+                        .minimumInteractiveComponentSize()
                         .size(38.dp)
                         .clip(RoundedCornerShape(Radius.sm))
                         .background(Ink3)
@@ -199,7 +208,14 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, accent: Color = Em
                 .background(accent)
         )
         Spacer(Modifier.width(Spacing.xs))
-        Text(text.uppercase(), color = TextMid, style = DeadFestType.section)
+        Text(
+            text.uppercase(),
+            color = TextMid,
+            style = DeadFestType.section,
+            // Section titles are the skeleton of every screen. Marking them as headings is what lets
+            // TalkBack jump section to section instead of reading the screen as one wall of text.
+            modifier = Modifier.semantics { heading() }
+        )
     }
 }
 
@@ -222,7 +238,11 @@ fun CoinIcon(size: Int = 18) {
 @Composable
 fun CoinBadge(coins: Long, modifier: Modifier = Modifier) {
     Surface(
-        modifier = modifier,
+        modifier = modifier
+            // A bare number is ambiguous out loud — "1,240" of what? Named, and via
+            // clearAndSetSemantics rather than a merge, so it still folds into an enclosing
+            // clickable card instead of becoming a second stop inside it.
+            .clearAndSetSemantics { contentDescription = "${formatNumber(coins)} coins" },
         color = Ink3,
         shape = RoundedCornerShape(Radius.pill),
         border = BorderStroke(Stroke.hair, Amber.copy(alpha = Tint.edge))
@@ -239,8 +259,15 @@ fun CoinBadge(coins: Long, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun PriceTag(price: Long, affordable: Boolean = true) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+fun PriceTag(price: Long, affordable: Boolean = true, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            // A price with no unit is just a number out loud, and it is the one thing a shop row
+            // most needs to convey. Cleared rather than merged, so the enclosing shop card stays the
+            // single stop for the whole item.
+            .clearAndSetSemantics { contentDescription = "${formatNumber(price)} coins" },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         CoinIcon(14)
         Spacer(Modifier.width(6.dp))
         Text(
@@ -521,7 +548,11 @@ fun XpBar(xp: Long, level: Int, cfg: com.deadfest.domain.XpConfig, modifier: Mod
         label = "xp"
     )
     Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            // "XP" and "1,240 / 5,000" are one fact, not two stops.
+            modifier = Modifier.semantics(mergeDescendants = true) {}
+        ) {
             Text("XP", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
             Spacer(Modifier.weight(1f))
             Text(
@@ -536,6 +567,10 @@ fun XpBar(xp: Long, level: Int, cfg: com.deadfest.domain.XpConfig, modifier: Mod
             Modifier
                 .fillMaxWidth()
                 .height(6.dp)
+                // A hand-drawn bar carries no semantics at all, so without this the progress is
+                // simply absent for anyone not looking at it. Reports the target rather than the
+                // animated value, so it does not narrate the animation.
+                .progressSemantics(target)
                 .background(Outline, RoundedCornerShape(50))
         ) {
             Box(
@@ -813,6 +848,26 @@ internal fun countdownParts(totalSeconds: Long, withSeconds: Boolean): List<Pair
 }
 
 /**
+ * Spoken form of a countdown, rounded down to whole minutes.
+ *
+ * The tiles tick every second because that is satisfying to watch; a spoken reading that changed
+ * that often would be useless. "Starts in 2 days 5 hours 30 minutes" is what someone listening
+ * actually needs, and it holds still for a whole minute.
+ */
+internal fun spokenCountdown(totalSeconds: Long): String {
+    val safe = totalSeconds.coerceAtLeast(0)
+    val days = safe / 86_400
+    val hours = (safe % 86_400) / 3_600
+    val minutes = (safe % 3_600) / 60
+    val spoken = buildList {
+        if (days > 0) add(if (days == 1L) "1 day" else "$days days")
+        if (hours > 0) add(if (hours == 1L) "1 hour" else "$hours hours")
+        if (minutes > 0) add(if (minutes == 1L) "1 minute" else "$minutes minutes")
+    }
+    return if (spoken.isEmpty()) "Less than a minute to go" else "Starts in " + spoken.joinToString(" ")
+}
+
+/**
  * DAYS / HRS / MIN / SEC readout. In Performance Mode the SEC tile is omitted so the display
  * stays truthful at the reduced 30s tick rate. Plain text + solid fills: no bitmaps, no shadows.
  */
@@ -824,7 +879,18 @@ fun CountdownTiles(
 ) {
     val total = (remainingMs / 1000).coerceAtLeast(0)
     val parts = countdownParts(total, showSeconds)
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            // One stop for the whole readout, spoken to the minute.
+            //
+            // Left as loose text this is eight separate nodes — "zero zero", "one two", "DAYS" — and
+            // the listener has to reassemble the time in their head while the values shift under
+            // them. There is deliberately no live region: a countdown that interrupts every few
+            // seconds would be worse than one you can choose to go and read.
+            .clearAndSetSemantics { contentDescription = spokenCountdown(total) },
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+    ) {
         parts.forEach { (label, value) ->
             Column(
                 modifier = Modifier
@@ -972,7 +1038,9 @@ fun StatTile(
     icon: ImageVector? = null
 ) {
     Surface(
-        modifier = modifier,
+        // Label and value are one fact. Merged, TalkBack reads "TOTAL DEATHS, 42"; unmerged it reads
+        // the label, then the number, as two unrelated stops.
+        modifier = modifier.semantics(mergeDescendants = true) {},
         color = CardBgRaised,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, Outline)

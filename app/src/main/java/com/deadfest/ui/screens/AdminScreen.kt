@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.deadfest.data.model.Archive
+import com.deadfest.data.model.GlobalState
 import com.deadfest.data.model.User
 import com.deadfest.data.model.WheelItem
 import com.deadfest.ui.components.*
@@ -931,21 +932,23 @@ private fun GlobalAdmin(viewModel: MainViewModel) {
             currentVersionCode = globalState.latestVersionCode,
             currentVersionName = globalState.latestVersionName,
             currentUrl = globalState.updateUrl,
+            currentUrlR8 = globalState.updateUrlR8,
             currentNotes = globalState.updateNotes,
             currentForce = globalState.forceUpdate,
             onDismiss = { showFirmwareDialog = false },
-            onPublish = { code, name, url, notes, force ->
+            onPublish = { publish ->
                 viewModel.updateGlobalState(
                     mapOf(
-                        "latestVersionCode" to code,
-                        "latestVersionName" to name,
-                        "updateUrl" to url,
-                        "updateNotes" to notes,
-                        "forceUpdate" to force
+                        "latestVersionCode" to publish.versionCode,
+                        "latestVersionName" to publish.versionName,
+                        "updateUrl" to publish.url,
+                        "updateUrlR8" to publish.urlR8,
+                        "updateNotes" to publish.notes,
+                        "forceUpdate" to publish.force
                     ),
-                    success = "Firmware v$name published"
+                    success = "Firmware v${publish.versionName} published"
                 )
-                viewModel.logEvent("FIRMWARE_UPDATE", "Firmware v$name is now available. Update from Settings.")
+                viewModel.logEvent("FIRMWARE_UPDATE", "Firmware v${publish.versionName} is now available. Update from Settings.")
                 showFirmwareDialog = false
             }
         )
@@ -973,6 +976,8 @@ private fun GlobalAdmin(viewModel: MainViewModel) {
                     Text("PUBLISH FIRMWARE", color = TextHi, style = DeadFestType.cardTitle)
                     Spacer(Modifier.height(2.dp))
                     Text("Live: v${globalState.latestVersionName} (build ${globalState.latestVersionCode})", color = TextMid, style = DeadFestType.body)
+                    Spacer(Modifier.height(2.dp))
+                    Text(publishedBuildsLabel(globalState), color = TextLow, style = DeadFestType.body)
                 }
                 Icon(Icons.Default.ChevronRight, null, tint = TextLow)
             }
@@ -1024,24 +1029,67 @@ internal fun AdminSwitch(title: String, subtitle: String, checked: Boolean, dang
     }
 }
 
+/**
+ * The firmware fields the publish dialog collects.
+ *
+ * A struct rather than six positional arguments, because two of them are download URLs of the same
+ * shape: swapping those by accident would hand the R8 build to everyone who asked for the full one.
+ * Both builds share a version code and name (they are built together from the same source), so
+ * there is one code/name pair and one URL each.
+ */
+private data class FirmwarePublish(
+    val versionCode: Int,
+    val versionName: String,
+    /** Download URL of the full build, published on the releases page as Dead-Fest.apk. */
+    val url: String,
+    /** Download URL of the R8 build, published as Dead-Fest R8.apk. */
+    val urlR8: String,
+    val notes: String,
+    val force: Boolean
+)
+
+/** True for something the installer could actually fetch. Blank is judged by the caller. */
+private fun isDownloadUrl(url: String): Boolean {
+    val trimmed = url.trim()
+    return trimmed.startsWith("https://") || trimmed.startsWith("http://")
+}
+
+/** Which downloads the live document currently points at, spelled out so it is never a guess. */
+private fun publishedBuildsLabel(state: GlobalState): String {
+    val full = state.updateUrl.isNotBlank()
+    val r8 = state.updateUrlR8.isNotBlank()
+    return when {
+        full && r8 -> "Both builds linked"
+        r8 -> "Only the R8 build is linked — everyone falls back to it"
+        full -> "Only the full build is linked — everyone falls back to it"
+        else -> "No download linked yet"
+    }
+}
+
 @Composable
 private fun PublishFirmwareDialog(
     currentVersionCode: Int,
     currentVersionName: String,
     currentUrl: String,
+    currentUrlR8: String,
     currentNotes: String,
     currentForce: Boolean,
     onDismiss: () -> Unit,
-    onPublish: (Int, String, String, String, Boolean) -> Unit
+    onPublish: (FirmwarePublish) -> Unit
 ) {
     var versionCode by remember { mutableStateOf(currentVersionCode.toString()) }
     var versionName by remember { mutableStateOf(currentVersionName) }
     var apkUrl by remember { mutableStateOf(currentUrl) }
+    var apkUrlR8 by remember { mutableStateOf(currentUrlR8) }
     var notes by remember { mutableStateOf(currentNotes) }
     var forceUpdate by remember { mutableStateOf(currentForce) }
     val codeValue = versionCode.toIntOrNull()
-    val urlValid = apkUrl.trim().startsWith("https://") || apkUrl.trim().startsWith("http://")
-    val valid = codeValue != null && versionName.isNotBlank() && urlValid
+    // Either URL on its own is enough to publish: a survivor on the build with no URL is quietly
+    // served the other one, which is what makes a one-APK release still work for everybody.
+    val urlValid = apkUrl.isBlank() || isDownloadUrl(apkUrl)
+    val urlR8Valid = apkUrlR8.isBlank() || isDownloadUrl(apkUrlR8)
+    val valid = codeValue != null && versionName.isNotBlank() &&
+        (apkUrl.isNotBlank() || apkUrlR8.isNotBlank()) && urlValid && urlR8Valid
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1075,13 +1123,31 @@ private fun PublishFirmwareDialog(
                 OutlinedTextField(
                     value = apkUrl,
                     onValueChange = { apkUrl = it },
-                    label = { Text("APK download URL") },
+                    label = { Text("APK URL — Dead-Fest") },
                     singleLine = true,
-                    isError = apkUrl.isNotEmpty() && !urlValid,
+                    isError = !urlValid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(Radius.md),
                     colors = deadFestFieldColors()
+                )
+                OutlinedTextField(
+                    value = apkUrlR8,
+                    onValueChange = { apkUrlR8 = it },
+                    label = { Text("APK URL — Dead-Fest R8") },
+                    singleLine = true,
+                    isError = !urlR8Valid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radius.md),
+                    colors = deadFestFieldColors()
+                )
+                Text(
+                    "Both builds are the same version. Survivors choose which one they want in " +
+                        "Settings → Update, and anyone whose build has no URL here falls back to " +
+                        "the other one.",
+                    color = TextLow,
+                    style = DeadFestType.body
                 )
                 OutlinedTextField(
                     value = notes,
@@ -1109,7 +1175,18 @@ private fun PublishFirmwareDialog(
         },
         confirmButton = {
             Button(
-                onClick = { onPublish(codeValue ?: currentVersionCode, versionName.trim(), apkUrl.trim(), notes.trim(), forceUpdate) },
+                onClick = {
+                    onPublish(
+                        FirmwarePublish(
+                            versionCode = codeValue ?: currentVersionCode,
+                            versionName = versionName.trim(),
+                            url = apkUrl.trim(),
+                            urlR8 = apkUrlR8.trim(),
+                            notes = notes.trim(),
+                            force = forceUpdate
+                        )
+                    )
+                },
                 enabled = valid,
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
                 shape = RoundedCornerShape(Radius.sm)

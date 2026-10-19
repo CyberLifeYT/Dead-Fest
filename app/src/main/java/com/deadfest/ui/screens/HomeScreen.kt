@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -207,7 +209,13 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     BrandMarkBadge(size = 42)
                     Spacer(Modifier.width(Spacing.sm))
                     Column {
-                        Text("SELECT SECTOR", color = TextHi, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                        Text(
+                            "SELECT SECTOR",
+                            color = TextHi,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 18.sp,
+                            modifier = Modifier.semantics { heading() }
+                        )
                         Text("Where did you fall, survivor?", color = TextMid, fontSize = 12.sp)
                     }
                 }
@@ -276,6 +284,8 @@ private fun LiveFeedStrip(message: String?, performanceMode: Boolean, modifier: 
     Row(
         modifier = modifier
             .fillMaxWidth()
+            // One ticker line: "LIVE" and the message are read as a single item.
+            .semantics(mergeDescendants = true) {}
             .clip(RoundedCornerShape(Radius.md))
             .background(Ink2)
             .border(BorderStroke(Stroke.hair, Ember.copy(alpha = 0.3f)), RoundedCornerShape(Radius.md))
@@ -383,7 +393,8 @@ private fun EliminationsHero(
 
 @Composable
 private fun HeroStat(label: String, value: String) {
-    Column {
+    // Label and value are one data point; keep them in a single announcement.
+    Column(Modifier.semantics(mergeDescendants = true) {}) {
         Text(label, color = TextLow, style = DeadFestType.microLabel, maxLines = 1)
         Text(value, color = TextHi, fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1)
     }
@@ -452,6 +463,8 @@ private fun SurvivorProfileCard(
 private fun MiniStat(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
+            // A stat tile is one item: label and value are announced together.
+            .semantics(mergeDescendants = true) {}
             .clip(RoundedCornerShape(Radius.sm))
             .background(Ink3)
             .border(BorderStroke(Stroke.hair, InkLine), RoundedCornerShape(Radius.sm))
@@ -474,6 +487,8 @@ private fun SectorChip(name: String, deaths: Long, locked: Boolean, overloaded: 
     }
     Column(
         modifier = Modifier
+            // One chip is one item: name and status are read together, not as separate stops.
+            .semantics(mergeDescendants = true) {}
             .clip(RoundedCornerShape(Radius.md))
             .background(if (overloaded) Gold.copy(alpha = Tint.wash) else Ink2)
             .border(BorderStroke(Stroke.hair, accent.copy(alpha = if (locked) 0.18f else Tint.edge)), RoundedCornerShape(Radius.md))
@@ -481,7 +496,9 @@ private fun SectorChip(name: String, deaths: Long, locked: Boolean, overloaded: 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             when {
-                locked -> Icon(Icons.Default.Lock, contentDescription = "Locked", tint = TextLow, modifier = Modifier.size(11.dp))
+                locked -> Icon(Icons.Default.Lock, contentDescription = null, tint = TextLow, modifier = Modifier.size(11.dp))
+                // The bolt is not repeated by any text, so it keeps its description; it is what makes
+                // the overload state audible instead of amber-only.
                 overloaded -> Icon(Icons.Default.Bolt, contentDescription = "Overload", tint = Gold, modifier = Modifier.size(13.dp))
                 else -> Box(Modifier.size(5.dp).clip(CircleShape).background(Ember))
             }

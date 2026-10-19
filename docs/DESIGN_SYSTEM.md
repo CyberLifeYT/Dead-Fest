@@ -94,3 +94,33 @@ following the design system keeps you compliant automatically.
 - Never change Firestore collection/field names without a backward-compatible read path.
 - Never clear caches or call `signOut()` as part of an upgrade.
 - Compose `rememberSaveable` keys are user-visible state; don't rename them casually.
+
+## Accessibility rules
+
+TalkBack and Switch Access are expected to work on every screen. The shared components already do
+the right thing, so following the design system keeps you compliant — but a new bespoke tile or row
+is where these get broken.
+
+1. **Every touch target is at least 48dp.** If the design needs something visually smaller, keep the
+   visual size and reserve the target with `Modifier.minimumInteractiveComponentSize()` (Material 3).
+   The header back button is the worked example: a 38dp tile with a 48dp hit area.
+2. **Decorative icons are `contentDescription = null`.** An icon sitting beside text that already says
+   the same thing must not be read twice.
+3. **An icon-only control describes its *action*, with the real subject**: `"Delete image by $uploader"`,
+   not `"Delete"`, and never the icon's name.
+4. **Section titles are headings.** `SectionLabel` does this for you; a plain `Text` acting as a section
+   title needs `Modifier.semantics { heading() }`. This is what makes a long screen navigable.
+5. **Label and value are one fact.** Rows that pair them (`KeyValueRow`, `StatTile`, `XpBar`) merge
+   their descendants so they read as `"Coins, 1,240"` rather than as two unrelated stops.
+6. **A drawn bar must report itself.** A `Canvas`/`Box` progress rail is invisible to a screen reader;
+   add `Modifier.progressSemantics(target)`. Report the *target*, not the animated value, or it
+   narrates the animation.
+7. **Selection is announced, not just tinted.** Use `Modifier.semantics { selected = ... }` (as `PillChip`
+   does). Colour is never the only signal for anything.
+8. **Never add `liveRegion`.** It interrupts constantly. A value that changes on screen must instead be
+   *spoken at a coarser granularity than it animates* — the countdown is the worked example: the tiles
+   tick every second, the spoken form is rounded to the minute and holds still for a whole minute.
+9. **Don't merge across an interactive child.** `Modifier.clickable` already merges its descendants, so
+   rows built on `SurfaceCard(onClick = ...)` or `Modifier.pressClick` are correct as they stand. Adding
+   `mergeDescendants` to a container that holds a button makes that button unreachable — which is why
+   `ErrorState` and `EmptyStateCard`, both of which can hold an action, are deliberately not merged.

@@ -60,6 +60,7 @@ class FirebaseRepository(
                 latestVersionName = snapshot.getString("latestVersionName") ?: "1.5.9",
                 latestVersionCode = (snapshot.get("latestVersionCode") as? Number)?.toInt() ?: 1,
                 updateUrl = snapshot.getString("updateUrl") ?: "",
+                updateUrlR8 = snapshot.getString("updateUrlR8") ?: "",
                 updateNotes = snapshot.getString("updateNotes") ?: "",
                 forceUpdate = snapshot.getBoolean("forceUpdate") ?: false,
                 games = (snapshot.get("games") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),

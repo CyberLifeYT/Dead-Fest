@@ -132,6 +132,20 @@ fun ImagesScreen(navController: NavController, viewModel: MainViewModel) {
     }
 }
 
+/**
+ * TalkBack label for a shared image: it always names the uploader, and carries the caption when the
+ * uploader wrote one, so the grid tile and the full-screen viewer describe the same picture the same
+ * way. Never a bare "image" — the label has to identify the share.
+ */
+private fun imageDescription(image: SharedImage): String {
+    val caption = image.caption
+    return if (caption.isBlank()) {
+        "Image from ${image.uploaderName}"
+    } else {
+        "Image from ${image.uploaderName}: $caption"
+    }
+}
+
 /** Thumbnail decoded off the main thread and cached, so scrolling stays smooth. */
 @Composable
 private fun rememberThumbnail(image: SharedImage): Bitmap? {
@@ -199,7 +213,7 @@ private fun ImageTile(image: SharedImage, onClick: () -> Unit) {
             if (bitmap != null) {
                 Image(
                     bitmap = remember(bitmap) { bitmap.asImageBitmap() },
-                    contentDescription = image.caption.ifBlank { "Image from ${image.uploaderName}" },
+                    contentDescription = imageDescription(image),
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
@@ -334,7 +348,7 @@ private fun ImageViewer(
             if (shown != null) {
                 Image(
                     bitmap = remember(shown) { shown.asImageBitmap() },
-                    contentDescription = image.caption.ifBlank { "Image from ${image.uploaderName}" },
+                    contentDescription = imageDescription(image),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize()
@@ -388,7 +402,7 @@ private fun ImageViewer(
                 }
                 if (canDelete) {
                     IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete image", tint = Ember)
+                        Icon(Icons.Default.Delete, contentDescription = "Delete image by ${image.uploaderName}", tint = Ember)
                     }
                 }
             }

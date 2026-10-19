@@ -1,0 +1,139 @@
+name: Release
+
+# Pushing a tag like v2.0.7.2 builds, tests, signs and publishes the release, so a release no
+# longer depends on one machine having the keystore and remembering every step. The two APKs that
+# get attached are exactly the two the in-app updater knows about:
+#
+#   Dead-Fest.apk      <- app/build/outputs/apk/debug/app-debug.apk   (the full build)
+#   Dead-Fest R8.apk   <- app/build/outputs/apk/release/app-release.apk (the shrunk build)
+#
+# Both are signed with the same key on purpose: either installs straight over the other, and both
+# install over the builds already on people's phones. Changing the key silently breaks updating for
+# every existing user, so the workflow refuses to publish if the certificate is not the expected one.
+#
+# workflow_dispatch is there to produce the two APKs without publishing anything, which is the way
+# to sanity-check a change to the workflow itself.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# The certificate every previously shipped Dead-Fest build carries. If a release is signed with
+# anything else, Android refuses to update in place and every user has to uninstall first.
+env:
+  EXPECTED_CERT_SHA256: "876d1bfd47566e4c3530397ececebc562795059c7d984e65a4d8f85caf260bcc"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # Fail here rather than three minutes later with a build error that reads like a code problem.
+      - name: Check the signing secrets are present
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: |
+          missing=0
+          [ -n "$KEYSTORE_BASE64" ] || { echo "::error::KEYSTORE_BASE64 is not set"; missing=1; }
+          [ -n "$GOOGLE_SERVICES_JSON_BASE64" ] || { echo "::error::GOOGLE_SERVICES_JSON_BASE64 is not set"; missing=1; }
+          [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] || { echo "::error::KEYSTORE_PASSWORD is not set"; missing=1; }
+          [ -n "${{ secrets.KEY_ALIAS }}" ] || { echo "::error::KEY_ALIAS is not set"; missing=1; }
+          [ -n "${{ secrets.KEY_PASSWORD }}" ] || { echo "::error::KEY_PASSWORD is not set"; missing=1; }
+          exit $missing
+
+      # google-services.json is gitignored (it is project config, not source), so CI has to be handed
+      # it the same way it is handed the keystore.
+      - name: Provide google-services.json
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 -d > app/google-services.json
+
+      - name: Provide the signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/deadfest-signing.jks"
+
+      - name: Test, build and sign
+        env:
+          DEADFEST_STORE_FILE: ${{ runner.temp }}/deadfest-signing.jks
+          DEADFEST_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          DEADFEST_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          DEADFEST_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: >-
+          ./gradlew
+          :app:testDebugUnitTest
+          :app:assembleDebug
+          :app:assembleRelease
+          --console=plain
+
+      - name: Rename the artifacts for download
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk "Dead-Fest.apk"
+          cp app/build/outputs/apk/release/app-release.apk "Dead-Fest R8.apk"
+          ls -l "Dead-Fest.apk" "Dead-Fest R8.apk"
+
+      # The whole point of the fixed key. Read the certificate off both APKs and compare, so a
+      # keystore mistake can never reach users as an un-updatable release.
+      - name: Check both APKs carry the expected certificate
+        run: |
+          apksigner() { "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$1"; }
+          for apk in "Dead-Fest.apk" "Dead-Fest R8.apk"; do
+            echo "--- $apk"
+            apksigner "$apk" | grep -i "Signer #1 certificate SHA-256 digest" || true
+            got=$(apksigner "$apk" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | tr -d '[:space:]')
+            if [ "$got" != "$EXPECTED_CERT_SHA256" ]; then
+              echo "::error::$apk is signed with $got, expected $EXPECTED_CERT_SHA256"
+              exit 1
+            fi
+          done
+          echo "Both APKs are signed with the expected certificate."
+
+      - name: Upload the APKs as build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dead-fest-apks
+          path: |
+            Dead-Fest.apk
+            Dead-Fest R8.apk
+
+      # Curated notes when the version has them committed, generated notes otherwise.
+      - name: Resolve the release notes
+        id: notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          file="release/v${version}/RELEASE_NOTES.md"
+          if [ -f "$file" ]; then
+            echo "body_path=$file" >> "$GITHUB_OUTPUT"
+          else
+            echo "body_path=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Only a tag publishes. A manual run stops after the artifacts above.
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Dead-Fest.apk
+            Dead-Fest R8.apk
+          body_path: ${{ steps.notes.outputs.body_path }}
+          generate_release_notes: ${{ steps.notes.outputs.body_path == '' }}
+          draft: false
+          prerelease: false

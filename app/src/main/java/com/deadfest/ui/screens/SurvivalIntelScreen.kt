@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -280,21 +282,34 @@ fun IntelSectionCard(
     }
 }
 
-/** A single rule: accent marker, heading, body and any label/value stats. */
+/**
+ * A single rule: accent marker, heading, body and any label/value stats.
+ *
+ * The whole rule is one merged semantics node, so the heading, body and any stats are announced as
+ * a single item instead of separate fragments. heading() merges up into that node, so heading
+ * navigation still stops at every rule.
+ */
 @Composable
 private fun IntelRuleBlock(rule: IntelRule, accent: Color) {
     val warnIcon = rule.warnIcon
     if (warnIcon != null) {
-        AlertBanner(
-            icon = warnIcon,
-            title = rule.title.uppercase(),
-            message = rule.body,
-            accent = accent
-        )
+        // AlertBanner has no modifier slot, so the wrapper carries the merged heading semantics.
+        Box(Modifier.semantics(mergeDescendants = true) { heading() }) {
+            AlertBanner(
+                icon = warnIcon,
+                title = rule.title.uppercase(),
+                message = rule.body,
+                accent = accent
+            )
+        }
         return
     }
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
@@ -302,7 +317,12 @@ private fun IntelRuleBlock(rule: IntelRule, accent: Color) {
                     .background(accent, CircleShape)
             )
             Spacer(Modifier.width(Spacing.xs))
-            Text(rule.title, color = TextHi, style = DeadFestType.cardTitle)
+            Text(
+                rule.title,
+                color = TextHi,
+                style = DeadFestType.cardTitle,
+                modifier = Modifier.semantics { heading() }
+            )
         }
         Spacer(Modifier.height(Spacing.xxs))
         Text(rule.body, color = TextMid, style = DeadFestType.body)

@@ -4,6 +4,8 @@ import android.app.ActivityManager
 import android.content.Context
 import android.provider.Settings
 import androidx.core.content.edit
+import com.deadfest.BuildConfig
+import com.deadfest.domain.UpdateVariant
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,10 +35,29 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_BATTERY_PROMPT, false)
         set(value) = prefs.edit { putBoolean(KEY_BATTERY_PROMPT, value) }
 
+    /**
+     * Which published build to update to.
+     *
+     * With nothing stored the choice follows the build actually running: a survivor on the full
+     * build is offered the full build, one on R8 is offered R8. Nobody is moved onto a different
+     * kind of build by an update they never asked for — and choosing explicitly overrides this for
+     * good, so the answer is remembered from then on.
+     */
+    private val _updateVariant = MutableStateFlow(
+        UpdateVariant.fromStored(prefs.getString(KEY_UPDATE_VARIANT, null))
+            ?: if (BuildConfig.DEBUG) UpdateVariant.Standard else UpdateVariant.R8
+    )
+    val updateVariant: StateFlow<UpdateVariant> = _updateVariant.asStateFlow()
+
     fun setWheelAlerts(on: Boolean) = save(KEY_WHEEL, on, _wheelAlerts)
     fun setMarketAlerts(on: Boolean) = save(KEY_MARKET, on, _marketAlerts)
     fun setWastelandAlerts(on: Boolean) = save(KEY_WASTELAND, on, _wastelandAlerts)
     fun setPerformanceMode(on: Boolean) = save(KEY_PERFORMANCE, on, _performanceMode)
+
+    fun setUpdateVariant(variant: UpdateVariant) {
+        _updateVariant.value = variant
+        prefs.edit { putString(KEY_UPDATE_VARIANT, variant.name) }
+    }
 
     private fun save(key: String, value: Boolean, flow: MutableStateFlow<Boolean>) {
         flow.value = value
@@ -51,6 +72,8 @@ class AppPrefs(context: Context) {
         const val KEY_WASTELAND = "pref_wasteland_alerts"
         const val KEY_PERFORMANCE = "pref_performance_mode"
         const val KEY_BATTERY_PROMPT = "battery_prompt_shown"
+        /** Added in 2.0.7.2. Absent on every earlier install, which is why it must stay optional. */
+        const val KEY_UPDATE_VARIANT = "pref_update_variant"
 
         fun isLowEndDevice(context: Context): Boolean {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager

@@ -237,8 +237,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         onUpToDate: () -> Unit
     ) {
         val state = globalState.value
-        if (state.latestVersionCode > currentVersionCode && state.updateUrl.isNotBlank()) {
-            onUpdateAvailable(state.updateUrl, state.latestVersionName)
+        // Whichever build this survivor chose. The URL falls back to the other build when the
+        // chosen one has not been published yet, so this can never resolve to nothing.
+        val url = state.updateUrlFor(prefs.updateVariant.value)
+        if (state.latestVersionCode > currentVersionCode && url.isNotBlank()) {
+            onUpdateAvailable(url, state.latestVersionName)
         } else {
             onUpToDate()
         }

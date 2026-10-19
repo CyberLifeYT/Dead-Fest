@@ -9,8 +9,8 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.7.1-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
-[![APK](https://img.shields.io/badge/APK-3.7%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.0.7.2-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![APK](https://img.shields.io/badge/APK-3.8%20MB%20(R8)%20%2F%2026.8%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
 Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
@@ -31,6 +31,13 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 ---
 
 ## 🔄 What’s New
+
+### v2.0.7.2 – Two Builds, Splash & Screen Readers
+- **📦 Pick your build** – Every release is now published twice: **Dead-Fest R8.apk** (3.78 MB, shrunk by R8) and **Dead-Fest.apk** (26.8 MB, the full build). Same version, same signing key, so either installs over the other whenever you change your mind. **Settings → Update** shows both and remembers your choice, starting you on the same kind of build you're already running. If only one has been uploaded, everyone is served that one rather than being told there's nothing to install.
+- **💀 A real splash screen** – Cold start shows the Dead-Fest skull on ink on **every** Android version from 7.0 up, not just on Android 12+ where the system invents one from the launcher icon. It also waits for your saved session to come back before handing over, so a returning survivor can't glimpse an empty dashboard or the login screen for a frame — capped, so a broken session can never strand you behind a logo.
+- **♿ Screen-reader support** – The countdown is now **one** TalkBack stop spoken as "Starts in 2 days 5 hours 30 minutes" instead of eight loose numbers, deliberately rounded to the minute so it holds still (the tiles still tick every second). Section titles are headings, progress bars report their real value, label/value rows read as one fact, selected options announce that they're selected, small controls got proper touch targets, and icons that only repeat the text beside them are no longer read twice.
+- **🔐 Signed releases + CI** – `assembleRelease` and `assembleDebug` sign from a keystore read out of `local.properties` or the environment, and a GitHub Actions workflow builds, tests, signs, **verifies both certificates against the expected fingerprint** and publishes on a tag. The signature is still the one every earlier build carried — a different key would make Android refuse the update and force an uninstall. See [docs/SIGNING.md](docs/SIGNING.md).
+- **📐 Not measured yet: baseline profile** – The runtime half (`profileinstaller`) is in, but the profile itself has to come from a macrobenchmark on a real device and none was available. Writing one by hand would be inventing measurements. See [docs/BASELINE_PROFILE.md](docs/BASELINE_PROFILE.md).
 
 ### v2.0.7.1 – Interface Rebuild & Live Countdown
 - **⏱️ The countdown now ticks** – The Next Dead-Fest panel updates **live every second** in DAYS / HRS / MIN / SEC. Pause the app for an hour and it snaps straight to the correct value on return. In Performance Mode it updates every 30 seconds and the SEC tile is hidden, because a seconds digit that only changed every 30 s would be lying to you.
@@ -149,8 +156,8 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **Firebase Core** – Firestore (database + image storage), Auth (Email/Password) and Cloud Messaging (FCM).
 - **Real‑time Everything** – Live dashboard, leaderboards, shop, wheel, presence and gallery – no manual refreshes.
 - **Transaction‑Safe Economy** – Every coin, death and XP change runs in a Firestore transaction on live data.
-- **Low‐End Friendly** – R8‐shrunk 3.9 MB APK, Performance Mode, lifecycle‐aware listeners, no background service.
-- **In‑App OTA Updates** – Progress dialog and automatic installer handoff.
+- **Low‐End Friendly** – R8‐shrunk 3.78 MB release (or a 26.8 MB full build if you'd rather), Performance Mode, lifecycle‐aware listeners, no background service.
+- **In‐App OTA Updates** – Two published builds, per-user choice in Settings, progress dialog and automatic installer handoff.
 - **Home Screen Widget** – Global eliminations, online survivors and overload status.
 
 ---
@@ -344,16 +351,20 @@ Release builds must be **signed**. Phones only accept updates signed with the **
 
 *(Optional)* Automate signing via `signingConfigs` in `app/build.gradle.kts`, reading the passwords from `local.properties` or environment variables. **Never** commit passwords or the `.jks` file.
 
+> This project already does exactly that — see [docs/SIGNING.md](docs/SIGNING.md). Both the `debug` and `release` variants are signed with the *same* key on purpose, so the two published APKs stay installable over each other. If you host your own copy, make that key your own.
+
 ### 9. Publishing Updates (OTA)
 
 Dead-Fest updates itself; players never need to re-download manually.
 
 1. Make your changes, then bump **both** `versionCode` (+1) and `versionName` in `app/build.gradle.kts`.
-2. Build a **signed** release APK with the **same keystore**.
-3. Upload it somewhere with a **direct download link**:
-   - **GitHub Release asset:** right-click the asset → copy link. It looks like `https://github.com/<you>/<repo>/releases/download/v2.0.7/DeadFest-v2.0.7.apk`.
-4. In the app: **Admin → Global → Publish Firmware**. Enter the new version code, version name, APK URL and notes, and tick **Force** if the update is mandatory.
-5. Every player gets an **update prompt**. The app downloads the APK with a progress bar and opens the installer.
+2. Build **both** variants with the **same keystore** — `assembleDebug` (full) and `assembleRelease` (R8). Rename them for download as `Dead-Fest.apk` and `Dead-Fest R8.apk`, matching the names the app shows.
+3. Upload both to a release with **direct download links**:
+   - **GitHub Release asset:** right-click the asset → copy link. It looks like `https://github.com/<you>/<repo>/releases/download/v2.0.7.2/Dead-Fest%20R8.apk`.
+4. In the app: **Admin → Global → Publish Firmware**. Enter the version code, version name, a URL for each build and the notes, and tick **Force** if the update is mandatory.
+   - Both builds share one version — they are built together from the same source — so there is one code/name pair and one URL each.
+   - Leave a URL blank if you only uploaded one build: anyone who picked the missing build falls back to the other one instead of being told there's no update.
+5. Every player gets an **update prompt** for whichever build they picked in **Settings → Update**. The app downloads the APK with a progress bar and opens the installer.
 
 ### 10. Editing the App
 

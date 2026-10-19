@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,6 +40,7 @@ import androidx.navigation.NavController
 import com.deadfest.BuildConfig
 import com.deadfest.util.BatteryOptimization
 import com.deadfest.data.AppPrefs
+import com.deadfest.domain.UpdateVariant
 import com.deadfest.ui.components.*
 import com.deadfest.ui.theme.*
 import com.deadfest.ui.viewmodel.MainViewModel
@@ -93,6 +96,8 @@ fun SettingsScreen(navController: NavController, viewModel: MainViewModel) {
 private fun GeneralTab(viewModel: MainViewModel) {
     val context = LocalContext.current
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
+    val prefs = viewModel.prefs
+    val updateVariant by prefs.updateVariant.collectAsStateWithLifecycle()
     var downloading by remember { mutableStateOf<Pair<String, String>?>(null) }
     var confirmLogout by remember { mutableStateOf(false) }
 
@@ -132,6 +137,20 @@ private fun GeneralTab(viewModel: MainViewModel) {
             else StatusPill("LATEST", OnlineGreen)
         }
         Spacer(Modifier.height(Spacing.sm))
+        // Which of the two published builds to install. They are the same version and the same key,
+        // so either installs straight over the other: this is purely size against safety, and it is
+        // the survivor's call. A phone that is nearly full wants the R8 build, and anyone chasing
+        // something odd on their own device wants the full one.
+        Text("UPDATE BUILD", color = TextLow, style = DeadFestType.microLabel)
+        Spacer(Modifier.height(Spacing.xxs))
+        UpdateVariant.entries.forEach { option ->
+            UpdateBuildOption(
+                variant = option,
+                selected = option == updateVariant,
+                onSelect = { prefs.setUpdateVariant(option) }
+            )
+        }
+        Spacer(Modifier.height(Spacing.sm))
         Button(
             onClick = {
                 viewModel.checkUpdate(
@@ -149,7 +168,10 @@ private fun GeneralTab(viewModel: MainViewModel) {
             elevation = null
         ) {
             Text(
-                if (updateAvailable) "INSTALL v${globalState.latestVersionName}" else "CHECK FOR UPDATES",
+                // Naming the build matters: two downloads, same version, and the button is the last
+                // thing seen before a 26 MB or a 3.8 MB file starts.
+                if (updateAvailable) "INSTALL v${globalState.latestVersionName} · ${updateVariant.label}"
+                else "CHECK FOR UPDATES",
                 style = DeadFestType.action
             )
         }
@@ -209,6 +231,46 @@ private fun GeneralTab(viewModel: MainViewModel) {
         accent = Ember,
         modifier = Modifier.fillMaxWidth()
     )
+}
+
+/**
+ * One selectable build in the update chooser.
+ *
+ * The whole row is the touch target, not just the radio, so it is easy to hit one-handed. The radio
+ * itself is left non-interactive on purpose: two controls doing the same thing would make TalkBack
+ * read each build twice.
+ */
+@Composable
+private fun UpdateBuildOption(
+    variant: UpdateVariant,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .pressClick(RoundedCornerShape(Radius.md), onClick = onSelect)
+            .padding(horizontal = Spacing.xs, vertical = Spacing.xxs)
+            .semantics { this.selected = selected },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = null,
+            colors = RadioButtonDefaults.colors(selectedColor = Ember, unselectedColor = TextLow)
+        )
+        Spacer(Modifier.width(Spacing.xs))
+        Column(Modifier.weight(1f)) {
+            Text(
+                variant.label,
+                color = if (selected) TextHi else TextMid,
+                style = DeadFestType.body,
+                fontWeight = FontWeight.Bold
+            )
+            Text(variant.blurb, color = TextLow, style = DeadFestType.body)
+        }
+    }
 }
 
 @Composable

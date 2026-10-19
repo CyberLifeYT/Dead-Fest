@@ -25,6 +25,8 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -255,68 +257,73 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
 @Composable
 private fun FateWheel(items: List<com.deadfest.data.model.WheelItem>, modifier: Modifier = Modifier) {
     val textMeasurer = rememberTextMeasurer()
+    // The slice labels are painted onto the canvas, so they never reach the semantics tree; the
+    // wheel states its prize list in words here instead.
+    val wheelDescription = items.joinToString(", ") { it.label }
     Canvas(
-        modifier = modifier.drawWithCache {
-            val slice = 360f / items.size
-            val radius = size.minDimension / 2f
-            val colors = items.map { parseColor(it.color) }
-            val labelStyle = TextStyle(
-                color = Color.White,
-                fontSize = if (items.size > 10) 11.sp else 14.sp,
-                fontWeight = FontWeight.Black
-            )
-            val labels = items.map {
-                textMeasurer.measure(
-                    text = it.label,
-                    style = labelStyle,
-                    overflow = TextOverflow.Ellipsis,
-                    maxLines = 1,
-                    constraints = Constraints(maxWidth = (radius * 0.62f).toInt().coerceAtLeast(1))
+        modifier = modifier
+            .semantics { contentDescription = "Prize wheel: $wheelDescription" }
+            .drawWithCache {
+                val slice = 360f / items.size
+                val radius = size.minDimension / 2f
+                val colors = items.map { parseColor(it.color) }
+                val labelStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = if (items.size > 10) 11.sp else 14.sp,
+                    fontWeight = FontWeight.Black
                 )
-            }
-            val rim = Stroke(width = radius * 0.06f)
-            val divider = Stroke(width = 2f)
-
-            onDrawBehind {
-                val c = center
-                // Slice 0 starts at the top pointer (-90°) and goes clockwise.
-                items.indices.forEach { i ->
-                    val start = -90f + i * slice
-                    drawArc(color = colors[i], startAngle = start, sweepAngle = slice, useCenter = true)
-                    // Soft inner shade for depth, drawn as a flat translucent arc (no blur, cheap).
-                    drawArc(
-                        color = Color.Black.copy(alpha = 0.18f),
-                        startAngle = start,
-                        sweepAngle = slice,
-                        useCenter = true,
-                        topLeft = Offset(c.x - radius * 0.55f, c.y - radius * 0.55f),
-                        size = androidx.compose.ui.geometry.Size(radius * 1.1f, radius * 1.1f)
+                val labels = items.map {
+                    textMeasurer.measure(
+                        text = it.label,
+                        style = labelStyle,
+                        overflow = TextOverflow.Ellipsis,
+                        maxLines = 1,
+                        constraints = Constraints(maxWidth = (radius * 0.62f).toInt().coerceAtLeast(1))
                     )
                 }
-                // Dividers
-                items.indices.forEach { i ->
-                    rotate(-90f + i * slice, c) {
-                        drawLine(Color.Black.copy(alpha = 0.45f), c, Offset(c.x + radius, c.y), strokeWidth = divider.width)
-                    }
-                }
-                // Labels along each slice's centre line, reading outwards.
-                items.indices.forEach { i ->
-                    val layout = labels[i]
-                    rotate(-90f + i * slice + slice / 2f, c) {
-                        drawText(
-                            textLayoutResult = layout,
-                            topLeft = Offset(c.x + radius * 0.28f, c.y - layout.size.height / 2f)
+                val rim = Stroke(width = radius * 0.06f)
+                val divider = Stroke(width = 2f)
+
+                onDrawBehind {
+                    val c = center
+                    // Slice 0 starts at the top pointer (-90°) and goes clockwise.
+                    items.indices.forEach { i ->
+                        val start = -90f + i * slice
+                        drawArc(color = colors[i], startAngle = start, sweepAngle = slice, useCenter = true)
+                        // Soft inner shade for depth, drawn as a flat translucent arc (no blur, cheap).
+                        drawArc(
+                            color = Color.Black.copy(alpha = 0.18f),
+                            startAngle = start,
+                            sweepAngle = slice,
+                            useCenter = true,
+                            topLeft = Offset(c.x - radius * 0.55f, c.y - radius * 0.55f),
+                            size = androidx.compose.ui.geometry.Size(radius * 1.1f, radius * 1.1f)
                         )
                     }
+                    // Dividers
+                    items.indices.forEach { i ->
+                        rotate(-90f + i * slice, c) {
+                            drawLine(Color.Black.copy(alpha = 0.45f), c, Offset(c.x + radius, c.y), strokeWidth = divider.width)
+                        }
+                    }
+                    // Labels along each slice's centre line, reading outwards.
+                    items.indices.forEach { i ->
+                        val layout = labels[i]
+                        rotate(-90f + i * slice + slice / 2f, c) {
+                            drawText(
+                                textLayoutResult = layout,
+                                topLeft = Offset(c.x + radius * 0.28f, c.y - layout.size.height / 2f)
+                            )
+                        }
+                    }
+                    // Rim + hub
+                    drawCircle(Color(0xFF111111), radius - rim.width / 2f, c, style = rim)
+                    drawCircle(RedAccent.copy(alpha = 0.8f), radius - rim.width, c, style = Stroke(width = 2f))
+                    drawCircle(Color(0xFF111111), radius * 0.16f, c)
+                    drawCircle(RedAccent, radius * 0.16f, c, style = Stroke(width = radius * 0.025f))
+                    drawCircle(RedAccent, radius * 0.05f, c)
                 }
-                // Rim + hub
-                drawCircle(Color(0xFF111111), radius - rim.width / 2f, c, style = rim)
-                drawCircle(RedAccent.copy(alpha = 0.8f), radius - rim.width, c, style = Stroke(width = 2f))
-                drawCircle(Color(0xFF111111), radius * 0.16f, c)
-                drawCircle(RedAccent, radius * 0.16f, c, style = Stroke(width = radius * 0.025f))
-                drawCircle(RedAccent, radius * 0.05f, c)
             }
-        }
     ) { }
 }
 

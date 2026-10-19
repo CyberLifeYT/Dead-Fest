@@ -1,8 +1,36 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
 }
+
+/**
+ * Release signing.
+ *
+ * The keystore is deliberately never committed. It is read from `local.properties` (gitignored)
+ * when building locally, or from environment variables in CI. If neither is present the build
+ * still succeeds and simply produces unsigned output, so a missing keystore can never break
+ * someone else's build.
+ *
+ * The key must stay the key every previously distributed Dead-Fest build was signed with.
+ * Android identifies an app by its signing certificate: a different key means the upgrade is
+ * refused with INSTALL_FAILED_UPDATE_INCOMPATIBLE, and the only way on is to uninstall — which
+ * wipes the saved Firebase session and local preferences. Changing this key is a breaking change
+ * for every existing user, not a routine detail.
+ */
+val signingProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(property: String, environment: String): String? =
+    (signingProperties.getProperty(property) ?: System.getenv(environment))?.takeIf { it.isNotBlank() }
+
+val keystoreFile = signingValue("deadfest.storeFile", "DEADFEST_STORE_FILE")
+    ?.let { rootProject.file(it) }
+    ?.takeIf { it.exists() }
 
 android {
     namespace = "com.deadfest"
@@ -14,13 +42,35 @@ android {
         applicationId = "com.deadfest"
         minSdk = 24
         targetSdk = 37
-        versionCode = 11
-        versionName = "2.0.7.1"
+        versionCode = 12
+        versionName = "2.0.7.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (keystoreFile != null) {
+            create("deadfest") {
+                storeFile = keystoreFile
+                storePassword = signingValue("deadfest.storePassword", "DEADFEST_STORE_PASSWORD")
+                keyAlias = signingValue("deadfest.keyAlias", "DEADFEST_KEY_ALIAS")
+                keyPassword = signingValue("deadfest.keyPassword", "DEADFEST_KEY_PASSWORD")
+                // v1 keeps unusual OEM installers on old Android versions happy and is what the
+                // builds already in the wild carry; v2 is what minSdk 24 requires. Both, deliberately.
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
+        // The debug build is signed with the SAME key as release, on purpose. It is published to
+        // users as "Dead-Fest.apk" alongside the R8 build. If it used the default debug key, a user
+        // could not switch between the two downloads without uninstalling first, and the debug
+        // download would not install over the app they already have. This is intentional.
+        debug {
+            if (keystoreFile != null) signingConfig = signingConfigs.getByName("deadfest")
+        }
         release {
             // R8 strips unused code (e.g. the thousands of unused material icons) and
             // resources: much smaller APK, faster install and cold start on low-end phones.
@@ -30,6 +80,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (keystoreFile != null) signingConfig = signingConfigs.getByName("deadfest")
         }
     }
     compileOptions {
@@ -51,6 +102,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core.splashscreen)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

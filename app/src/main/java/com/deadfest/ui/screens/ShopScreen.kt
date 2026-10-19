@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +23,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -128,10 +133,15 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     items(tabs.size) { index ->
+                        // Filter pills are ~28dp tall: reserve the 48dp touch target and announce the
+                        // active tab, which is otherwise signalled by tint alone.
                         PillChip(
                             text = tabs[index],
                             selected = selectedTab == index,
-                            onClick = { selectedTab = index }
+                            onClick = { selectedTab = index },
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .semantics { selected = selectedTab == index }
                         )
                     }
                 }
@@ -300,7 +310,16 @@ private fun CurseTargetDialog(
                     SectionLabel("Sector")
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         items(sectors) { s ->
-                            PillChip(text = s, selected = sector == s, onClick = { sector = s }, accent = Prestige)
+                            PillChip(
+                                text = s,
+                                selected = sector == s,
+                                onClick = { sector = s },
+                                // Same 48dp touch target and spoken selection as the shop's filter pills.
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .semantics { selected = sector == s },
+                                accent = Prestige
+                            )
                         }
                     }
                 }
@@ -313,16 +332,18 @@ private fun CurseTargetDialog(
                         verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
                         items(survivors, key = { it.uid }) { s ->
-                            val selected = target?.uid == s.uid
+                            val isSelected = target?.uid == s.uid
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(Radius.md))
-                                    .background(if (selected) Prestige.copy(alpha = Tint.fill) else Ink3)
+                                    .background(if (isSelected) Prestige.copy(alpha = Tint.fill) else Ink3)
                                     .border(
-                                        BorderStroke(Stroke.hair, if (selected) Prestige.copy(alpha = Tint.edgeStrong) else InkLine),
+                                        BorderStroke(Stroke.hair, if (isSelected) Prestige.copy(alpha = Tint.edgeStrong) else InkLine),
                                         RoundedCornerShape(Radius.md)
                                     )
+                                    // The chosen curse target is shown by the purple tint alone.
+                                    .semantics { selected = isSelected }
                                     .pressClick(RoundedCornerShape(Radius.md)) { target = s },
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -502,7 +523,10 @@ private fun BuyButton(affordable: Boolean, onBuy: () -> Unit, accent: Color = Em
     Button(
         onClick = onBuy,
         enabled = affordable,
-        modifier = Modifier.height(40.dp),
+        // 40dp is the visual height; the interactive touch target stays at the 48dp minimum.
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .height(40.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = accent,
             contentColor = Color.White,
@@ -569,7 +593,13 @@ private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: Econ
     ) {
         TierTracker(tier)
         Spacer(Modifier.height(Spacing.md))
-        Text("CURRENT TAX RATE", color = TextLow, style = DeadFestType.microLabel)
+        // Plain-Text group label (the other group headers on this screen use SectionLabel).
+        Text(
+            "CURRENT TAX RATE",
+            color = TextLow,
+            style = DeadFestType.microLabel,
+            modifier = Modifier.semantics { heading() }
+        )
         Spacer(Modifier.height(2.dp))
         Text(
             CasualtyTax.effectiveRateLabel(coins, reduction).uppercase(),
@@ -593,7 +623,15 @@ private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: Econ
 @Composable
 private fun TierTracker(tier: Int) {
     val reduced = LocalPerformanceMode.current
-    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+    // Reached tiers are shown by an amber fill and nothing else; the tracker says the progress in
+    // words so it isn't colour-only, and merging keeps it one announcement instead of four numerals.
+    Row(
+        modifier = Modifier.semantics(mergeDescendants = true) {
+            contentDescription =
+                if (tier > 0) "Wealth Insulation tier $tier of 4" else "Wealth Insulation: no tiers unlocked yet"
+        },
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+    ) {
         (1..4).forEach { t ->
             val color by animateColorAsState(
                 if (t <= tier) Amber else Ink4,

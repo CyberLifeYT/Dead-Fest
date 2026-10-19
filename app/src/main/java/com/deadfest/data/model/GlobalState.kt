@@ -1,6 +1,7 @@
 package com.deadfest.data.model
 
 import com.deadfest.domain.EconomyConfig
+import com.deadfest.domain.UpdateVariant
 import com.google.firebase.firestore.Exclude
 import com.google.firebase.firestore.PropertyName
 
@@ -19,6 +20,8 @@ data class GlobalState(
     @get:PropertyName("latestVersionName") @set:PropertyName("latestVersionName") var latestVersionName: String = "1.5.9",
     @get:PropertyName("latestVersionCode") @set:PropertyName("latestVersionCode") var latestVersionCode: Int = 1,
     @get:PropertyName("updateUrl") @set:PropertyName("updateUrl") var updateUrl: String = "",
+    /** Download URL of the R8 build. Blank until the second APK has been published. */
+    @get:PropertyName("updateUrlR8") @set:PropertyName("updateUrlR8") var updateUrlR8: String = "",
     @get:PropertyName("updateNotes") @set:PropertyName("updateNotes") var updateNotes: String = "",
     @get:PropertyName("forceUpdate") @set:PropertyName("forceUpdate") var forceUpdate: Boolean = false,
     @get:PropertyName("games") @set:PropertyName("games") var games: List<String> = emptyList(),
@@ -63,4 +66,17 @@ data class GlobalState(
     /** The season name to show for the next event, falling back to a sensible label. */
     fun nextEventDisplayName(): String =
         nextEventName.takeIf { it.isNotBlank() } ?: "NEXT DEAD-FEST"
+
+    /**
+     * Download URL to hand the updater for [variant].
+     *
+     * Falls back to the other build when the chosen one has no URL yet. That matters more than it
+     * looks: the live document carried a single URL for four releases, so on the day this ships
+     * [updateUrlR8] is blank for everyone. Without the fallback, a survivor whose preference points
+     * at the R8 build would press Update and get nothing, and the update would look broken.
+     */
+    fun updateUrlFor(variant: UpdateVariant): String = when (variant) {
+        UpdateVariant.R8 -> updateUrlR8.ifBlank { updateUrl }
+        UpdateVariant.Standard -> updateUrl.ifBlank { updateUrlR8 }
+    }
 }

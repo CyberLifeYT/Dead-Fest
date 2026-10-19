@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -162,7 +164,9 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
  */
 @Composable
 private fun PrizeRow(prize: ScratchPrize, pct: Double, modifier: Modifier = Modifier) {
-    SurfaceCard(modifier = modifier, padding = Spacing.sm) {
+    // One prize row is one item: the name, payout description and odds are read together, not as
+    // four separate stops.
+    SurfaceCard(modifier = modifier.semantics(mergeDescendants = true) {}, padding = Spacing.sm) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(icon = prize.icon(), tint = parseThemeColor(prize.color), size = 40)
             Spacer(Modifier.width(Spacing.sm))
@@ -243,12 +247,24 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
         null -> TextLow
     }
 
+    // The foil is drawn over the prize text, so while the card is covered a screen reader would
+    // either find "?" or the previous card's result underneath. The card therefore exposes its own
+    // state: hidden/printing before the reveal, and the real prize text once the reveal has landed.
+    val cardDescription = when {
+        state.busy -> "Printing a fresh scratch card"
+        result == null -> "Scratch card, prize hidden. Ready to scratch."
+        else -> null
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1.7f)
             .clip(RoundedCornerShape(Radius.xl))
             .background(accent.copy(alpha = Tint.wash))
+            .semantics(mergeDescendants = true) {
+                cardDescription?.let { contentDescription = it }
+            }
     ) {
         // Prize layer
         Column(

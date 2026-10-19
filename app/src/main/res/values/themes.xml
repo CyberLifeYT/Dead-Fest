@@ -24,4 +24,21 @@
         <!-- The app is dark by design; never let the platform auto-darken it. -->
         <item name="android:forceDarkAllowed">false</item>
     </style>
+
+    <!--
+        Cold-start splash.
+
+        Below Android 12 there was no splash at all: the user saw the flat window background until
+        Compose drew its first frame. From Android 12 the system invents one from the launcher icon,
+        which meant the splash looked different on every Android version. `Theme.SplashScreen` from
+        androidx.core:core-splashscreen backports the same branded splash all the way to API 24, so
+        the skull, the ink background and the hand-off into the app are identical everywhere.
+
+        The post-splash theme is the real app theme, so nothing has to be re-applied afterwards.
+    -->
+    <style name="Theme.DeadFest.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/ink_0</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.DeadFest</item>
+    </style>
 </resources>

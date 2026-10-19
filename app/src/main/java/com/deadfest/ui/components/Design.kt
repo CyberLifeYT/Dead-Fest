@@ -9,6 +9,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +31,10 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -332,7 +337,12 @@ fun KeyValueRow(
     labelColor: Color = TextMid
 ) {
     Row(
-        modifier = modifier.fillMaxWidth().padding(vertical = 5.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp)
+            // Label and value are one fact. Unmerged, TalkBack reads "Coins", then "1,240", as two
+            // separate stops and the listener has to hold both in their head to make sense of it.
+            .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -364,7 +374,12 @@ fun PillChip(
 ) {
     val tint = if (selected) accent else TextMid
     Surface(
-        modifier = modifier.pressClick(RoundedCornerShape(Radius.pill), onClick = onClick),
+        modifier = modifier
+            .pressClick(RoundedCornerShape(Radius.pill), onClick = onClick)
+            // Every pill in the app is a choice between options, so the selection state belongs here
+            // rather than at each call site. Without it, "which one is picked" was carried by colour
+            // alone and was invisible to anyone who cannot see the tint.
+            .semantics { this.selected = selected },
         shape = RoundedCornerShape(Radius.pill),
         color = if (selected) accent.copy(alpha = Tint.fill) else Ink3,
         border = BorderStroke(Stroke.hair, if (selected) accent.copy(alpha = Tint.edgeStrong) else InkLine)
@@ -399,6 +414,9 @@ fun DeadFestProgress(
         modifier
             .fillMaxWidth()
             .height(height)
+            // A drawn box is silent: nothing would tell a screen reader that a progress rail is even
+            // here. Reports the target, not the animated value, so it never narrates the animation.
+            .progressSemantics(target)
             .clip(RoundedCornerShape(Radius.pill))
             .background(Ink4)
     ) {
@@ -534,7 +552,13 @@ fun ItemEmblem(
 @Composable
 fun LoadingState(text: String = "LOADING", modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxWidth().padding(vertical = Spacing.xxl),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.xxl)
+            // One stop that says what is happening. Left alone, TalkBack lands on a bare progress
+            // indicator, which most devices announce as nothing useful at all — the word "LOADING"
+            // is the part worth hearing.
+            .clearAndSetSemantics { contentDescription = text.uppercase() },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {

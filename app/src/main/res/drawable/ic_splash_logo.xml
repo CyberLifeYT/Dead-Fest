@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Splash-screen variant of the Dead-Fest skull.
+
+    Android sizes the splash icon to a 288dp canvas but only the middle ~192dp survives the
+    circular mask the launcher draws. So the artwork is laid out on a 288x288 viewport with the
+    skull scaled to sit entirely inside that inner circle: scaling the 100-unit mark by 1.7 puts
+    its half-diagonal (53.3 * 1.7 = 91) inside the 96-unit radius, leaving a small margin so no
+    part of the jaw or cranium is ever clipped on a round mask.
+
+    Same warm gradient as the launcher icon, so the splash and the app icon read as one asset.
+    Vector only: drawn once at cold start, sharp on every screen, no bitmaps to load.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="288dp"
+    android:height="288dp"
+    android:viewportWidth="288"
+    android:viewportHeight="288">
+    <group
+        android:translateX="59"
+        android:translateY="64"
+        android:scaleX="1.7"
+        android:scaleY="1.7">
+        <path android:pathData="M40,6L60,6A24,24 0 0 1 84,30L84,38A24,24 0 0 1 60,62L40,62A24,24 0 0 1 16,38L16,30A24,24 0 0 1 40,6Z
+            M30,52L70,52L70,68A20,20 0 0 1 50,88A20,20 0 0 1 30,68Z
+            M36,21A11,12 0 0 0 25,33A11,12 0 0 0 36,45A11,12 0 0 0 47,33A11,12 0 0 0 36,21Z
+            M64,21A11,12 0 0 0 53,33A11,12 0 0 0 64,45A11,12 0 0 0 75,33A11,12 0 0 0 64,21Z
+            M50,40L43,50L57,50Z
+            M41,76L41,84L45,84L45,76Z
+            M48,76L48,84L52,84L52,76Z
+            M55,76L55,84L59,84L59,76Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="50"
+                    android:startY="6"
+                    android:endX="50"
+                    android:endY="88">
+                    <item android:offset="0" android:color="#FFFFFFFF" />
+                    <item android:offset="0.55" android:color="#FFFFE9DE" />
+                    <item android:offset="1" android:color="#FFFF9E80" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>
