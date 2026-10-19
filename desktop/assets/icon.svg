@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!--
+    Dead-Fest desktop icon.
+
+    The same artwork as the Android launcher icon, rebuilt as SVG: the deep ink base
+    (#0B0709), the ember bloom behind the skull, and the skull itself with the warm
+    white -> peach gradient. The path data is copied verbatim from
+    app/src/main/res/drawable/ic_splash_logo.xml, so the two products are one brand.
+
+    Note on colours: Android vector gradients write 8-digit hex as #AARRGGBB, while CSS/SVG
+    reads 8-digit hex as #RRGGBBAA. The channel order is transposed here so the ember bloom
+    is actually ember and not green.
+  -->
+  <defs>
+    <radialGradient id="bloom" gradientUnits="userSpaceOnUse"
+                    cx="256" cy="246" r="256">
+      <stop offset="0" stop-color="#FF4B4B57"/>
+      <stop offset="0.55" stop-color="#FF8A5B26"/>
+      <stop offset="1" stop-color="#FF4B4B00"/>
+    </radialGradient>
+    <linearGradient id="bone" gradientUnits="userSpaceOnUse"
+                    x1="50" y1="6" x2="50" y2="88">
+      <stop offset="0" stop-color="#FFFFFFFF"/>
+      <stop offset="0.55" stop-color="#FFE9DEFF"/>
+      <stop offset="1" stop-color="#FF9E80FF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" fill="#0B0709"/>
+  <rect width="512" height="512" fill="url(#bloom)"/>
+
+  <g transform="translate(111 119.7) scale(2.9)">
+    <path fill="url(#bone)" d="
+      M40,6L60,6A24,24 0 0 1 84,30L84,38A24,24 0 0 1 60,62L40,62A24,24 0 0 1 16,38L16,30A24,24 0 0 1 40,6Z
+      M30,52L70,52L70,68A20,20 0 0 1 50,88A20,20 0 0 1 30,68Z
+      M36,21A11,12 0 0 0 25,33A11,12 0 0 0 36,45A11,12 0 0 0 47,33A11,12 0 0 0 36,21Z
+      M64,21A11,12 0 0 0 53,33A11,12 0 0 0 64,45A11,12 0 0 0 75,33A11,12 0 0 0 64,21Z
+      M50,40L43,50L57,50Z
+      M41,76L41,84L45,84L45,76Z
+      M48,76L48,84L52,84L52,76Z
+      M55,76L55,84L59,84L59,76Z"/>
+  </g>
+</svg>

@@ -1,10 +1,24 @@
 # Dead-Fest v2.0.8
 
-**Build 13.** A handle you can change yourself, app themes, a community game-request queue, and a
-kill switch for the Forced Spin Protocol.
+**Build 13.** A handle you can change yourself, app themes, a community game-request queue, a
+kill switch for the Forced Spin Protocol — and the whole thing as a Windows desktop program.
 
 Updating installs straight over what you already have. Nothing is reset, nobody is logged out, and
 your coins, level and history are untouched.
+
+## Also for Windows
+
+`Dead-Fest-Desktop-2.0.8.exe` on this page is the **desktop build**: one self-contained file, no
+installer and nothing to uninstall. Run it from anywhere on your disk.
+
+It is the same app, not a port of the idea — it talks to the **same Firebase project**, so it is the
+**same accounts and the same live game**. Your coins, deaths, level, handle and the whole survivor
+network are the ones you already have, and anything that changes on a phone appears on the desktop
+straight away. The interface is the phone app stood up for a desktop: the same ember-on-ink design
+system, the same cards, the same type, the same themes, and the same admin console.
+
+> Windows will call it an unrecognised app the first time, because it is not code-signed — the
+> same situation as sideloading the Android APK. Choose **More info → Run anyway**.
 
 ## Your handle, your call
 

@@ -1,0 +1,54 @@
+{
+  "name": "deadfest-desktop",
+  "version": "2.0.8",
+  "description": "Dead-Fest desktop client (Windows) — same accounts and live data as the Android app.",
+  "main": "main.js",
+  "author": "CyberLifeYT",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "icon": "electron tools/make-icon.js",
+    "dist": "electron-builder --win portable && node tools/stamp-exe.js",
+    "pack": "electron-builder --win dir && node tools/stamp-exe.js"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.deadfest.desktop",
+    "productName": "Dead-Fest",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "assets/icon.png",
+      "assets/icon.ico",
+      "vendor/**/*"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "Dead-Fest-Desktop-${version}.exe"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

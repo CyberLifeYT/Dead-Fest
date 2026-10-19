@@ -34,6 +34,9 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ### v2.0.8 – Handles, Themes & Game Requests *(Latest)*
 
+### v2.0.8 – Handles, Themes, Game Requests & the desktop client *(Latest)*
+
+- **🖥️ Dead-Fest for Windows** – The same app as a **desktop program**: `Dead-Fest-Desktop-2.0.8.exe` on the releases page is a single self-contained file — no installer, no uninstaller, run it from anywhere. It talks to the **same Firebase project**, so it is the *same accounts and the same live game* — your coins, deaths, level, handle and the whole survivor network are the ones you already have, and anything that changes on a phone appears on the desktop immediately. Same ember-on-ink design system, same cards, same type, same themes — the phone app stood up for a desktop. Source is in [`desktop/`](desktop/).
 - **🪪 Your handle, your call** – Change the name the community sees from **Settings → General → Identity**. It updates everywhere the moment you save it (player list, death feed, game requests) because every screen reads the same live field. Handles are unique across the whole app — `Slayer` and `slayer` are the same name — 3–20 characters of letters, numbers and underscores, with `Admin`/`Dead-Fest`/`Moderator` reserved. Coins, level, stats, titles and history are untouched.
 - **🎨 App themes** – **Settings → General → Themes** offers Default, Halloween, Christmas, Toxic Storm and Blood Moon, each previewing with its own real colours before you pick. The change is instant across the whole app. Themes restyle the surfaces and the brand colour and deliberately leave the semantic accents alone (amber is always currency, green always success), so the app stays Dead-Fest in every season and a success pill never starts looking like a warning.
 - **🎮 Request a game** – **More → Request Game** opens the community queue. **Request Game** looks the title up in a game database and shows real box art; **Pending games** shows what is waiting for an admin; **Approved games** is out in the open. Admins get a **Requests** module (approve / remove) — only admins can decide. If the game database is unreachable you can enter the game by hand, so the feature works regardless.
@@ -142,7 +145,8 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 ### 👥 Player & Social Features
 
 - **Survivor Identity** – A handle you change yourself in Settings → General → Identity (unique across the app, updates everywhere in real time), plus avatar, badge colour, avatar frame and earnable **Titles**.
-- **App Themes** – Choose from Default, Halloween, Christmas, Toxic Storm and Blood Moon in Settings → General → Themes. Each previews with real colours before you pick, and the change applies instantly everywhere. Themes restyle surfaces and the brand colour while keeping semantic accents (amber = currency, green = success) consistent.
+<- **App Themes** – Choose from Default, Halloween, Christmas, Toxic Storm and Blood Moon in Settings → General → Themes. Each previews with real colours before you pick, and the change applies instantly everywhere. Themes restyle surfaces and the brand colour while keeping semantic accents (amber = currency, green = success) consistent.
+- **Desktop Client (Windows)** – The same app as a single-file `.exe`, sharing the same accounts and live data. See [`desktop/`](desktop/).
 - **Levels, XP & Prestige** – A long‑term progression track with cosmetic rewards and a permanent prestige badge.
 - **Live Presence** – See who's in the app right now and when others were last seen.
 - **Images Gallery** – A shared photo wall for the whole community.
