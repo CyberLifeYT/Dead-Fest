@@ -198,6 +198,10 @@ object DeathRules {
     /**
      * Forced Spin Protocol + bankruptcy escalation + casualty tax, all from the live values
      * read inside the same transaction.
+     *
+     * [forceSpinProtocol] is the admin master switch from the global document. With it off a
+     * death adds no penalty spin; bankruptcy escalation is untouched, because a survivor who
+     * keeps dying while broke is a bankruptcy problem rather than a spin problem.
      */
     fun resolve(
         coins: Long,
@@ -206,14 +210,15 @@ object DeathRules {
         insulationTier: Int,
         insulationReductionPct: Int,
         insuranceActive: Boolean,
-        insurancePct: Int
+        insurancePct: Int,
+        forceSpinProtocol: Boolean = true
     ): DeathOutcome {
         val wasBankrupt = bankruptcyLevel >= Bankruptcy.LEVEL_1
-        var spinsAdded = 1                       // every death: +1 pending spin
+        var spinsAdded = if (forceSpinProtocol) 1 else 0                       // every death: +1 pending spin
         var level = bankruptcyLevel.coerceIn(Bankruptcy.NONE, Bankruptcy.LEVEL_2)
         if (wasBankrupt) {                        // any further death while bankrupt
             level = Bankruptcy.LEVEL_2
-            spinsAdded += 2                       // Level 2 adds 2 more on top
+            if (forceSpinProtocol) spinsAdded += 2  // Level 2 adds 2 more on top
         }
         val pending = pendingSpins.coerceAtLeast(0) + spinsAdded
         val tax = CasualtyTax.compute(coins, insulationTier, insulationReductionPct, insuranceActive, insurancePct)

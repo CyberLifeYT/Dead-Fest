@@ -28,9 +28,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.deadfest.data.model.Archive
+import com.deadfest.data.model.GameRequest
 import com.deadfest.data.model.GlobalState
 import com.deadfest.data.model.User
 import com.deadfest.data.model.WheelItem
@@ -50,6 +52,7 @@ private enum class AdminModule(val label: String, val icon: androidx.compose.ui.
     EVENT("Event", Icons.Default.Celebration),
     OVERLOAD("Overload", Icons.Default.Bolt),
     WHEEL("Wheel", Icons.Default.Casino),
+    GAME_REQUESTS("Requests", Icons.Default.SportsEsports),
     GLOBAL("Global", Icons.Default.Tune),
     BACKUP("Backup", Icons.Default.Archive),
     BROADCAST("Broadcast", Icons.Default.Campaign)
@@ -69,6 +72,7 @@ private val AdminModule.accent: Color
         AdminModule.EVENT -> Prestige
         AdminModule.OVERLOAD -> AmberDeep
         AdminModule.WHEEL -> Silver
+        AdminModule.GAME_REQUESTS -> Prestige
         AdminModule.GLOBAL -> Ember
         AdminModule.BACKUP -> Ember
         AdminModule.BROADCAST -> Plasma
@@ -117,6 +121,7 @@ fun AdminScreen(navController: NavController, viewModel: MainViewModel) {
                 AdminModule.EVENT -> EventAdmin(viewModel)
                 AdminModule.OVERLOAD -> OverloadAdmin(viewModel)
                 AdminModule.WHEEL -> WheelAdmin(viewModel)
+                AdminModule.GAME_REQUESTS -> GameRequestsAdmin(viewModel)
                 AdminModule.GLOBAL -> GlobalAdmin(viewModel)
                 AdminModule.BACKUP -> BackupAdmin(viewModel)
                 AdminModule.BROADCAST -> NotificationsAdmin(viewModel)
@@ -919,6 +924,104 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
     }
 }
 
+// ---------------------------------------------------------------- game requests
+
+/**
+ * Admin view of the community game queue.
+ *
+ * Pending requests can be approved — which makes the game a candidate sector — or removed;
+ * approved ones can be removed. The queue is the same stream the request screen reads, so the two
+ * can never disagree about what is waiting, and every row records who asked and who decided.
+ */
+@Composable
+private fun GameRequestsAdmin(viewModel: MainViewModel) {
+    val requests by viewModel.gameRequests.collectAsStateWithLifecycle()
+    val pending = remember(requests) { requests.filter { !it.isApproved } }
+    val approved = remember(requests) { requests.filter { it.isApproved } }
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).enterOnMount(3),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        AdminActionCard(
+            title = "Pending requests",
+            subtitle = "${pending.size} waiting. Approving makes a game a candidate sector.",
+            accent = if (pending.isNotEmpty()) Amber else null
+        ) {
+            if (pending.isEmpty()) {
+                EmptyState(Icons.Default.CheckCircle, "The queue is clear.")
+            } else {
+                pending.forEach { request ->
+                    GameRequestAdminRow(
+                        request = request,
+                        onApprove = { viewModel.approveGameRequest(request.id) },
+                        onRemove = { viewModel.removeGameRequest(request.id) }
+                    )
+                }
+            }
+        }
+
+        AdminActionCard(
+            title = "Approved games",
+            subtitle = "${approved.size} approved. Remove one to drop it from the list."
+        ) {
+            if (approved.isEmpty()) {
+                EmptyState(Icons.Default.SportsEsports, "Nothing approved yet.")
+            } else {
+                approved.forEach { request ->
+                    GameRequestAdminRow(
+                        request = request,
+                        onRemove = { viewModel.removeGameRequest(request.id) }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(Spacing.md))
+    }
+}
+
+@Composable
+private fun GameRequestAdminRow(
+    request: GameRequest,
+    onApprove: (() -> Unit)? = null,
+    onRemove: () -> Unit
+) {
+    SurfaceCard {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    request.name,
+                    color = TextHi,
+                    style = DeadFestType.cardTitle,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                StatusPill(
+                    if (request.isApproved) "APPROVED" else "PENDING",
+                    if (request.isApproved) Toxic else Amber
+                )
+            }
+            Spacer(Modifier.height(Spacing.xxs))
+            Text(
+                buildString {
+                    append("Asked by ${request.requestedByName}")
+                    if (request.decidedByName.isNotBlank()) append(" · decided by ${request.decidedByName}")
+                },
+                color = TextMid,
+                fontSize = 11.sp
+            )
+            Spacer(Modifier.height(Spacing.sm))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                if (onApprove != null) {
+                    PrimaryAction(text = "Approve", onClick = onApprove, modifier = Modifier.weight(1f))
+                }
+                GhostAction(text = "Remove", accent = Ember, onClick = onRemove, modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- global
 
 @Composable
@@ -1002,6 +1105,18 @@ private fun GlobalAdmin(viewModel: MainViewModel) {
             AdminSwitch("Lockdown protocol", "Freeze core features & death recording", globalState.lockdownActive, danger = true) { on ->
                 if (on) confirmLockdown = true
                 else viewModel.updateGlobalState(mapOf("lockdownActive" to false), success = "Lockdown lifted")
+            }
+            HorizontalDivider(color = InkLine)
+            AdminSwitch(
+                title = "Forced Spin Protocol",
+                subtitle = "Every death adds a penalty spin to the Wheel of Fate",
+                checked = globalState.forceSpinProtocol
+            ) { on ->
+                viewModel.updateGlobalState(
+                    mapOf("forceSpinProtocol" to on),
+                    success = "Forced Spin Protocol ${if (on) "enabled" else "disabled"}"
+                )
+                viewModel.logEvent("ADMIN_TOGGLE", "Forced Spin Protocol ${if (on) "enabled" else "disabled"} for everyone")
             }
         }
 

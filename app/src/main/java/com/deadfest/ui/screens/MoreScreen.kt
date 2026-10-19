@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MilitaryTech
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -146,6 +147,20 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
                     icon = Icons.Default.Info,
                     accent = Ember,
                     onClick = { navController.navigate("survival_intel") }
+                )
+            }
+
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel("Community") }
+            }
+            item {
+                HubButton(
+                    label = "REQUEST GAME",
+                    description = "Ask for a game to become a sector",
+                    icon = Icons.Default.SportsEsports,
+                    accent = Prestige,
+                    badge = "NEW",
+                    onClick = { navController.navigate("request_game") }
                 )
             }
         }

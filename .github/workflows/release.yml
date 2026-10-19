@@ -48,6 +48,7 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          THEGAMESDB_API_KEY: ${{ secrets.THEGAMESDB_API_KEY }}
         run: |
           missing=0
           [ -n "$KEYSTORE_BASE64" ] || { echo "::error::KEYSTORE_BASE64 is not set"; missing=1; }
@@ -55,6 +56,10 @@ jobs:
           [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] || { echo "::error::KEYSTORE_PASSWORD is not set"; missing=1; }
           [ -n "${{ secrets.KEY_ALIAS }}" ] || { echo "::error::KEY_ALIAS is not set"; missing=1; }
           [ -n "${{ secrets.KEY_PASSWORD }}" ] || { echo "::error::KEY_PASSWORD is not set"; missing=1; }
+          # The game-database key is optional: without it the build still succeeds and the request
+          # screen falls back to manual entry. It is checked so a missing key is a visible warning
+          # rather than a silent degradation, but it never fails the release.
+          [ -n "$THEGAMESDB_API_KEY" ] || echo "::warning::THEGAMESDB_API_KEY is not set — game lookup will fall back to manual entry."
           exit $missing
 
       # google-services.json is gitignored (it is project config, not source), so CI has to be handed
@@ -76,6 +81,7 @@ jobs:
           DEADFEST_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           DEADFEST_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           DEADFEST_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          DEADFEST_THEGAMESDB_API_KEY: ${{ secrets.THEGAMESDB_API_KEY }}
         run: >-
           ./gradlew
           :app:testDebugUnitTest

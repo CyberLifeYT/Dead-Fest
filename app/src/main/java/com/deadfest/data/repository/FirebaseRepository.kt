@@ -29,6 +29,19 @@ class FirebaseRepository(
     private val rewardsRef get() = firestore.collection("levelRewards")
     private val eventLogRef get() = firestore.collection("eventLog")
 
+    /**
+     * Handle registry: `usernames/{lowercase handle}` -> { uid, display }.
+     *
+     * This collection is what makes handles unique. A handle can only be taken by writing its
+     * registry document, so two survivors racing for the same name produce exactly one winner —
+     * the second transaction sees the document exist and is rejected. It is also the only thing
+     * that lets a rename release the old handle instead of stranding it forever.
+     */
+    private val usernamesRef get() = firestore.collection("usernames")
+
+    /** Community game requests: the queue survivors submit and admins approve. */
+    private val gameRequestsRef get() = firestore.collection("gameRequests")
+
     fun getCurrentUser() = auth.currentUser
 
     // ================================================================ streams
@@ -63,6 +76,12 @@ class FirebaseRepository(
                 updateUrlR8 = snapshot.getString("updateUrlR8") ?: "",
                 updateNotes = snapshot.getString("updateNotes") ?: "",
                 forceUpdate = snapshot.getBoolean("forceUpdate") ?: false,
+                /**
+                 * Forced Spin Protocol master switch. Defaults to ON when the document has no
+                 * such field — which is every live document today — so the behaviour survivors
+                 * already have is the default, and an admin turning it off is an explicit act.
+                 */
+                forceSpinProtocol = snapshot.getBoolean("forceSpinProtocol") ?: true,
                 games = (snapshot.get("games") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
                 lockedGames = (snapshot.get("lockedGames") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
                 overloadedSector = snapshot.getString("overloadedSector") ?: "",
@@ -207,6 +226,45 @@ class FirebaseRepository(
         usersRef.document(uid).update("playerData.$field", value).await()
     }
 
+    // ================================================================ handle (v2.0.8)
+
+    /**
+     * Changes a survivor's public handle, releasing the old one and claiming the new one.
+     *
+     * The whole change is a single transaction so the three writes can never disagree: the old
+     * registry document is deleted, the new one is created, and the user document is updated. If
+     * the new handle is already claimed, nothing at all is written and the caller is told
+     * [UsernameChangeResult.Taken] — the loser of a race keeps their current handle rather than
+     * being left with neither.
+     *
+     * The user document is updated through the normal listener, so every screen showing the
+     * survivor picks the new handle up in real time without any extra plumbing.
+     */
+    suspend fun changeUsername(uid: String, desired: String): UsernameChangeResult {
+        val name = desired.trim()
+        UsernameRules.errorFor(name)?.let { return UsernameChangeResult.Invalid(it) }
+        val key = UsernameRules.keyOf(name)
+        return try {
+            firestore.runTransaction { tx ->
+                val current = tx.get(usersRef.document(uid)).toUserModel()
+                val currentKey = current?.username?.trim()?.let(UsernameRules::keyOf)
+                if (currentKey == key) return@runTransaction UsernameChangeResult.Same
+                if (tx.get(usernamesRef.document(key)).exists()) {
+                    return@runTransaction UsernameChangeResult.Taken
+                }
+                if (currentKey != null) tx.delete(usernamesRef.document(currentKey))
+                tx.set(usernamesRef.document(key), mapOf("uid" to uid, "display" to name))
+                tx.update(usersRef.document(uid), "username", name)
+                UsernameChangeResult.Ok
+            }.await()
+        } catch (e: Exception) {
+            // A failed transaction leaves every write untouched, which is the point of doing it
+            // atomically — so this is only ever "try again", never a half-applied rename.
+            android.util.Log.w("FirebaseRepository", "changeUsername failed", e)
+            UsernameChangeResult.Invalid("Couldn't save that handle. Check your connection and try again.")
+        }
+    }
+
     suspend fun sendMessage(message: Message) {
         firestore.collection("messages").add(message).await()
     }
@@ -223,6 +281,78 @@ class FirebaseRepository(
             userVotes[uid] = optionIndex
             transaction.update(voteDoc, mapOf("results" to results, "userVotes" to userVotes))
         }.await()
+    }
+
+    // ================================================================ game requests (v2.0.8)
+
+    /**
+     * The community game queue, newest first.
+     *
+     * One stream rather than separate pending/approved ones: the queue is small, every screen
+     * filters it in memory, and a single listener is one less thing that can drift out of sync.
+     */
+    fun getGameRequests(): Flow<List<GameRequest>> =
+        gameRequestsRef.orderBy("createdAt", Query.Direction.DESCENDING).snapshots().map { snap ->
+            snap.documents.mapNotNull { d -> d.toObject<GameRequest>()?.also { it.id = d.id } }
+        }
+
+    /**
+     * Submits a game request for the queue.
+     *
+     * A duplicate check runs first: a game already queued (or already approved) can't be asked
+     * for twice. The check is a read rather than part of a transaction, so two survivors could in
+     * theory submit the same new name at the same instant — the queue would then hold two rows an
+     * admin can spot and merge, which is a smaller problem than a lost request.
+     */
+    suspend fun submitGameRequest(
+        name: String,
+        coverUrl: String,
+        uid: String,
+        byName: String
+    ): GameRequestResult {
+        val cleaned = name.trim()
+        if (cleaned.length < 2) return GameRequestResult.Invalid("Give the game a name first.")
+        if (cleaned.length > 80) return GameRequestResult.Invalid("That name is too long.")
+        return try {
+            val queued = gameRequestsRef.get().await()
+                .mapNotNull { it.toObject<GameRequest>() }
+            val clash = queued.firstOrNull { it.name.trim().equals(cleaned, ignoreCase = true) }
+            if (clash != null) {
+                return GameRequestResult.Invalid(
+                    if (clash.isApproved) "\"${clash.name}\" is already an approved game."
+                    else "\"${clash.name}\" is already waiting in the queue."
+                )
+            }
+            gameRequestsRef.add(
+                GameRequest(
+                    name = cleaned,
+                    coverUrl = coverUrl.trim(),
+                    requestedBy = uid,
+                    requestedByName = byName,
+                    status = GameRequest.STATUS_PENDING,
+                    createdAt = System.currentTimeMillis()
+                )
+            ).await()
+            GameRequestResult.Ok
+        } catch (e: Exception) {
+            android.util.Log.w("FirebaseRepository", "submitGameRequest failed", e)
+            GameRequestResult.Invalid("Couldn't send the request. Check your connection and try again.")
+        }
+    }
+
+    /** Admin: approve a request (or send it back to pending), recording who decided. */
+    suspend fun setGameRequestStatus(id: String, approved: Boolean, decidedByName: String) {
+        gameRequestsRef.document(id).update(
+            mapOf(
+                "status" to if (approved) GameRequest.STATUS_APPROVED else GameRequest.STATUS_PENDING,
+                "decidedByName" to decidedByName
+            )
+        ).await()
+    }
+
+    /** Admin: remove a request from the queue entirely. */
+    suspend fun removeGameRequest(id: String) {
+        gameRequestsRef.document(id).delete().await()
     }
 
     // ================================================================ coins (admin)
@@ -259,8 +389,18 @@ class FirebaseRepository(
      * Records a death with the full v2.0.5 pipeline, in one transaction on live data:
      * sector death +1, casualty tax (tier -> Wealth Insulation -> Insurance), Forced Spin
      * Protocol, bankruptcy escalation and death XP.
+     *
+     * [forceSpinProtocol] is the admin master switch: with it off, a death adds no penalty spin,
+     * which is the whole point of the toggle. Bankruptcy escalation still applies — that is the
+     * bankruptcy system, not the spin protocol.
      */
-    suspend fun recordDeath(uid: String, game: String, cfg: EconomyConfig, now: Long): DeathResult? {
+    suspend fun recordDeath(
+        uid: String,
+        game: String,
+        cfg: EconomyConfig,
+        now: Long,
+        forceSpinProtocol: Boolean = true
+    ): DeathResult? {
         val ref = usersRef.document(uid)
         val result = firestore.runTransaction { tx ->
             val d = tx.get(ref).toUserModel()?.playerData ?: return@runTransaction null
@@ -271,7 +411,8 @@ class FirebaseRepository(
                 insulationTier = d.insulationTier,
                 insulationReductionPct = ShopItem.insulationReduction(d.insulationTier, cfg),
                 insuranceActive = d.insurance,
-                insurancePct = cfg.insurancePct
+                insurancePct = cfg.insurancePct,
+                forceSpinProtocol = forceSpinProtocol
             )
             val xp = Leveling.addXp(d.xp, d.level, cfg.xp.death, cfg.xp)
             val deaths = d.games[game]?.deaths ?: 0L
@@ -745,7 +886,9 @@ class FirebaseRepository(
             val d = user.playerData
             PlayerSnapshot(
                 uid = user.uid,
-                displayName = user.displayName,
+                // Snapshot the handle, not the auth display name: the handle is what the survivor
+                // is actually called, and it is what a past season should be able to show.
+                displayName = user.handle,
                 coins = d.coins,
                 totalDeaths = d.games.values.sumOf { it.deaths },
                 gameDeaths = d.games.mapValues { it.value.deaths },

@@ -16,6 +16,7 @@ kotlinxCoroutinesPlayServices = "1.7.3"
 googleServices = "4.5.0"
 coreSplashscreen = "1.2.0"
 profileinstaller = "1.4.1"
+json = "20240303"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -46,6 +47,9 @@ firebase-remote-config = { group = "com.google.firebase", name = "firebase-confi
 firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+# Android's org.json is stubbed in unit tests and throws; this puts the real implementation on the
+# test classpath so the game-database parser can be tested for real. Never packaged in the APK.
+org-json = { group = "org.json", name = "json", version.ref = "json" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "kotlinxCoroutinesPlayServices" }
 
 [plugins]

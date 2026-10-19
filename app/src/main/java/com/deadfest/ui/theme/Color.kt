@@ -3,7 +3,7 @@ package com.deadfest.ui.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * Dead-Fest colour system (v2.0.7.1).
+ * Dead-Fest colour system (v2.0.7.1, themed in v2.0.8).
  *
  * Two layers:
  *  1. An ink/ember **scale** that new work should use directly.
@@ -11,65 +11,73 @@ import androidx.compose.ui.graphics.Color
  *     existing screen keeps compiling and instantly inherits the refreshed palette.
  *
  * Nothing here is a breaking change: no name was removed, only refined.
+ *
+ * **Themed.** Every constant below is a getter that reads the active [DeadFestPalette] from
+ * [DeadFestTheme]. Switching the app theme therefore restyles the entire app at once — no screen
+ * holds a colour of its own. See [Palette.kt] for which colours are themed and which are held
+ * constant on purpose.
+ *
+ * The palette fields are the single source of truth; these names exist so the thousand-odd call
+ * sites across the screens keep working unchanged.
  */
 
 // ------------------------------------------------------------------ ink scale (surfaces)
 /** Deepest background. Slightly cool so the ember accents read as warm. */
-val Ink0 = Color(0xFF08080A)
+val Ink0: Color get() = DeadFestTheme.palette.ink0
 /** Screen background. */
-val Ink1 = Color(0xFF0D0D11)
+val Ink1: Color get() = DeadFestTheme.palette.ink1
 /** Standard card / panel. */
-val Ink2 = Color(0xFF131318)
+val Ink2: Color get() = DeadFestTheme.palette.ink2
 /** Raised card, input field, inner tile. */
-val Ink3 = Color(0xFF1C1C23)
+val Ink3: Color get() = DeadFestTheme.palette.ink3
 /** Highest surface: pressed states, chips, dialogs. */
-val Ink4 = Color(0xFF26262F)
+val Ink4: Color get() = DeadFestTheme.palette.ink4
 /** Hairline dividers and borders. */
-val InkLine = Color(0xFF272730)
+val InkLine: Color get() = DeadFestTheme.palette.inkLine
 /** Grid/texture strokes (very low contrast). */
-val InkGrid = Color(0xFF1A1A20)
+val InkGrid: Color get() = DeadFestTheme.palette.inkGrid
 
 // ------------------------------------------------------------------ ember (brand primary)
 /** The Dead-Fest red. Unchanged from v2.0.0 so the identity holds. */
-val Ember = Color(0xFFFF4B4B)
+val Ember: Color get() = DeadFestTheme.palette.ember
 /** Deep ember for container fills and gradient ends. */
-val EmberDeep = Color(0xFFB3261E)
+val EmberDeep: Color get() = DeadFestTheme.palette.emberDeep
 /** Warm highlight used in gradients and glows. */
-val EmberGlow = Color(0xFFFF8A5B)
+val EmberGlow: Color get() = DeadFestTheme.palette.emberGlow
 /** Ember at its dimmest — track fills, disabled glows. */
-val EmberDim = Color(0xFF4A1512)
+val EmberDim: Color get() = DeadFestTheme.palette.emberDim
 
 // ------------------------------------------------------------------ accents
 /** Reward / currency. */
-val Amber = Color(0xFFFFD54F)
+val Amber: Color get() = DeadFestTheme.palette.amber
 /** Reward gradient end. */
-val AmberDeep = Color(0xFFFFA000)
+val AmberDeep: Color get() = DeadFestTheme.palette.amberDeep
 /** Tech / shield / insulation. */
-val Plasma = Color(0xFF4DD0E1)
+val Plasma: Color get() = DeadFestTheme.palette.plasma
 /** Online presence + positive confirmations. */
-val Toxic = Color(0xFF4CE07F)
+val Toxic: Color get() = DeadFestTheme.palette.toxic
 /** Prestige / progression. */
-val Prestige = Color(0xFFB388FF)
+val Prestige: Color get() = DeadFestTheme.palette.prestige
 
 // ------------------------------------------------------------------ text
-val TextHi = Color(0xFFF5F5F7)
-val TextMid = Color(0xFFA2A2B0)
-val TextLow = Color(0xFF70707E)
+val TextHi: Color get() = DeadFestTheme.palette.textHi
+val TextMid: Color get() = DeadFestTheme.palette.textMid
+val TextLow: Color get() = DeadFestTheme.palette.textLow
 
 // ------------------------------------------------------------------ legacy aliases
-// These are the names the whole app already uses. They now point at the refreshed palette.
-val DarkBg = Ink0
-val CardBg = Ink2
-val CardBgRaised = Ink3
-val Outline = InkLine
-val TextPrimary = TextHi
-val TextSecondary = TextMid
-val TextMuted = TextLow
-val RedAccent = Ember
-val RedDeep = EmberDeep
-val LockedColor = Color(0xFF333340)
-val Gold = Amber
-val Silver = Color(0xFFC8CBD1)
-val Bronze = Color(0xFFCD7F32)
-val OnlineGreen = Toxic
-val ShieldCyan = Plasma
+// These are the names the whole app already uses. They now point at the themed palette.
+val DarkBg: Color get() = DeadFestTheme.palette.ink0
+val CardBg: Color get() = DeadFestTheme.palette.ink2
+val CardBgRaised: Color get() = DeadFestTheme.palette.ink3
+val Outline: Color get() = DeadFestTheme.palette.inkLine
+val TextPrimary: Color get() = DeadFestTheme.palette.textHi
+val TextSecondary: Color get() = DeadFestTheme.palette.textMid
+val TextMuted: Color get() = DeadFestTheme.palette.textLow
+val RedAccent: Color get() = DeadFestTheme.palette.ember
+val RedDeep: Color get() = DeadFestTheme.palette.emberDeep
+val LockedColor: Color get() = DeadFestTheme.palette.locked
+val Gold: Color get() = DeadFestTheme.palette.amber
+val Silver: Color get() = DeadFestTheme.palette.silver
+val Bronze: Color get() = DeadFestTheme.palette.bronze
+val OnlineGreen: Color get() = DeadFestTheme.palette.toxic
+val ShieldCyan: Color get() = DeadFestTheme.palette.plasma

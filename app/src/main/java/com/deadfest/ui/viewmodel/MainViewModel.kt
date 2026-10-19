@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.deadfest.data.AppPrefs
 import com.deadfest.data.model.*
 import com.deadfest.data.repository.FirebaseRepository
+import com.deadfest.data.repository.GameInfo
+import com.deadfest.data.repository.TheGamesDbClient
 import com.deadfest.domain.*
 import com.deadfest.util.ImageCompressor
 import com.deadfest.util.NotificationHelper
@@ -112,6 +114,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val votes: StateFlow<List<Vote>> = repository.getVotes()
         .catch { logError("votes", it) }
         .stateIn(viewModelScope, whileVisible, emptyList())
+
+    /** The community game queue, newest first. */
+    val gameRequests: StateFlow<List<GameRequest>> = repository.getGameRequests()
+        .catch { logError("gameRequests", it) }
+        .stateIn(viewModelScope, whileVisible, emptyList())
+
+    // ================================================================ game database (v2.0.8)
+
+    /**
+     * Live state of the game-name lookup.
+     *
+     * The lookup goes to an external game database. When it is unreachable — no key configured,
+     * the service is down, the device is offline — [offline] is true and the request screen falls
+     * back to letting the survivor type the game by hand, so a dead lookup never blocks a feature
+     * that otherwise works entirely on Firestore.
+     */
+    private val _gameSearch = MutableStateFlow(GameSearchState())
+    val gameSearch: StateFlow<GameSearchState> = _gameSearch.asStateFlow()
+
+    /** True when no API key is configured at all, so the search box shouldn't even be offered. */
+    val gameDatabaseAvailable: Boolean = TheGamesDbClient.configuredApiKey.isNotBlank()
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
@@ -258,15 +281,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun processDeath(uid: String, name: String, game: String, showReport: Boolean) {
         val config = cfg
         launchSafe("Couldn't record death") {
-            val result = repository.recordDeath(uid, game, config, System.currentTimeMillis())
-                ?: throw IllegalStateException("Survivor record not found")
+            // The Forced Spin Protocol switch is read live, so an admin turning it off takes
+            // effect on the very next death rather than after an app restart.
+            val result = repository.recordDeath(
+                uid, game, config, System.currentTimeMillis(), globalState.value.forceSpinProtocol
+            ) ?: throw IllegalStateException("Survivor record not found")
             val o = result.outcome
             val tax = o.tax
 
             if (showReport) {
                 _deathReport.value = DeathReport(result, config.survivalReward)
             } else {
-                _events.tryEmit("Death injected into $game: ${fmt(tax.finalTax)} tax, +${o.spinsAdded} pending spin(s).")
+                // Only mention spins when some were actually added: with the protocol off the
+                // count is zero and "+0 pending spin(s)" reads like a bug.
+                val spinNote = if (o.spinsAdded > 0) ", +${o.spinsAdded} pending spin(s)" else ""
+                _events.tryEmit("Death injected into $game: ${fmt(tax.finalTax)} tax$spinNote.")
             }
 
             val bankruptNote = when {
@@ -699,6 +728,87 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun restoreArchive(archiveId: String) =
         launchSafe("Restore failed", success = "Archive restored") { repository.restoreArchive(archiveId) }
 
+    // ---------------------------------------------------------------- identity & game queue (v2.0.8)
+
+    /**
+     * Changes the signed-in survivor's public handle.
+     *
+     * Validated here so a bad name never leaves the phone, and again in the repository because the
+     * registry write is what actually has to be safe. "Same" is not an error — the field already
+     * holds that handle — so it gets its own message rather than a false "updated".
+     */
+    fun changeUsername(desired: String) {
+        val uid = user.value?.uid ?: return
+        val trimmed = desired.trim()
+        if (UsernameRules.keyOf(user.value?.username ?: "") == UsernameRules.keyOf(trimmed)) {
+            _events.tryEmit("That's already your handle.")
+            return
+        }
+        launchSafe("Couldn't update handle") {
+            when (val result = repository.changeUsername(uid, trimmed)) {
+                UsernameChangeResult.Ok -> _events.tryEmit("Handle updated to $trimmed")
+                UsernameChangeResult.Same -> _events.tryEmit("That's already your handle.")
+                UsernameChangeResult.Taken -> _events.tryEmit("\"$trimmed\" is already taken by another survivor.")
+                is UsernameChangeResult.Invalid -> _events.tryEmit(result.reason)
+            }
+        }
+    }
+
+    /**
+     * Looks a game up in the external game database.
+     *
+     * Results land in [gameSearch]. Any failure leaves the previous results alone and sets
+     * [GameSearchState.offline], so the request screen can offer manual entry rather than showing an
+     * empty list that reads as "no such game".
+     */
+    fun searchGames(query: String) {
+        val q = query.trim()
+        if (q.length < 2) {
+            _gameSearch.value = GameSearchState()
+            return
+        }
+        if (!gameDatabaseAvailable) {
+            _gameSearch.value = GameSearchState(query = q, offline = true)
+            return
+        }
+        _gameSearch.value = GameSearchState(query = q, loading = true)
+        viewModelScope.launch {
+            try {
+                _gameSearch.value = GameSearchState(query = q, results = TheGamesDbClient().searchGames(q))
+            } catch (e: Exception) {
+                logError("gameSearch", e)
+                _gameSearch.value = GameSearchState(query = q, offline = true)
+            }
+        }
+    }
+
+    /** Drops any in-flight search when the dialog closes. */
+    fun clearGameSearch() {
+        _gameSearch.value = GameSearchState()
+    }
+
+    /** Submits a game to the community request queue. */
+    fun submitGameRequest(name: String, coverUrl: String) {
+        val me = user.value ?: return
+        launchSafe("Couldn't send request") {
+            when (val result = repository.submitGameRequest(name, coverUrl, me.uid, me.handle)) {
+                GameRequestResult.Ok -> _events.tryEmit("Request sent: ${name.trim()}")
+                is GameRequestResult.Invalid -> _events.tryEmit(result.reason)
+            }
+        }
+    }
+
+    /** Admin: approve a request, making it a candidate sector. */
+    fun approveGameRequest(id: String) {
+        launchSafe("Couldn't approve request") {
+            repository.setGameRequestStatus(id, true, user.value?.handle ?: "Admin")
+        }
+    }
+
+    /** Admin: remove a request from the queue. */
+    fun removeGameRequest(id: String) =
+        launchSafe("Couldn't remove request") { repository.removeGameRequest(id) }
+
     // ---------------------------------------------------------------- helpers
 
     fun showMessage(text: String) {
@@ -781,6 +891,17 @@ data class ImageUploadState(
 ) {
     val busy: Boolean get() = processing || uploading || pending != null
 }
+
+/**
+ * Live state of the game-name lookup. [offline] means the game database could not be reached, so
+ * the request screen should offer manual entry rather than an empty result list.
+ */
+data class GameSearchState(
+    val query: String = "",
+    val loading: Boolean = false,
+    val results: List<GameInfo> = emptyList(),
+    val offline: Boolean = false
+)
 
 const val MAX_CAPTION = 140
 

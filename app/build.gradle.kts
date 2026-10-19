@@ -28,6 +28,15 @@ val signingProperties = Properties().apply {
 fun signingValue(property: String, environment: String): String? =
     (signingProperties.getProperty(property) ?: System.getenv(environment))?.takeIf { it.isNotBlank() }
 
+/**
+ * A value for BuildConfig, read exactly like the signing properties: `local.properties` first (that
+ * file is gitignored, so a secret typed there is never committed), then the environment. Null when
+ * neither has it — for the game-database key that means "lookup unavailable", which is a supported
+ * outcome rather than a build failure.
+ */
+fun buildConfigValue(property: String, environment: String): String? =
+    (signingProperties.getProperty(property) ?: System.getenv(environment))?.takeIf { it.isNotBlank() }
+
 val keystoreFile = signingValue("deadfest.storeFile", "DEADFEST_STORE_FILE")
     ?.let { rootProject.file(it) }
     ?.takeIf { it.exists() }
@@ -42,8 +51,16 @@ android {
         applicationId = "com.deadfest"
         minSdk = 24
         targetSdk = 37
-        versionCode = 12
-        versionName = "2.0.7.2"
+        versionCode = 13
+        versionName = "2.0.8"
+
+        // Client-side key for the game database (see TheGamesDbClient). It ships inside the APK,
+        // so it must be treated as public; see docs/SIGNING.md.
+        buildConfigField(
+            "String",
+            "THEGAMESDB_API_KEY",
+            "\"${buildConfigValue("deadfest.theGamesDbKey", "DEADFEST_THEGAMESDB_API_KEY") ?: ""}\""
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -125,6 +142,7 @@ dependencies {
     implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
+    testImplementation(libs.org.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)

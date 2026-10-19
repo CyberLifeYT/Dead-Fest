@@ -14,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -25,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -48,15 +50,15 @@ import com.deadfest.ui.viewmodel.MainViewModel
 /**
  * Terminal configuration.
  *
- * Split into three tabs because the concerns genuinely differ: what the app is (General), how it
- * behaves (System: performance, alerts, background survival), and what it's doing right now
- * (Diagnostics). Alerts and performance are the two settings that actually change the experience,
- * so they are the ones given the most visual weight.
+ * Split into four tabs because the concerns genuinely differ: what the app is (General), how it
+ * behaves (System: performance, alerts, background survival), what it's doing right now
+ * (Diagnostics), and how it looks (Themes). Alerts and performance are the two settings that
+ * actually change the experience, so they are the ones given the most visual weight.
  */
 @Composable
 fun SettingsScreen(navController: NavController, viewModel: MainViewModel) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("General", "System", "Diagnostics")
+    val tabs = listOf("General", "System", "Diagnostics", "Themes")
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(title = "TERMINAL CONFIG", subtitle = "System Operations & Personalization")
@@ -86,6 +88,7 @@ fun SettingsScreen(navController: NavController, viewModel: MainViewModel) {
                 0 -> GeneralTab(viewModel)
                 1 -> SystemTab(viewModel)
                 2 -> DiagnosticsTab(viewModel)
+                3 -> ThemesTab(viewModel)
             }
             Spacer(Modifier.height(Spacing.md))
         }
@@ -96,6 +99,7 @@ fun SettingsScreen(navController: NavController, viewModel: MainViewModel) {
 private fun GeneralTab(viewModel: MainViewModel) {
     val context = LocalContext.current
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
+    val user by viewModel.user.collectAsStateWithLifecycle()
     val prefs = viewModel.prefs
     val updateVariant by prefs.updateVariant.collectAsStateWithLifecycle()
     var downloading by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -177,7 +181,45 @@ private fun GeneralTab(viewModel: MainViewModel) {
         }
     }
 
-    SurfaceCard(modifier = Modifier.enterOnMount(1)) {
+    // Identity: the handle the rest of the community sees. Written through the usernames registry,
+    // so a rename is atomic and unique, and every screen picks it up from the same listener.
+    SettingsGroup("Identity", modifier = Modifier.enterOnMount(1)) {
+        Text(
+            "What the community sees on the player list, the death feed and game requests.",
+            color = TextMid,
+            style = DeadFestType.body
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        // Remembering against the current handle means an external change (a rename from another
+        // device, or a user document that was still loading) resets the field instead of leaving a
+        // stale value sitting in the box. `user` is null until the document lands, so the field
+        // starts blank and fills itself in.
+        val currentHandle = user?.handle ?: ""
+        var handleInput by remember(currentHandle) { mutableStateOf(currentHandle) }
+        OutlinedTextField(
+            value = handleInput,
+            onValueChange = { handleInput = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Handle") },
+            supportingText = { Text("3-20 characters. Letters, numbers and underscores.") },
+            singleLine = true,
+            shape = RoundedCornerShape(Radius.md),
+            colors = deadFestFieldColors()
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        Button(
+            onClick = { viewModel.changeUsername(handleInput) },
+            enabled = handleInput.isNotBlank(),
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Color.White),
+            shape = RoundedCornerShape(Radius.md),
+            elevation = null
+        ) {
+            Text("SAVE HANDLE", style = DeadFestType.action)
+        }
+    }
+
+    SurfaceCard(modifier = Modifier.enterOnMount(2)) {
         Text("ABOUT DEAD-FEST", color = TextHi, style = DeadFestType.cardTitle)
         Spacer(Modifier.height(Spacing.xxs))
         Text(
@@ -323,6 +365,110 @@ private fun SystemTab(viewModel: MainViewModel) {
             checked = wasteland,
             onChange = prefs::setWastelandAlerts
         )
+    }
+}
+
+/**
+ * App themes (v2.0.8).
+ *
+ * Each option previews with its own real colours — surface, brand and currency — so the choice is
+ * concrete rather than a name on a list. Selecting one writes the preference and the whole app
+ * restyles immediately: the colour constants all read from the active palette, so there is no
+ * per-screen work.
+ */
+@Composable
+private fun ThemesTab(viewModel: MainViewModel) {
+    val theme by viewModel.prefs.theme.collectAsStateWithLifecycle()
+
+    Column(
+        modifier = Modifier.fillMaxSize().enterOnMount(0),
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+    ) {
+        Text(
+            "Restyle the terminal. Semantic colours stay put in every theme — amber is always " +
+                "currency, green always success — so a warning never starts looking like a reward.",
+            color = TextMid,
+            style = DeadFestType.body,
+            lineHeight = 20.sp
+        )
+        Spacer(Modifier.height(Spacing.xxs))
+        AppPalettes.forEachIndexed { index, palette ->
+            ThemeOption(
+                palette = palette,
+                selected = palette.name.equals(theme, ignoreCase = true),
+                onSelect = { viewModel.prefs.setTheme(palette.name) },
+                modifier = Modifier.enterOnMount(index + 1)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeOption(
+    palette: DeadFestPalette,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    SurfaceCard(
+        modifier = modifier,
+        accent = if (selected) palette.ember else null,
+        onClick = onSelect
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // The palette's own colours, drawn at the size they will actually be used at.
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(palette.ink2)
+                    .border(BorderStroke(Stroke.hair, palette.inkLine), RoundedCornerShape(Radius.md))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(listOf(palette.ink4, palette.ink2)))
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(6.dp)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(palette.ember)
+                )
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(palette.amber)
+                )
+            }
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    palette.name,
+                    color = if (selected) TextHi else TextMid,
+                    style = DeadFestType.cardTitle
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    if (selected) "Active" else "Tap to apply",
+                    color = if (selected) palette.ember else TextLow,
+                    style = DeadFestType.body
+                )
+            }
+            RadioButton(
+                selected = selected,
+                onClick = null,
+                colors = RadioButtonDefaults.colors(
+                    selectedColor = palette.ember,
+                    unselectedColor = TextLow
+                )
+            )
+        }
     }
 }
 

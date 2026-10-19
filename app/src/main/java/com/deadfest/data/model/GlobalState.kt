@@ -24,6 +24,14 @@ data class GlobalState(
     @get:PropertyName("updateUrlR8") @set:PropertyName("updateUrlR8") var updateUrlR8: String = "",
     @get:PropertyName("updateNotes") @set:PropertyName("updateNotes") var updateNotes: String = "",
     @get:PropertyName("forceUpdate") @set:PropertyName("forceUpdate") var forceUpdate: Boolean = false,
+    /**
+     * Master switch for the Forced Spin Protocol: every death adds a penalty spin to the Wheel of
+     * Fate. Off means deaths no longer force a spin.
+     *
+     * Defaults to true so a document written before this field existed (i.e. every live document)
+     * keeps the behaviour survivors already have. Turning it off is an explicit admin act.
+     */
+    @get:PropertyName("forceSpinProtocol") @set:PropertyName("forceSpinProtocol") var forceSpinProtocol: Boolean = true,
     @get:PropertyName("games") @set:PropertyName("games") var games: List<String> = emptyList(),
     @get:PropertyName("lockedGames") @set:PropertyName("lockedGames") var lockedGames: List<String> = emptyList(),
     @get:PropertyName("wheelItems") var wheelItems: List<WheelItem> = emptyList(),

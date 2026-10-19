@@ -9,8 +9,8 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.7.2-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
-[![APK](https://img.shields.io/badge/APK-3.8%20MB%20(R8)%20%2F%2026.8%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.0.8-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![APK](https://img.shields.io/badge/APK-3.9%20MB%20(R8)%20%2F%2027%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
 Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
@@ -31,6 +31,13 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 ---
 
 ## 🔄 What’s New
+
+### v2.0.8 – Handles, Themes & Game Requests
+- **🪪 Your handle, your call** – Change the name the community sees from **Settings → General → Identity**. It updates everywhere the moment you save it (player list, death feed, game requests) because every screen reads the same live field. Handles are unique across the whole app — `Slayer` and `slayer` are the same name — 3–20 characters of letters, numbers and underscores, with `Admin`/`Dead-Fest`/`Moderator` reserved. Coins, level, stats, titles and history are untouched.
+- **🎨 App themes** – **Settings → General → Themes** offers Default, Halloween, Christmas, Toxic Storm and Blood Moon, each previewing with its own real colours before you pick. The change is instant across the whole app. Themes restyle the surfaces and the brand colour and deliberately leave the semantic accents alone (amber is always currency, green always success), so the app stays Dead-Fest in every season and a success pill never starts looking like a warning.
+- **🎮 Request a game** – **More → Request Game** opens the community queue. **Request Game** looks the title up in a game database and shows real box art; **Pending games** shows what is waiting for an admin; **Approved games** is out in the open. Admins get a **Requests** module (approve / remove) — only admins can decide. If the game database is unreachable you can enter the game by hand, so the feature works regardless.
+- **🛑 Forced Spin Protocol kill switch** – Admins can turn it off from **Admin → Global → System switches**. While off, a death adds no penalty spin; existing spins and bankruptcy escalation are untouched. It is read live, so it takes effect on the next death rather than after a restart, and it defaults to on so existing behaviour is preserved.
+- **🧪 More tests** – 75 unit tests now, covering the handle rules, the theme system, the death-pipeline toggle and the game-database parsing.
 
 ### v2.0.7.2 – Two Builds, Splash & Screen Readers
 - **📦 Pick your build** – Every release is now published twice: **Dead-Fest.R8.apk** (3.78 MB, shrunk by R8) and **Dead-Fest.apk** (27 MB, the full build). Same version, same signing key, so either installs over the other whenever you change your mind. **Settings → Update** shows both and remembers your choice, starting you on the same kind of build you're already running. If only one has been uploaded, everyone is served that one rather than being told there's nothing to install.
@@ -126,7 +133,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ### 👥 Player & Social Features
 
-- **Survivor Identity** – Display name, avatar, badge colour, avatar frame and earnable **Titles**.
+- **Survivor Identity** – A handle you change yourself in Settings → General → Identity (unique across the app, updates everywhere in real time), plus avatar, badge colour, avatar frame and earnable **Titles**.
 - **Levels, XP & Prestige** – A long‑term progression track with cosmetic rewards and a permanent prestige badge.
 - **Live Presence** – See who's in the app right now and when others were last seen.
 - **Images Gallery** – A shared photo wall for the whole community.
@@ -149,14 +156,15 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **XP & Levels** – Configure every XP source and the level curve.
 - **Player Control** – Coins, death injection (full tax pipeline), admin rights, clear penalties.
 - **Season & Event Control** – Rename the running season, schedule the next Dead-Fest (name, start time, blurb) and queue its games.
-- **System Switches** – Market, Wheel, Revives, Lockdown, firmware publishing (with forced updates) and broadcasts.
+- **System Switches** – Market, Wheel, Revives, Lockdown, **Forced Spin Protocol** (stop deaths from adding penalty spins), firmware publishing (with forced updates) and broadcasts.
+- **Game Requests** – Review the community queue: approve pending requests (making a game a candidate sector) or remove them.
 
 ### 📡 Infrastructure
 
 - **Firebase Core** – Firestore (database + image storage), Auth (Email/Password) and Cloud Messaging (FCM).
 - **Real‑time Everything** – Live dashboard, leaderboards, shop, wheel, presence and gallery – no manual refreshes.
 - **Transaction‑Safe Economy** – Every coin, death and XP change runs in a Firestore transaction on live data.
-- **Low‐End Friendly** – R8‐shrunk 3.78 MB release (or a 26.8 MB full build if you'd rather), Performance Mode, lifecycle‐aware listeners, no background service.
+- **Low‐End Friendly** – R8‐shrunk 3.9 MB release (or a 27 MB full build if you'd rather), Performance Mode, lifecycle‐aware listeners, no background service.
 - **In‐App OTA Updates** – Two published builds, per-user choice in Settings, progress dialog and automatic installer handoff.
 - **Home Screen Widget** – Global eliminations, online survivors and overload status.
 
@@ -298,6 +306,22 @@ service cloud.firestore {
     // Optional / future features
     match /messages/{id} { allow read, create: if signedIn(); allow delete: if isAdmin(); }
     match /votes/{id}    { allow read, update: if signedIn(); allow create, delete: if isAdmin(); }
+
+    // Handle registry (v2.0.8): one document per taken handle. Only its holder may claim it,
+    // and the stored uid must match the writer — otherwise anyone could squat a name by writing
+    // its registry document.
+    match /usernames/{name} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // Community game requests (v2.0.8): anyone signed in may ask; only admins decide or remove.
+    match /gameRequests/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.requestedBy == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
   }
 }
 ```

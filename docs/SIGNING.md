@@ -45,6 +45,21 @@ Both `debug` and `release` are signed with this key on purpose. The two publishe
 (full) and `Dead-Fest R8.apk` (shrunk) — have to be installable over each other, or choosing the
 smaller build in Settings would force an uninstall.
 
+## The game-database key is a different kind of secret
+
+The game-request lookup uses a client-side API key for TheGamesDB. Unlike the signing key it is **not
+secret in the cryptographic sense**: it is compiled into `BuildConfig` and therefore ships inside the
+APK, where anyone who unpacks the build can read it. Treat it as public.
+
+It follows the same loading pattern as the keystore — `local.properties` (`deadfest.theGamesDbKey`,
+gitignored) locally, `DEADFEST_THEGAMESDB_API_KEY` in CI — and the build succeeds with it blank. With
+no key the request screen simply hides the search box and offers manual entry, so a missing key
+degrades one feature rather than breaking the build.
+
+Because it is extractable, the only real protection is the provider's dashboard: scope or rotate the
+key there if that ever becomes possible. The workflow checks for it and warns rather than failing,
+since a release must not be blocked by an optional feature.
+
 ## Verify a build before publishing it
 
 ```powershell

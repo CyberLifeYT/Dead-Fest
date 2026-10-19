@@ -59,6 +59,22 @@ class AppPrefs(context: Context) {
         prefs.edit { putString(KEY_UPDATE_VARIANT, variant.name) }
     }
 
+    /**
+     * The active app theme (Default / Halloween / Christmas / ...).
+     *
+     * Stored as the palette's display name. Absent on every install that predates v2.0.8, which is
+     * why the default is resolved in [com.deadfest.ui.theme.paletteFor] rather than assumed.
+     */
+    private val _theme = MutableStateFlow(
+        prefs.getString(KEY_THEME, null) ?: com.deadfest.ui.theme.DEFAULT_THEME_NAME
+    )
+    val theme: StateFlow<String> = _theme.asStateFlow()
+
+    fun setTheme(name: String) {
+        _theme.value = name
+        prefs.edit { putString(KEY_THEME, name) }
+    }
+
     private fun save(key: String, value: Boolean, flow: MutableStateFlow<Boolean>) {
         flow.value = value
         prefs.edit { putBoolean(key, value) }
@@ -74,6 +90,8 @@ class AppPrefs(context: Context) {
         const val KEY_BATTERY_PROMPT = "battery_prompt_shown"
         /** Added in 2.0.7.2. Absent on every earlier install, which is why it must stay optional. */
         const val KEY_UPDATE_VARIANT = "pref_update_variant"
+        /** Added in 2.0.8. Absent on earlier installs, so the theme falls back to the default. */
+        const val KEY_THEME = "pref_app_theme"
 
         fun isLowEndDevice(context: Context): Boolean {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager

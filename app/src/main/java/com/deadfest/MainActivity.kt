@@ -139,6 +139,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 CompositionLocalProvider(LocalPerformanceMode provides performanceMode) {
+                    // The stored theme is pushed into the palette holder once, here, and again
+                    // whenever it changes — so picking a theme in Settings restyles the whole app
+                    // with no per-screen work.
+                    LaunchedEffect(Unit) { viewModel.prefs.theme.collect { com.deadfest.ui.theme.DeadFestTheme.select(it) } }
+
                     // One ambient background paints the whole app: the ink base, the ember and
                     // plasma washes, and (outside Performance Mode) the terminal grid. Screens
                     // stay transparent so nothing is drawn twice and no screen pays for it.
@@ -308,6 +313,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
             composable("team_progress") { TeamProgressScreen(navController, viewModel) }
             composable("archives") { ArchivesScreen(navController, viewModel) }
             composable("survival_intel") { SurvivalIntelScreen(navController) }
+            composable("request_game") { RequestGameScreen(navController, viewModel) }
             composable("scratch") { ScratchScreen(navController, viewModel) }
             composable("progression") { ProgressionScreen(navController, viewModel) }
             composable("images") { ImagesScreen(navController, viewModel) }
