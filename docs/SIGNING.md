@@ -45,6 +45,34 @@ Both `debug` and `release` are signed with this key on purpose. The two publishe
 (full) and `Dead-Fest R8.apk` (shrunk) — have to be installable over each other, or choosing the
 smaller build in Settings would force an uninstall.
 
+## The desktop build is produced locally, not in CI
+
+`desktop/` is a Windows Electron client for the same Firebase project, so it is built on a Windows
+machine rather than on the Linux runner:
+
+```bash
+cd desktop
+npm install
+npm run dist        # -> dist/Dead-Fest-Desktop-2.0.8.exe
+```
+
+The executable is then uploaded to the release by hand, and the release notes are refreshed so the
+attached-files table lists it alongside the two APKs. **Re-publishing the tag replaces the two
+APKs** (the desktop asset keeps its own name and survives, but it drops out of the table the
+workflow generates) — so a re-publish means re-uploading the desktop build and refreshing the notes
+again.
+
+Two build details that look like mistakes but are not:
+
+- **`signAndEditExecutable: false`.** electron-builder brands an executable with `rcedit`, which
+  ships in a package whose extraction needs symlink privileges on Windows — a privilege a normal
+  account does not have, so the build cannot fetch it. `tools/stamp-exe.js` runs the copy already in
+  electron-builder's cache instead.
+- **The portable build is a self-extractor.** `rcedit` drops anything appended after the PE
+  sections, which for this build is the entire 74 MB payload; stamping it naively produces an 82 KB
+  file that does nothing. `tools/stamp-exe.js` measures the overlay out of the original executable
+  and puts it back, leaving a branded *and* whole self-extractor.
+
 ## The game-database key is a different kind of secret
 
 The game-request lookup uses a client-side API key for TheGamesDB. Unlike the signing key it is **not
