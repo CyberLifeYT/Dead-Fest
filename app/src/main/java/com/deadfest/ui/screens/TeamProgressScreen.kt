@@ -1,13 +1,11 @@
 package com.deadfest.ui.screens
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Groups
@@ -21,7 +19,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,9 +53,15 @@ fun TeamProgressScreen(navController: NavController, viewModel: MainViewModel) {
 
     BackHandler(enabled = selectedArchive != null) { selectedId = null }
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         if (selectedArchive != null) {
-            SeasonDetail(selectedArchive, dateFormat) { selectedId = null }
+            SeasonDetail(
+                archive = selectedArchive,
+                archives = archives,
+                dateFormat = dateFormat,
+                onSelect = { selectedId = it },
+                onBack = { selectedId = null }
+            )
             return@Column
         }
 
@@ -70,35 +74,49 @@ fun TeamProgressScreen(navController: NavController, viewModel: MainViewModel) {
         val stats = remember(users, globalState.games) { LiveStats.of(users, globalState.games) }
 
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            contentPadding = PaddingValues(
+                start = Spacing.gutter,
+                end = Spacing.gutter,
+                top = Spacing.sm,
+                bottom = Spacing.scrollBottom
+            )
         ) {
             item {
-                CurrentSeasonCard(
-                    seasonName = globalState.currentSeasonName,
-                    stats = stats
-                )
+                CurrentSeasonHero(globalState.currentSeasonName, stats, Modifier.enterOnMount(0))
             }
-            item { SectionLabel("ELIMINATIONS BY SECTOR") }
+            item { SectionLabel("Eliminations by sector", Modifier.enterOnMount(1)) }
             item {
                 if (stats.deathsPerSector.isEmpty()) {
-                    EmptyState(Icons.Default.Warning, "No deaths recorded this season yet.")
+                    EmptyStateCard(
+                        icon = Icons.Default.Warning,
+                        title = "No eliminations recorded",
+                        message = "Deaths recorded this season appear here, broken down by sector.",
+                        modifier = Modifier.enterOnMount(2)
+                    )
                 } else {
-                    SectorBreakdown(stats.deathsPerSector)
+                    SectorBreakdown(stats.deathsPerSector, Modifier.enterOnMount(2))
                 }
             }
 
-            item { SectionLabel("CURRENT STANDINGS") }
+            item { SectionLabel("Current standings", Modifier.enterOnMount(3)) }
             item {
-                SurvivorLeaders(stats.deadliest, stats.richest)
+                SurvivorLeaders(stats.deadliest, stats.richest, Modifier.enterOnMount(4))
             }
 
-            item { SectionLabel("PAST DEAD-FESTS", Modifier.padding(top = 6.dp)) }
+            item { SectionLabel("Past Dead-Fests", Modifier.enterOnMount(5)) }
             if (archives.isEmpty()) {
-                item { EmptyState(Icons.Default.History, "No Dead-Fest has been archived yet. The first one is still being written.") }
-            }
-            items(archives, key = { it.id }) { archive ->
-                PastSeasonCard(archive, dateFormat) { selectedId = archive.id }
+                item {
+                    EmptyStateCard(
+                        icon = Icons.Default.History,
+                        title = "No Dead-Fest archived",
+                        message = "Every past season will be listed here once it has been sealed."
+                    )
+                }
+            } else {
+                items(archives, key = { it.id }) { archive ->
+                    PastSeasonCard(archive, dateFormat) { selectedId = archive.id }
+                }
             }
         }
     }
@@ -146,101 +164,86 @@ private data class LiveStats(
                 shields = players.count { it.playerData.shield },
                 insulations = players.count { it.playerData.insulationTier > 0 },
                 deathsPerSector = deathsPerSector,
-                deadliest = players.sortedByDescending { u -> u.playerData.games.values.sumOf { it.deaths } }.take(3),
-                richest = players.sortedByDescending { it.playerData.coins }.take(3)
+                deadliest = players.sortedByDescending { u -> u.playerData.games.values.sumOf { s -> s.deaths } }.take(3),
+                richest = players.sortedByDescending { u -> u.playerData.coins }.take(3)
             )
         }
     }
 }
 
 @Composable
-private fun CurrentSeasonCard(seasonName: String, stats: LiveStats) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.45f))
+private fun CurrentSeasonHero(seasonName: String, stats: LiveStats, modifier: Modifier = Modifier) {
+    HeroPanel(
+        eyebrow = "Current Dead-Fest",
+        title = seasonName,
+        icon = Icons.Default.Groups,
+        modifier = modifier,
+        accent = Ember,
+        badge = { StatusPill("LIVE", Toxic) }
     ) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconTile(Icons.Default.Groups, size = 46)
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("CURRENT DEAD-FEST", color = RedAccent, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+        StatGrid(
+            listOf(
+                StatSpec("SURVIVORS", formatNumber(stats.survivors)),
+                StatSpec("TOTAL DEATHS", formatNumber(stats.totalDeaths), Ember),
+                StatSpec("COINS IN PLAY", formatNumber(stats.totalCoins), Amber),
+                StatSpec("AVG LEVEL", "${stats.averageLevel}"),
+                StatSpec("TOP LEVEL", "${stats.topLevel}"),
+                StatSpec("PRESTIGES", "${stats.prestigeCount}", Prestige),
+                StatSpec("BANKRUPT", "${stats.bankrupt}", if (stats.bankrupt > 0) Ember else TextPrimary),
+                StatSpec("SPINS DUE", "${stats.pendingSpins}", if (stats.pendingSpins > 0) Ember else TextPrimary),
+                StatSpec("INSULATED", "${stats.insulations}", Plasma)
+            )
+        )
+    }
+}
+
+@Composable
+private fun SectorBreakdown(sectors: List<Pair<String, Long>>, modifier: Modifier = Modifier) {
+    val peak = sectors.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
+    SurfaceCard(modifier = modifier) {
+        sectors.take(8).forEachIndexed { index, (name, deaths) ->
+            if (index > 0) Spacer(Modifier.height(Spacing.sm))
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        seasonName,
-                        color = TextPrimary,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Black,
+                        name,
+                        color = TextHi,
+                        style = DeadFestType.chip,
+                        modifier = Modifier.weight(1f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    Text(formatNumber(deaths), color = Ember, style = DeadFestType.chip)
                 }
-                StatusPill("LIVE", OnlineGreen)
-            }
-            Spacer(Modifier.height(16.dp))
-            StatGrid(
-                listOf(
-                    StatSpec("SURVIVORS", formatNumber(stats.survivors)),
-                    StatSpec("TOTAL DEATHS", formatNumber(stats.totalDeaths), RedAccent),
-                    StatSpec("COINS IN PLAY", formatNumber(stats.totalCoins), Gold),
-                    StatSpec("AVG LEVEL", "${stats.averageLevel}"),
-                    StatSpec("TOP LEVEL", "${stats.topLevel}"),
-                    StatSpec("PRESTIGES", "${stats.prestigeCount}", PrestigePurple),
-                    StatSpec("BANKRUPT", "${stats.bankrupt}", if (stats.bankrupt > 0) RedAccent else TextPrimary),
-                    StatSpec("SPINS DUE", "${stats.pendingSpins}", if (stats.pendingSpins > 0) RedAccent else TextPrimary),
-                    StatSpec("INSULATED", "${stats.insulations}", ShieldCyan)
-                )
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectorBreakdown(sectors: List<Pair<String, Long>>) {
-    val peak = sectors.maxOfOrNull { it.second }?.coerceAtLeast(1L) ?: 1L
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, Outline)
-    ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            sectors.take(8).forEach { (name, deaths) ->
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            name,
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(formatNumber(deaths), color = RedAccent, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                    }
-                    Spacer(Modifier.height(5.dp))
-                    ProportionBar(deaths.toFloat() / peak.toFloat())
-                }
+                Spacer(Modifier.height(Spacing.xxs))
+                ProportionBar(deaths.toFloat() / peak.toFloat())
             }
         }
     }
 }
 
 @Composable
-private fun SurvivorLeaders(deadliest: List<User>, richest: List<User>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+private fun SurvivorLeaders(deadliest: List<User>, richest: List<User>, modifier: Modifier = Modifier) {
+    if (deadliest.isEmpty() && richest.isEmpty()) {
+        EmptyStateCard(
+            icon = Icons.Default.Groups,
+            title = "No standings yet",
+            message = "Standings fill in as survivors record deaths and bank coins this season.",
+            modifier = modifier
+        )
+        return
+    }
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         LeaderColumn(
             title = "DEADLIEST",
-            accent = RedAccent,
+            accent = Ember,
             icon = Icons.Default.LocalFireDepartment,
             entries = deadliest.map { it to it.playerData.games.values.sumOf { s -> s.deaths } },
             modifier = Modifier.weight(1f)
         )
         LeaderColumn(
             title = "RICHEST",
-            accent = Gold,
+            accent = Amber,
             icon = Icons.Default.Paid,
             entries = richest.map { it to it.playerData.coins },
             modifier = Modifier.weight(1f)
@@ -252,44 +255,35 @@ private fun SurvivorLeaders(deadliest: List<User>, richest: List<User>) {
 private fun LeaderColumn(
     title: String,
     accent: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     entries: List<Pair<User, Long>>,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, Outline)
-    ) {
-        Column(Modifier.padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(title, color = accent, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.2.sp)
-            }
-            Spacer(Modifier.height(10.dp))
-            if (entries.none { it.second > 0 }) {
-                Text("Nothing recorded yet.", color = TextMuted, fontSize = 12.sp)
-            } else {
-                entries.forEachIndexed { index, (user, value) ->
-                    if (index > 0) Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            user.playerData.avatar?.takeIf { it.isNotBlank() } ?: "💀",
-                            fontSize = 16.sp
-                        )
-                        Spacer(Modifier.width(8.dp))
+    SurfaceCard(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(Spacing.xxs))
+            SectionLabel(title, accent = accent)
+        }
+        Spacer(Modifier.height(Spacing.xs))
+        if (entries.none { it.second > 0 }) {
+            Text("Nothing recorded yet.", color = TextLow, style = DeadFestType.body)
+        } else {
+            entries.forEachIndexed { index, (user, value) ->
+                if (index > 0) Spacer(Modifier.height(Spacing.xs))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RankBadge(index + 1)
+                    Spacer(Modifier.width(Spacing.xs))
+                    // Two lines: half-width columns ellipsize a name + value on one line.
+                    Column(Modifier.weight(1f)) {
                         Text(
                             user.displayName?.takeIf { it.isNotBlank() } ?: "Unknown",
-                            color = TextPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f),
+                            color = TextHi,
+                            style = DeadFestType.chip,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(formatNumber(value), color = accent, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        Text(formatNumber(value), color = accent, style = DeadFestType.chip, maxLines = 1)
                     }
                 }
             }
@@ -301,44 +295,50 @@ private fun LeaderColumn(
 
 @Composable
 private fun PastSeasonCard(archive: Archive, dateFormat: SimpleDateFormat, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pressClick(RoundedCornerShape(18.dp), onClick = onClick),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, Outline)
-    ) {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconTile(Icons.Default.History, size = 44)
-            Spacer(Modifier.width(14.dp))
+    SurfaceCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Default.History, tint = Amber, size = 44)
+            Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
-                Text(archive.name, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(dateFormat.format(Date(archive.timestamp)), color = TextSecondary, fontSize = 12.sp)
+                Text(
+                    archive.name,
+                    color = TextHi,
+                    style = DeadFestType.cardTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(dateFormat.format(Date(archive.timestamp)), color = TextMid, style = DeadFestType.body)
                 Text(
                     "${formatNumber(archive.totalDeaths)} deaths · ${formatNumber(archive.survivorCount)} survivors",
-                    color = RedAccent,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
+                    color = Ember,
+                    style = DeadFestType.chip
                 )
                 archive.champion?.let { champ ->
                     Text(
                         "👑 ${champ.displayName ?: "Unknown"}",
-                        color = Gold,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
+                        color = Amber,
+                        style = DeadFestType.chip,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (archive.schemaVersion < 2) {
+                    Text("Pre-v2.0.7 · levels not tracked", color = TextLow, style = DeadFestType.microLabel)
+                }
             }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextMuted)
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextLow)
         }
     }
 }
 
 @Composable
-private fun SeasonDetail(archive: Archive, dateFormat: SimpleDateFormat, onBack: () -> Unit) {
+private fun SeasonDetail(
+    archive: Archive,
+    archives: List<Archive>,
+    dateFormat: SimpleDateFormat,
+    onSelect: (String) -> Unit,
+    onBack: () -> Unit
+) {
     val standings = remember(archive) {
         archive.playerSnapshots.sortedWith(
             compareByDescending<PlayerSnapshot> { it.totalDeaths }
@@ -355,135 +355,171 @@ private fun SeasonDetail(archive: Archive, dateFormat: SimpleDateFormat, onBack:
             onBack = onBack
         )
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp)
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+            contentPadding = PaddingValues(
+                start = Spacing.gutter,
+                end = Spacing.gutter,
+                top = Spacing.sm,
+                bottom = Spacing.scrollBottom
+            )
         ) {
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(20.dp),
-                    border = BorderStroke(1.dp, Outline)
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        StatGrid(
-                            listOf(
-                                StatSpec("SURVIVORS", formatNumber(archive.survivorCount)),
-                                StatSpec("TOTAL DEATHS", formatNumber(archive.totalDeaths), RedAccent),
-                                StatSpec("COINS AT CLOSE", formatNumber(archive.totalCoins), Gold),
-                                StatSpec("ELIMINATIONS", formatNumber(archive.grandTotalAtEnd)),
-                                StatSpec("ARCHIVED", dateFormat.format(Date(archive.timestamp)).substringBefore(" "))
-                            )
-                        )
-                        if (archive.notes.isNotBlank()) {
-                            Spacer(Modifier.height(12.dp))
-                            Text(archive.notes, color = TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
-                        }
-                        if (archive.schemaVersion < 2) {
-                            Spacer(Modifier.height(12.dp))
-                            Text(
-                                "Archived before v2.0.7: levels, XP and titles weren't captured for this season.",
-                                color = TextMuted,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (sectors.isNotEmpty()) {
-                item { SectionLabel("ELIMINATIONS BY SECTOR") }
+            if (archives.size > 1) {
                 item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CardBg),
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, Outline)
-                    ) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            sectors.forEach { (name, deaths) ->
-                                Column {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            name,
-                                            color = TextPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 13.sp,
-                                            modifier = Modifier.weight(1f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(formatNumber(deaths), color = RedAccent, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                    }
-                                    Spacer(Modifier.height(5.dp))
-                                    ProportionBar(deaths.toFloat() / peak.toFloat())
-                                }
+                    Column {
+                        SectionLabel("Season index")
+                        Spacer(Modifier.height(Spacing.xs))
+                        // Horizontal selector: jump between records without going back to the list.
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                            items(archives, key = { it.id }) { entry ->
+                                PillChip(
+                                    text = entry.name,
+                                    selected = entry.id == archive.id,
+                                    onClick = { onSelect(entry.id) },
+                                    accent = Amber
+                                )
                             }
                         }
                     }
                 }
             }
 
-            item { SectionLabel("FINAL STANDINGS") }
-            itemsIndexed(standings, key = { i, s -> s.uid.ifEmpty { "idx$i" } }) { index, snapshot ->
-                StandingsRow(index, snapshot)
+            item {
+                SurfaceCard(accent = Ember, modifier = Modifier.enterOnMount(0)) {
+                    SectionLabel("Season summary", accent = Amber)
+                    Spacer(Modifier.height(Spacing.sm))
+                    StatGrid(
+                        listOf(
+                            StatSpec("SURVIVORS", formatNumber(archive.survivorCount)),
+                            StatSpec("TOTAL DEATHS", formatNumber(archive.totalDeaths), Ember),
+                            StatSpec("COINS AT CLOSE", formatNumber(archive.totalCoins), Amber),
+                            StatSpec("ELIMINATIONS", formatNumber(archive.grandTotalAtEnd)),
+                            StatSpec("ARCHIVED", dateFormat.format(Date(archive.timestamp)).substringBefore(" "))
+                        )
+                    )
+                    archive.champion?.let { champ ->
+                        Spacer(Modifier.height(Spacing.xs))
+                        KeyValueRow("Champion", champ.displayName?.takeIf { it.isNotBlank() } ?: "Unknown", valueColor = Amber)
+                    }
+                    if (archive.notes.isNotBlank()) {
+                        Spacer(Modifier.height(Spacing.xs))
+                        Text(archive.notes, color = TextMid, style = DeadFestType.body)
+                    }
+                    if (archive.schemaVersion < 2) {
+                        Spacer(Modifier.height(Spacing.sm))
+                        Text(
+                            "Archived before v2.0.7: levels, XP and titles weren't captured for this season.",
+                            color = TextLow,
+                            style = DeadFestType.body
+                        )
+                    }
+                }
+            }
+
+            if (sectors.isNotEmpty()) {
+                item { SectionLabel("Eliminations by sector", Modifier.enterOnMount(1)) }
+                item {
+                    SurfaceCard(modifier = Modifier.enterOnMount(2)) {
+                        sectors.forEachIndexed { index, (name, deaths) ->
+                            if (index > 0) Spacer(Modifier.height(Spacing.sm))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        name,
+                                        color = TextHi,
+                                        style = DeadFestType.chip,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(formatNumber(deaths), color = Ember, style = DeadFestType.chip)
+                                }
+                                Spacer(Modifier.height(Spacing.xxs))
+                                ProportionBar(deaths.toFloat() / peak.toFloat())
+                            }
+                        }
+                    }
+                }
+            }
+
+            item { SectionLabel("Final standings", Modifier.enterOnMount(3)) }
+            if (standings.isEmpty()) {
+                item {
+                    EmptyStateCard(
+                        icon = Icons.Default.History,
+                        title = "No roster recorded",
+                        message = "This season was sealed before any survivor data was captured.",
+                        modifier = Modifier.enterOnMount(4)
+                    )
+                }
+            } else {
+                itemsIndexed(standings, key = { i, s -> s.uid.ifEmpty { "idx$i" } }) { index, snapshot ->
+                    ArchiveStandingsRow(index, snapshot)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun StandingsRow(index: Int, snapshot: PlayerSnapshot) {
+private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
     val medal = when (index) {
-        0 -> Gold
+        0 -> Amber
         1 -> Silver
         2 -> Bronze
         else -> null
     }
-    Surface(
-        color = medal?.copy(alpha = 0.06f) ?: CardBg,
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, medal?.copy(alpha = 0.7f) ?: Outline)
-    ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("#${index + 1}", color = medal ?: TextMuted, fontWeight = FontWeight.Black, modifier = Modifier.width(34.dp))
-                Text(snapshot.avatar?.takeIf { it.isNotBlank() } ?: "💀", fontSize = 18.sp)
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
+    SurfaceCard(accent = medal, padding = Spacing.sm) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            RankBadge(index + 1)
+            Spacer(Modifier.width(Spacing.xs))
+            FramedAvatar(snapshot.avatar, snapshot.avatarFrame, snapshot.color, 34)
+            Spacer(Modifier.width(Spacing.xs))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    snapshot.displayName ?: "Unknown Survivor",
+                    color = TextHi,
+                    style = DeadFestType.cardTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (snapshot.hasDetailedStats) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        LevelBadge(snapshot.level, snapshot.prestigeCount)
+                        snapshot.title?.takeIf { it.isNotBlank() }?.let {
+                            Spacer(Modifier.width(Spacing.xxs))
+                            Text(
+                                it.uppercase(),
+                                color = Ember,
+                                style = DeadFestType.microLabel,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                } else {
                     Text(
-                        snapshot.displayName ?: "Unknown Survivor",
-                        color = TextPrimary,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        "LEVEL & TITLE NOT RECORDED",
+                        color = TextLow,
+                        style = DeadFestType.microLabel,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (snapshot.hasDetailedStats) {
-                            LevelBadge(snapshot.level, snapshot.prestigeCount)
-                            Spacer(Modifier.width(6.dp))
-                        }
-                        snapshot.title?.takeIf { it.isNotBlank() }?.let {
-                            Text(it.uppercase(), color = RedAccent, fontSize = 10.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
                 }
-                PriceTag(snapshot.coins)
             }
-            Spacer(Modifier.height(6.dp))
-            Text("${formatNumber(snapshot.totalDeaths)} deaths this season", color = TextSecondary, fontSize = 12.sp)
-            if (snapshot.gameDeaths.isNotEmpty()) {
-                Text(
-                    snapshot.gameDeaths.entries
-                        .filter { it.value > 0 }
-                        .sortedByDescending { it.value }
-                        .joinToString(" · ") { "${it.key}: ${it.value}" }
-                        .ifBlank { "No deaths recorded" },
-                    color = TextMuted,
-                    fontSize = 11.sp
-                )
-            }
+            PriceTag(snapshot.coins)
+        }
+        Spacer(Modifier.height(Spacing.xs))
+        KeyValueRow("Season deaths", formatNumber(snapshot.totalDeaths), valueColor = Ember)
+        if (snapshot.gameDeaths.isNotEmpty()) {
+            Text(
+                snapshot.gameDeaths.entries
+                    .filter { it.value > 0 }
+                    .sortedByDescending { it.value }
+                    .joinToString(" · ") { "${it.key}: ${it.value}" }
+                    .ifBlank { "No deaths recorded" },
+                color = TextLow,
+                style = DeadFestType.body
+            )
         }
     }
 }
@@ -494,9 +530,9 @@ private data class StatSpec(val label: String, val value: String, val accent: Co
 
 @Composable
 private fun StatGrid(stats: List<StatSpec>, columns: Int = 3) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         stats.chunked(columns).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 row.forEach { spec ->
                     StatTile(
                         label = spec.label,

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Legacy launcher icon for API 24-25, which has no adaptive-icon support.
+
+    `mipmap-anydpi` outranks every density bucket, so this vector is what the launcher actually
+    uses and the old .webp files become dead weight that is never decoded. Same brand art
+    (rounded ink tile + ember bloom + skull) at 0.8 scale, kept well inside the tile so launcher
+    cropping cannot bite into the mark.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- rounded ink tile -->
+    <path
+        android:fillColor="#0B0709"
+        android:pathData="M24,0L84,0A24,24 0 0 1 108,24L108,84A24,24 0 0 1 84,108L24,108A24,24 0 0 1 0,84L0,24A24,24 0 0 1 24,0Z" />
+    <!-- ember bloom -->
+    <path android:pathData="M54,10A44,44 0 0 0 54,98A44,44 0 0 0 54,10Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="52"
+                android:gradientRadius="50">
+                <item android:offset="0" android:color="#61FF4B4B" />
+                <item android:offset="0.55" android:color="#2EFF8A5B" />
+                <item android:offset="1" android:color="#00FF4B4B" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- skull -->
+    <group
+        android:scaleX="0.8"
+        android:scaleY="0.8"
+        android:translateX="14"
+        android:translateY="16">
+        <path
+            android:pathData="M40,6L60,6A24,24 0 0 1 84,30L84,38A24,24 0 0 1 60,62L40,62A24,24 0 0 1 16,38L16,30A24,24 0 0 1 40,6Z
+                M30,52L70,52L70,68A20,20 0 0 1 50,88A20,20 0 0 1 30,68Z
+                M36,21A11,12 0 0 0 25,33A11,12 0 0 0 36,45A11,12 0 0 0 47,33A11,12 0 0 0 36,21Z
+                M64,21A11,12 0 0 0 53,33A11,12 0 0 0 64,45A11,12 0 0 0 75,33A11,12 0 0 0 64,21Z
+                M50,40L43,50L57,50Z
+                M41,76L41,84L45,84L45,76Z
+                M48,76L48,84L52,84L52,76Z
+                M55,76L55,84L59,84L59,76Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="50"
+                    android:startY="6"
+                    android:endX="50"
+                    android:endY="88">
+                    <item android:offset="0" android:color="#FFFFFFFF" />
+                    <item android:offset="0.55" android:color="#FFFFE9DE" />
+                    <item android:offset="1" android:color="#FFFF9E80" />
+                </gradient>
+            </aapt:attr>
+        </path>
+    </group>
+</vector>

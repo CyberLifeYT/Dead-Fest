@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -28,10 +27,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -58,46 +55,50 @@ fun ImagesScreen(navController: NavController, viewModel: MainViewModel) {
         if (uri != null) viewModel.prepareImage(uri)
     }
 
-    Column(Modifier.fillMaxSize().background(DarkBg)) {
+    // No background of its own: DeadFestBackground is applied once behind the whole NavHost.
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "IMAGES",
             subtitle = "SHARED WITH EVERY SURVIVOR",
             onBack = { navController.popBackStack() },
-            trailing = { StatusPill("${images.size}", RedAccent) }
+            trailing = { StatusPill("${images.size}", Ember) }
         )
 
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 110.dp),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(
+                start = Spacing.gutter,
+                end = Spacing.gutter,
+                top = Spacing.md,
+                bottom = Spacing.scrollBottom
+            ),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Button(
-                    onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    enabled = !upload.busy,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RedAccent, disabledContainerColor = CardBgRaised),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    if (upload.processing) {
-                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text("PREPARING IMAGE...", fontWeight = FontWeight.Black)
-                    } else {
-                        Icon(Icons.Default.AddPhotoAlternate, contentDescription = null)
-                        Spacer(Modifier.width(10.dp))
-                        Text("SHARE AN IMAGE", fontWeight = FontWeight.Black)
-                    }
-                }
+                ShareHero(
+                    processing = upload.processing,
+                    busy = upload.busy,
+                    onPick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    modifier = Modifier.enterOnMount(0)
+                )
             }
             if (images.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    EmptyState(Icons.Default.PhotoLibrary, "No images yet. Be the first to share one with the wasteland.")
+                    EmptyStateCard(
+                        icon = Icons.Default.PhotoLibrary,
+                        title = "No images yet",
+                        message = "Be the first to share one with the wasteland.",
+                        modifier = Modifier.enterOnMount(1)
+                    )
                 }
-            }
-            items(images, key = { it.id }) { image ->
-                ImageTile(image) { viewing = image }
+            } else {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    SectionLabel("Latest shares")
+                }
+                items(images, key = { it.id }) { image ->
+                    ImageTile(image) { viewing = image }
+                }
             }
         }
     }
@@ -140,37 +141,94 @@ private fun rememberThumbnail(image: SharedImage): Bitmap? {
     return state.value
 }
 
+/**
+ * The screen's primary action as the top block: a hero that carries the same busy state the old
+ * inline spinner communicated (state-driven title + badge, action disabled while working).
+ */
+@Composable
+private fun ShareHero(
+    processing: Boolean,
+    busy: Boolean,
+    onPick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    HeroPanel(
+        eyebrow = "Field Archive",
+        title = if (processing) "PREPARING IMAGE" else "READY TO SHARE",
+        icon = Icons.Default.AddPhotoAlternate,
+        modifier = modifier,
+        accent = Ember,
+        badge = {
+            StatusPill(
+                text = if (processing) "PROCESSING" else "READY",
+                color = if (processing) Amber else Toxic
+            )
+        }
+    ) {
+        Text(
+            "Pick a photo. It is compressed before upload and visible to every survivor.",
+            color = TextMid,
+            style = DeadFestType.body
+        )
+        Spacer(Modifier.height(Spacing.sm))
+        PrimaryAction(
+            text = "Share an image",
+            onClick = onPick,
+            enabled = !busy
+        )
+    }
+}
+
+/** Grid tile: square thumbnail in a card, with uploader and caption as the caption rows. */
 @Composable
 private fun ImageTile(image: SharedImage, onClick: () -> Unit) {
     val bitmap = rememberThumbnail(image)
-    Box(
-        modifier = Modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(14.dp))
-            .background(CardBg)
-            .pressClick(RoundedCornerShape(14.dp), onClick = onClick)
+    SurfaceCard(
+        padding = Spacing.xs,
+        onClick = onClick
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = remember(bitmap) { bitmap.asImageBitmap() },
-                contentDescription = image.caption.ifBlank { "Image from ${image.uploaderName}" },
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+        // The frame is always square so a slow decode never reflows the grid.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .clip(RoundedCornerShape(Radius.md))
+                .background(Ink3),
+            contentAlignment = Alignment.Center
+        ) {
+            if (bitmap != null) {
+                Image(
+                    bitmap = remember(bitmap) { bitmap.asImageBitmap() },
+                    contentDescription = image.caption.ifBlank { "Image from ${image.uploaderName}" },
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    Icons.Default.PhotoLibrary,
+                    contentDescription = null,
+                    tint = TextLow,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
+        Spacer(Modifier.height(Spacing.xxs))
         Text(
             image.uploaderName,
-            color = Color.White,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
+            color = TextMid,
+            style = DeadFestType.microLabel,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.55f))
-                .padding(horizontal = 6.dp, vertical = 3.dp)
+            overflow = TextOverflow.Ellipsis
         )
+        if (image.caption.isNotBlank()) {
+            Text(
+                image.caption,
+                color = TextLow,
+                style = DeadFestType.microLabel,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
@@ -185,25 +243,29 @@ private fun PostImageDialog(
     var caption by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { if (!uploading) onCancel() },
-        containerColor = CardBg,
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("SHARE IMAGE", color = TextPrimary, fontWeight = FontWeight.Black) },
+        containerColor = Ink2,
+        shape = RoundedCornerShape(Radius.xxl),
+        title = { Text("SHARE IMAGE", color = TextHi, style = DeadFestType.cardTitle) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (preview != null) {
                     Image(
                         bitmap = remember(preview) { preview.asImageBitmap() },
                         contentDescription = "Preview",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxWidth().aspectRatio(1.4f).clip(RoundedCornerShape(14.dp))
+                        modifier = Modifier.fillMaxWidth().aspectRatio(1.4f).clip(RoundedCornerShape(Radius.md))
                     )
                 }
-                Text("Compressed to $sizeKb KB · visible to every survivor", color = TextMuted, fontSize = 11.sp)
+                Text(
+                    "Compressed to $sizeKb KB · visible to every survivor",
+                    color = TextMid,
+                    style = DeadFestType.body
+                )
                 OutlinedTextField(
                     value = caption,
                     onValueChange = { if (it.length <= MAX_CAPTION) caption = it },
                     label = { Text("Caption (optional)") },
-                    supportingText = { Text("${caption.length}/$MAX_CAPTION", color = TextMuted) },
+                    supportingText = { Text("${caption.length}/$MAX_CAPTION", color = TextLow) },
                     enabled = !uploading,
                     colors = deadFestFieldColors(),
                     modifier = Modifier.fillMaxWidth()
@@ -214,18 +276,18 @@ private fun PostImageDialog(
             Button(
                 onClick = { onPost(caption) },
                 enabled = !uploading,
-                colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
-                shape = RoundedCornerShape(12.dp)
+                colors = ButtonDefaults.buttonColors(containerColor = Ember),
+                shape = RoundedCornerShape(Radius.md)
             ) {
                 if (uploading) {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                 } else {
-                    Text("POST", fontWeight = FontWeight.Black)
+                    Text("POST", style = DeadFestType.action)
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancel, enabled = !uploading) { Text("CANCEL", color = TextSecondary) }
+            TextButton(onClick = onCancel, enabled = !uploading) { Text("CANCEL", color = TextMid) }
         }
     )
 }
@@ -266,7 +328,8 @@ private fun ImageViewer(
     }
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+        // Ink0 rather than pure black so the overlay stays on the app's surface scale.
+        Box(Modifier.fillMaxSize().background(Ink0)) {
             val shown = full ?: thumb
             if (shown != null) {
                 Image(
@@ -291,14 +354,12 @@ private fun ImageViewer(
                 )
             }
             if (full == null && !failed) {
-                CircularProgressIndicator(color = RedAccent, modifier = Modifier.align(Alignment.Center))
+                LoadingState("Decrypting image", Modifier.align(Alignment.Center))
             }
             if (failed) {
-                Text(
-                    "Couldn't load the full image. Check your connection.",
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier.align(Alignment.Center).padding(24.dp)
+                ErrorState(
+                    message = "Couldn't load the full image. Check your connection.",
+                    modifier = Modifier.align(Alignment.Center)
                 )
             }
 
@@ -306,22 +367,28 @@ private fun ImageViewer(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.6f))
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                    .background(Ink0.copy(alpha = 0.6f))
+                    .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White) }
+                IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Close", tint = TextHi) }
                 Column(Modifier.weight(1f)) {
-                    Text(image.uploaderName, color = Color.White, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        image.uploaderName,
+                        color = TextHi,
+                        style = DeadFestType.cardTitle,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Text(
                         "${Presence.lastSeenLabel(image.createdAt, System.currentTimeMillis())} · ${image.width}×${image.height}",
-                        color = TextSecondary,
-                        fontSize = 11.sp
+                        color = TextMid,
+                        style = DeadFestType.body
                     )
                 }
                 if (canDelete) {
                     IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete image", tint = RedAccent)
+                        Icon(Icons.Default.Delete, contentDescription = "Delete image", tint = Ember)
                     }
                 }
             }
@@ -329,13 +396,13 @@ private fun ImageViewer(
             if (image.caption.isNotBlank()) {
                 Text(
                     image.caption,
-                    color = Color.White,
-                    fontSize = 14.sp,
+                    color = TextHi,
+                    style = DeadFestType.body,
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(16.dp)
+                        .background(Ink0.copy(alpha = 0.6f))
+                        .padding(Spacing.md)
                 )
             }
         }

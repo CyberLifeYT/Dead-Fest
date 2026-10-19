@@ -9,8 +9,8 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.7-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
-[![APK](https://img.shields.io/badge/APK-3.9%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.0.7.1-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![APK](https://img.shields.io/badge/APK-3.7%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
 Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
@@ -31,6 +31,16 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 ---
 
 ## 🔄 What’s New
+
+### v2.0.7.1 – Interface Rebuild & Live Countdown
+- **⏱️ The countdown now ticks** – The Next Dead-Fest panel updates **live every second** in DAYS / HRS / MIN / SEC. Pause the app for an hour and it snaps straight to the correct value on return. In Performance Mode it updates every 30 seconds and the SEC tile is hidden, because a seconds digit that only changed every 30 s would be lying to you.
+- **🔋 Timer bug fixed** – Daily Rations used to run a one-second timer that never stopped, even once the reward was claimable and even in the background. It now stops the moment there's nothing left to wait for and never runs while the app is closed.
+- **🎨 Every screen rebuilt** – Command Center, Login, Utility Hub, Black Market, Survivor Network, Terminal Config, Wheel of Fate, Scratch Cards, Progression, Archives, Team Progress, Images, Survival Intel and the Admin console all sit on one design system now: one app-wide background, one card, one type scale, one spacing scale. No screen was left on the old styling.
+- **🧭 New navigation bar** – A floating bar with a gradient scrim so content dissolves behind it, and an ember indicator above the active tab. Admins' seven-tab compact mode still fits on a small phone.
+- **💀 Proper app icon** – The green Android Studio robot is gone. The icon is now a hand-drawn vector skull with an ember glow on deep ink, supplied as an adaptive icon with themed-monochrome support, so it looks right in circle, squircle and Android 13+ themed modes. The skull is also the brand mark in every screen header.
+- **🛒 Custom shop artwork** – Black Market items each carry a hex-plate emblem in their own hue: cyan for defensive gear, purple and red for curses, amber for economy, green for a second chance.
+- **📱 Leaner** – No new dependencies, ~173 KB of unused stock icon art deleted, animations are draw-layer only, and Performance Mode now also skips the background grid and every entrance animation.
+- **🔐 Nothing is reset** – No storage key, session or Firestore path changed, so upgrading keeps you signed in with your coins, level, titles and history untouched.
 
 ### v2.0.7 – Seasons & Team Progress
 - **📅 Next Dead-Fest** (More → top of the tab) – The upcoming season by name (e.g. **"Dead-Fest Season 2"**), a live **countdown** in DAYS / HRS / MIN / SEC, the **games lined up** in play order, the exact start time and an optional blurb.

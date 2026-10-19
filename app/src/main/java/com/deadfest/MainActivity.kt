@@ -15,6 +15,7 @@ import com.deadfest.data.AppPrefs
 import com.deadfest.domain.Presence
 import com.deadfest.ui.components.BatteryOptimizationDialog
 import com.deadfest.ui.components.DailyClaimDialog
+import com.deadfest.ui.components.DeadFestBackground
 import com.deadfest.util.BatteryOptimization
 import com.deadfest.ui.components.DeathReportDialog
 import com.deadfest.ui.components.LevelUpDialog
@@ -40,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -103,7 +105,10 @@ class MainActivity : ComponentActivity() {
                 val performanceMode by viewModel.prefs.performanceMode.collectAsStateWithLifecycle()
 
                 CompositionLocalProvider(LocalPerformanceMode provides performanceMode) {
-                    Surface(modifier = Modifier.fillMaxSize(), color = DarkBg) {
+                    // One ambient background paints the whole app: the ink base, the ember and
+                    // plasma washes, and (outside Performance Mode) the terminal grid. Screens
+                    // stay transparent so nothing is drawn twice and no screen pays for it.
+                    DeadFestBackground {
                         if (user == null) {
                             LoginScreen(viewModel)
                         } else {
@@ -216,7 +221,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
     }
 
     Scaffold(
-        containerColor = DarkBg,
+        containerColor = Color.Transparent,
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
@@ -250,8 +255,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
             navController = navController,
             startDestination = "home",
             modifier = Modifier
-                .padding(padding)
-                .background(DarkBg),
+                .padding(padding),
             enterTransition = { fadeIn(tween(enterMs)) },
             exitTransition = { fadeOut(tween(exitMs)) },
             popEnterTransition = { fadeIn(tween(enterMs)) },
@@ -296,14 +300,19 @@ private fun BottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DarkBg)
-            .padding(horizontal = 10.dp, vertical = 10.dp)
+            // Scrim, not a hard edge: content dissolves into the bar as it scrolls under it.
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color.Transparent, Ink0.copy(alpha = 0.86f), Ink0)
+                )
+            )
+            .padding(horizontal = Spacing.sm, vertical = Spacing.xs)
     ) {
         Surface(
-            modifier = Modifier.fillMaxWidth().height(68.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = Color(0xFF121212),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Outline)
+            modifier = Modifier.fillMaxWidth().height(if (compact) 62.dp else 68.dp),
+            shape = RoundedCornerShape(Radius.xl),
+            color = Ink2.copy(alpha = 0.97f),
+            border = androidx.compose.foundation.BorderStroke(Stroke.hair, InkLine)
         ) {
             Row(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
@@ -331,47 +340,62 @@ private fun BottomBarItem(
     modifier: Modifier = Modifier,
     compact: Boolean = false
 ) {
-    val animMs = if (LocalPerformanceMode.current) 0 else 150
-    val tint by animateColorAsState(if (selected) RedAccent else TextMuted, tween(animMs), label = "navTint")
+    val animMs = if (LocalPerformanceMode.current) 0 else 160
+    val tint by animateColorAsState(if (selected) Ember else TextLow, tween(animMs), label = "navTint")
     val pill by animateColorAsState(
-        if (selected) RedAccent.copy(alpha = 0.16f) else Color.Transparent,
+        if (selected) Ember.copy(alpha = Tint.fill) else Color.Transparent,
         tween(animMs),
         label = "navPill"
+    )
+    val indicator by animateColorAsState(
+        if (selected) Ember else Color.Transparent,
+        tween(animMs),
+        label = "navIndicator"
     )
     val showLabel = !compact || selected
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(Radius.md))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true, color = RedAccent),
+                indication = ripple(bounded = true, color = Ember),
                 onClick = onClick
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Selected marker: a 3dp ember bar directly above the active icon.
+        Box(
+            Modifier
+                .width(16.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(Radius.pill))
+                .background(indicator)
+        )
+        Spacer(Modifier.height(5.dp))
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(50))
+                .clip(RoundedCornerShape(Radius.pill))
                 .background(pill)
-                .padding(horizontal = if (showLabel) 10.dp else 8.dp, vertical = 4.dp),
+                .padding(horizontal = if (showLabel) 10.dp else 9.dp, vertical = 3.dp),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 item.icon,
                 contentDescription = item.label,
                 tint = tint,
-                modifier = Modifier.size(if (showLabel) 22.dp else 24.dp)
+                modifier = Modifier.size(if (showLabel) 20.dp else 22.dp)
             )
         }
         if (showLabel) {
             Spacer(Modifier.height(3.dp))
             Text(
-                text = item.label,
+                text = item.label.uppercase(),
                 color = tint,
-                fontSize = 10.sp,
-                fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 0.6.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Clip
             )

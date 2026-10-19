@@ -1,9 +1,14 @@
 package com.deadfest.ui.screens
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -13,6 +18,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -21,17 +28,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.deadfest.data.model.PlayerData
 import com.deadfest.data.model.ShopCategory
 import com.deadfest.data.model.ShopItem
-import com.deadfest.data.model.PlayerData
 import com.deadfest.data.model.User
 import com.deadfest.domain.CasualtyTax
 import com.deadfest.domain.EconomyConfig
 import com.deadfest.domain.TaxTier
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.lazy.LazyListScope
 import com.deadfest.ui.components.*
 import com.deadfest.ui.theme.*
 import com.deadfest.ui.viewmodel.MainViewModel
@@ -55,6 +58,21 @@ private fun ShopItem.icon(): ImageVector = when (this) {
     ShopItem.INSURANCE -> Icons.Default.HealthAndSafety
     ShopItem.RATION_UPGRADE -> Icons.Default.Inventory2
     ShopItem.INSULATION_1, ShopItem.INSULATION_2, ShopItem.INSULATION_3, ShopItem.INSULATION_4 -> Icons.Default.Savings
+}
+
+/**
+ * Each item owns a hue so the market is scannable by colour before you read a word:
+ * cyan = defensive, purple/red = curses, amber = economy, green = a second chance.
+ */
+private fun ShopItem.accent(): Color = when (this) {
+    ShopItem.SHIELD -> Plasma
+    ShopItem.INSURANCE -> Plasma
+    ShopItem.REVIVE -> Toxic
+    ShopItem.LUCKY_COIN -> Amber
+    ShopItem.RATION_UPGRADE -> Amber
+    ShopItem.CURSE -> Prestige
+    ShopItem.DOUBLE_CURSE -> Ember
+    ShopItem.INSULATION_1, ShopItem.INSULATION_2, ShopItem.INSULATION_3, ShopItem.INSULATION_4 -> Amber
 }
 
 /** Description with live admin-configured numbers filled in. */
@@ -85,10 +103,10 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
     var confirmTitle by remember { mutableStateOf<TitleOffer?>(null) }
     var confirmTier by remember { mutableStateOf<ShopItem?>(null) }
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "BLACK MARKET",
-            subtitle = "ILLEGAL GEAR & CURSES",
+            subtitle = "Illegal Gear & Curses",
             trailing = { CoinBadge(coins) }
         )
 
@@ -105,36 +123,28 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
             )
             else -> {
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.sm),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     items(tabs.size) { index ->
-                        FilterChip(
+                        PillChip(
+                            text = tabs[index],
                             selected = selectedTab == index,
-                            onClick = { selectedTab = index },
-                            label = { Text(tabs[index].uppercase(), fontWeight = FontWeight.Black, fontSize = 12.sp) },
-                            shape = RoundedCornerShape(50),
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = CardBg,
-                                labelColor = TextSecondary,
-                                selectedContainerColor = RedAccent,
-                                selectedLabelColor = Color.White
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = selectedTab == index,
-                                borderColor = Outline,
-                                selectedBorderColor = RedAccent
-                            )
+                            onClick = { selectedTab = index }
                         )
                     }
                 }
-                Spacer(Modifier.height(8.dp))
 
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(
+                        start = Spacing.gutter,
+                        end = Spacing.gutter,
+                        top = Spacing.xxs,
+                        bottom = Spacing.scrollBottom
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     if (selectedTab == TAB_INSULATION) {
                         insulationTab(
@@ -251,6 +261,12 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
 private fun rememberSaveableInt(initial: Int): MutableIntState =
     androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(initial) }
 
+/**
+ * Curse targeting.
+ *
+ * Two-step choice (who, then where) with a live warning when the target is shielded — that warning
+ * exists because casting at a shielded survivor still costs coins, so it needs to be unmissable.
+ */
 @Composable
 private fun CurseTargetDialog(
     item: ShopItem,
@@ -265,78 +281,97 @@ private fun CurseTargetDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CardBg,
-        shape = RoundedCornerShape(24.dp),
+        containerColor = Ink2,
+        shape = RoundedCornerShape(Radius.xxl),
         title = {
             Column {
-                Text("CAST ${item.displayName}", color = RedAccent, fontWeight = FontWeight.Black, fontSize = 19.sp)
+                Text("CAST ${item.displayName}", color = Ember, fontWeight = FontWeight.Black, fontSize = 19.sp)
+                Spacer(Modifier.height(2.dp))
                 Text(
                     "${item.description} · ${formatNumber(price)} coins",
-                    color = TextSecondary,
+                    color = TextMid,
                     fontSize = 12.sp
                 )
             }
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 if (sectors.isNotEmpty()) {
-                    SectionLabel("SECTOR")
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    SectionLabel("Sector")
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         items(sectors) { s ->
-                            FilterChip(
-                                selected = sector == s,
-                                onClick = { sector = s },
-                                label = { Text(s, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    containerColor = CardBgRaised,
-                                    labelColor = TextSecondary,
-                                    selectedContainerColor = RedAccent.copy(alpha = 0.25f),
-                                    selectedLabelColor = Color.White
-                                )
-                            )
+                            PillChip(text = s, selected = sector == s, onClick = { sector = s }, accent = Prestige)
                         }
                     }
                 }
-                SectionLabel("TARGET")
+                SectionLabel("Target")
                 if (survivors.isEmpty()) {
-                    Text("No other survivors to curse.", color = TextMuted, fontSize = 13.sp)
+                    Text("No other survivors to curse.", color = TextMid, fontSize = 13.sp)
                 } else {
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 280.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                     ) {
                         items(survivors, key = { it.uid }) { s ->
                             val selected = target?.uid == s.uid
-                            Surface(
-                                modifier = Modifier.fillMaxWidth().pressClick(RoundedCornerShape(12.dp)) { target = s },
-                                color = if (selected) RedAccent.copy(alpha = 0.18f) else CardBgRaised,
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, if (selected) RedAccent else Color.Transparent)
-                            ) {
-                                Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(s.playerData.avatar?.takeIf { it.isNotBlank() } ?: "💀", fontSize = 20.sp)
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        s.displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
-                                        color = TextPrimary,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(Radius.md))
+                                    .background(if (selected) Prestige.copy(alpha = Tint.fill) else Ink3)
+                                    .border(
+                                        BorderStroke(Stroke.hair, if (selected) Prestige.copy(alpha = Tint.edgeStrong) else InkLine),
+                                        RoundedCornerShape(Radius.md)
                                     )
-                                    if (s.playerData.shield) {
-                                        Icon(Icons.Default.Shield, contentDescription = "Shielded", tint = ShieldCyan, modifier = Modifier.size(18.dp))
-                                    }
+                                    .pressClick(RoundedCornerShape(Radius.md)) { target = s },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    s.playerData.avatar?.takeIf { it.isNotBlank() } ?: "💀",
+                                    fontSize = 20.sp,
+                                    modifier = Modifier.padding(start = Spacing.sm, top = 10.dp, bottom = 10.dp)
+                                )
+                                Spacer(Modifier.width(Spacing.xs))
+                                Text(
+                                    s.displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
+                                    color = TextHi,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (s.playerData.shield) {
+                                    Icon(
+                                        Icons.Default.Shield,
+                                        contentDescription = "Shielded",
+                                        tint = Plasma,
+                                        modifier = Modifier.size(17.dp)
+                                    )
                                 }
+                                Spacer(Modifier.width(Spacing.sm))
                             }
                         }
                     }
                     if (target?.playerData?.shield == true) {
-                        Text(
-                            "Heads up: ${target?.displayName} has a Shield. It will block this curse and break, and you still pay.",
-                            color = ShieldCyan,
-                            fontSize = 12.sp
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(Radius.sm))
+                                .background(Plasma.copy(alpha = Tint.wash))
+                                .border(BorderStroke(Stroke.hair, Plasma.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.sm))
+                                .padding(Spacing.xs),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = Plasma, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                "${target?.displayName} has a Shield. It will block this curse and break — and you still pay.",
+                                color = Plasma,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
                     }
                 }
             }
@@ -345,12 +380,18 @@ private fun CurseTargetDialog(
             Button(
                 onClick = { target?.let { onCurse(it, sector) }; onDismiss() },
                 enabled = target != null,
-                colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("CURSE", fontWeight = FontWeight.Black) }
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Prestige,
+                    contentColor = Color(0xFF1A0B33),
+                    disabledContainerColor = Ink4,
+                    disabledContentColor = TextLow
+                ),
+                shape = RoundedCornerShape(Radius.md),
+                elevation = null
+            ) { Text("CURSE", style = DeadFestType.chip) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = TextSecondary, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) { Text("CANCEL", color = TextMid, style = DeadFestType.chip) }
         }
     )
 }
@@ -364,89 +405,115 @@ private fun TitleShopRow(
     onEquip: () -> Unit,
     onBuy: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, if (isEquipped) RedAccent else Outline)
+    val accent = if (isEquipped) Ember else Amber
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(Ink2)
+            .then(
+                if (isEquipped) Modifier.background(
+                    Brush.horizontalGradient(listOf(Ember.copy(alpha = 0.12f), Color.Transparent))
+                ) else Modifier
+            )
+            .border(
+                BorderStroke(Stroke.hair, accent.copy(alpha = if (isEquipped) Tint.edgeStrong else Tint.edge)),
+                RoundedCornerShape(Radius.lg)
+            )
+            .padding(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconTile(Icons.Default.MilitaryTech, tint = if (isEquipped) RedAccent else Gold)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(offer.title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Black)
-                Text(offer.description, color = TextSecondary, fontSize = 12.sp)
-                if (!isOwned) {
-                    Spacer(Modifier.height(4.dp))
-                    PriceTag(offer.price, affordable)
-                }
+        ItemEmblem(Icons.Default.MilitaryTech, accent = accent, size = 52.dp)
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(offer.title, color = TextHi, fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(offer.description, color = TextMid, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (!isOwned) {
+                Spacer(Modifier.height(Spacing.xxs))
+                PriceTag(offer.price, affordable)
             }
-            Spacer(Modifier.width(8.dp))
-            when {
-                isEquipped -> StatusPill("EQUIPPED", RedAccent)
-                isOwned -> OutlinedButton(
-                    onClick = onEquip,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Outline),
-                    contentPadding = PaddingValues(horizontal = 14.dp)
-                ) { Text("EQUIP", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.Black) }
-                else -> BuyButton(affordable, onBuy)
-            }
+        }
+        Spacer(Modifier.width(Spacing.xs))
+        when {
+            isEquipped -> StatusPill("EQUIPPED", Ember)
+            isOwned -> GhostAction("Equip", onEquip, accent = TextHi)
+            else -> BuyButton(affordable, onBuy)
         }
     }
 }
 
 @Composable
-private fun ShopItemRow(item: ShopItem, description: String, price: Long, affordable: Boolean, status: String?, onBuy: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Outline)
+private fun ShopItemRow(
+    item: ShopItem,
+    description: String,
+    price: Long,
+    affordable: Boolean,
+    status: String?,
+    onBuy: () -> Unit
+) {
+    val accent = item.accent()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(Ink2)
+            .background(
+                Brush.horizontalGradient(listOf(accent.copy(alpha = 0.09f), Color.Transparent))
+            )
+            .border(BorderStroke(Stroke.hair, accent.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.lg))
+            .padding(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconTile(item.icon(), tint = if (item.category == ShopCategory.ECONOMY) Gold else RedAccent)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.displayName, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                Text(description, color = TextSecondary, fontSize = 12.sp)
-                if (status == null || !item.oneTime) {
-                    Spacer(Modifier.height(4.dp))
-                    PriceTag(price, affordable)
+        ItemEmblem(item.icon(), accent = accent, size = 54.dp)
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.displayName,
+                color = TextHi,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(description, color = TextMid, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            if (status == null || !item.oneTime) {
+                Spacer(Modifier.height(Spacing.xxs))
+                PriceTag(price, affordable)
+            }
+        }
+        Spacer(Modifier.width(Spacing.xs))
+        if (status != null) {
+            StatusPill(
+                status,
+                when {
+                    status == "DISABLED" -> TextLow
+                    item == ShopItem.SHIELD || item == ShopItem.INSURANCE -> Plasma
+                    else -> Amber
                 }
-            }
-            Spacer(Modifier.width(8.dp))
-            if (status != null) {
-                StatusPill(
-                    status,
-                    when {
-                        status == "DISABLED" -> TextMuted
-                        item == ShopItem.SHIELD || item == ShopItem.INSURANCE -> ShieldCyan
-                        else -> Gold
-                    }
-                )
-            } else {
-                BuyButton(affordable, onBuy)
-            }
+            )
+        } else {
+            BuyButton(affordable, onBuy, accent)
         }
     }
 }
 
 @Composable
-private fun BuyButton(affordable: Boolean, onBuy: () -> Unit) {
+private fun BuyButton(affordable: Boolean, onBuy: () -> Unit, accent: Color = Ember) {
     Button(
         onClick = onBuy,
         enabled = affordable,
         modifier = Modifier.height(40.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = RedAccent,
-            disabledContainerColor = CardBgRaised,
-            disabledContentColor = TextMuted
+            containerColor = accent,
+            contentColor = Color.White,
+            disabledContainerColor = Ink4,
+            disabledContentColor = TextLow
         ),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(Radius.sm),
+        elevation = null,
         contentPadding = PaddingValues(horizontal = 18.dp)
     ) {
-        Text("BUY", fontSize = 12.sp, fontWeight = FontWeight.Black)
+        Text("BUY", style = DeadFestType.chip)
     }
 }
 
@@ -455,7 +522,14 @@ private fun BuyButton(affordable: Boolean, onBuy: () -> Unit) {
 /** Wealth Insulation: tier tracker, live effective tax rate, and the four tier cards. */
 private fun LazyListScope.insulationTab(data: PlayerData?, cfg: EconomyConfig, onUpgrade: (ShopItem) -> Unit) {
     if (!cfg.insulationEnabled) {
-        item { EmptyState(Icons.Default.Savings, "Wealth Insulation is switched off by an admin.") }
+        item {
+            EmptyStateCard(
+                icon = Icons.Default.Savings,
+                title = "Insulation disabled",
+                message = "Wealth Insulation is switched off by an admin.",
+                modifier = Modifier.padding(top = Spacing.xs)
+            )
+        }
         return
     }
     val tier = data?.insulationTier ?: 0
@@ -482,43 +556,36 @@ private fun LazyListScope.insulationTab(data: PlayerData?, cfg: EconomyConfig, o
     }
 }
 
+/** The single most important block on this tab: what you have, and what it saves you right now. */
 @Composable
 private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: EconomyConfig) {
     val reduction = ShopItem.insulationReduction(tier, cfg)
     val bracket = TaxTier.forBalance(coins)
-    Card(
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.5f))
+    HeroPanel(
+        eyebrow = "Wealth Insulation",
+        title = if (tier > 0) "TIER ${ShopItem.roman(tier)} OF IV" else "NO TIER YET",
+        icon = Icons.Default.Savings,
+        accent = Amber
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("WEALTH INSULATION", color = Gold, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.5.sp)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    if (tier > 0) "TIER ${ShopItem.roman(tier)} / IV" else "NO TIER / IV",
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 13.sp
-                )
-            }
-            TierTracker(tier)
-            HorizontalDivider(color = Outline)
-            Text("CURRENT TAX RATE", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
-            Text(
-                CasualtyTax.effectiveRateLabel(coins, reduction).uppercase(),
-                color = TextPrimary,
-                fontWeight = FontWeight.Black,
-                fontSize = 22.sp
-            )
-            Text(
-                "${bracket.label} bracket at ${formatNumber(coins)} coins" +
-                    (if (reduction > 0) " · insulation -$reduction%" else "") +
-                    (if (insured) " · insurance armed (-${cfg.insurancePct}% of what's left)" else ""),
-                color = TextSecondary,
-                fontSize = 12.sp
-            )
-        }
+        TierTracker(tier)
+        Spacer(Modifier.height(Spacing.md))
+        Text("CURRENT TAX RATE", color = TextLow, style = DeadFestType.microLabel)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            CasualtyTax.effectiveRateLabel(coins, reduction).uppercase(),
+            color = TextHi,
+            style = DeadFestType.statHero,
+            maxLines = 1
+        )
+        Spacer(Modifier.height(Spacing.xs))
+        Text(
+            "${bracket.label} bracket at ${formatNumber(coins)} coins" +
+                (if (reduction > 0) " · insulation -$reduction%" else "") +
+                (if (insured) " · insurance armed (-${cfg.insurancePct}% of what's left)" else ""),
+            color = TextMid,
+            fontSize = 12.sp,
+            lineHeight = 16.sp
+        )
     }
 }
 
@@ -526,10 +593,10 @@ private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: Econ
 @Composable
 private fun TierTracker(tier: Int) {
     val reduced = LocalPerformanceMode.current
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         (1..4).forEach { t ->
             val color by animateColorAsState(
-                if (t <= tier) Gold else Outline,
+                if (t <= tier) Amber else Ink4,
                 animationSpec = if (reduced) snap() else tween(500, delayMillis = (t - 1) * 120),
                 label = "tier$t"
             )
@@ -538,10 +605,15 @@ private fun TierTracker(tier: Int) {
                     Modifier
                         .fillMaxWidth()
                         .height(8.dp)
-                        .background(color, RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(Radius.pill))
+                        .background(color)
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(ShopItem.roman(t), color = if (t <= tier) Gold else TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.height(Spacing.xxs))
+                Text(
+                    ShopItem.roman(t),
+                    color = if (t <= tier) Amber else TextLow,
+                    style = DeadFestType.microLabel
+                )
             }
         }
     }
@@ -558,68 +630,107 @@ private fun InsulationTierCard(
     onBuy: () -> Unit
 ) {
     val accent = when (state) {
-        "ACTIVE" -> Gold
-        "OWNED" -> TextSecondary
-        null -> RedAccent
-        else -> Outline
+        "ACTIVE" -> Amber
+        "OWNED" -> TextMid
+        null -> Ember
+        else -> TextLow
     }
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = if (state == "ACTIVE") Gold.copy(alpha = 0.07f) else CardBg),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, if (state == "LOCKED" || state == "DISABLED") Outline else accent)
+    val dim = state == "LOCKED" || state == "DISABLED"
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(Ink2)
+            .then(
+                if (state == "ACTIVE") Modifier.background(
+                    Brush.horizontalGradient(listOf(Amber.copy(alpha = 0.12f), Color.Transparent))
+                ) else Modifier
+            )
+            .border(
+                BorderStroke(Stroke.hair, if (dim) InkLine else accent.copy(alpha = Tint.edge)),
+                RoundedCornerShape(Radius.lg)
+            )
+            .padding(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(48.dp).background(Gold.copy(alpha = if (state == "LOCKED") 0.05f else 0.14f), RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(ShopItem.roman(item.tier), color = if (state == "LOCKED") TextMuted else Gold, fontWeight = FontWeight.Black, fontSize = 16.sp)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(item.displayName, color = if (state == "LOCKED") TextMuted else TextPrimary, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                Text("-$reduction% casualty tax", color = Gold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text(
-                    "At your balance: ${CasualtyTax.effectiveRateLabel(balance, reduction)}",
-                    color = TextSecondary,
-                    fontSize = 11.sp
+        // The tier numeral is the artwork here — no glyph reads "level" better than the numeral.
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(Radius.md))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Amber.copy(alpha = if (dim) 0.06f else 0.30f), Color.Transparent)
+                    )
                 )
-                if (state == null || state == "LOCKED" || state == "DISABLED") {
-                    Spacer(Modifier.height(4.dp))
-                    PriceTag(price, affordable && state == null)
-                }
+                .background(Ink3)
+                .border(BorderStroke(Stroke.hair, if (dim) InkLine else Amber.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.md)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                ShopItem.roman(item.tier),
+                color = if (dim) TextLow else Amber,
+                fontWeight = FontWeight.Black,
+                fontSize = 18.sp
+            )
+        }
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(
+                item.displayName,
+                color = if (dim) TextLow else TextHi,
+                fontWeight = FontWeight.Black,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text("-$reduction% casualty tax", color = if (dim) TextLow else Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "At your balance: ${CasualtyTax.effectiveRateLabel(balance, reduction)}",
+                color = TextMid,
+                fontSize = 11.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (state == null || dim) {
+                Spacer(Modifier.height(Spacing.xxs))
+                PriceTag(price, affordable && state == null)
             }
-            Spacer(Modifier.width(8.dp))
-            when (state) {
-                null -> BuyButton(affordable, onBuy)
-                "ACTIVE" -> StatusPill("ACTIVE", Gold)
-                "OWNED" -> StatusPill("OWNED", TextSecondary)
-                "DISABLED" -> StatusPill("DISABLED", TextMuted)
-                else -> Icon(Icons.Default.Lock, contentDescription = "Locked", tint = TextMuted, modifier = Modifier.size(20.dp))
-            }
+        }
+        Spacer(Modifier.width(Spacing.xs))
+        when (state) {
+            null -> BuyButton(affordable, onBuy, accent = Amber)
+            "ACTIVE" -> StatusPill("ACTIVE", Amber)
+            "OWNED" -> StatusPill("OWNED", TextMid)
+            "DISABLED" -> StatusPill("DISABLED", TextLow)
+            else -> Icon(Icons.Default.Lock, contentDescription = "Locked", tint = TextLow, modifier = Modifier.size(19.dp))
         }
     }
 }
 
 @Composable
 private fun ScratchEntryCard(cost: Long, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().pressClick(RoundedCornerShape(20.dp), onClick = onClick),
-        color = Gold.copy(alpha = 0.08f),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.6f))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(
+                Brush.horizontalGradient(listOf(Toxic.copy(alpha = 0.12f), Color.Transparent))
+            )
+            .background(Ink2)
+            .border(BorderStroke(Stroke.hair, Toxic.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.lg))
+            .pressClick(RoundedCornerShape(Radius.lg), onClick = onClick)
+            .padding(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconTile(Icons.Default.ConfirmationNumber, tint = Gold)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text("SCRATCH CARDS", color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 16.sp)
-                Text("Instant prizes: coins, Shields, Lucky Coins", color = TextSecondary, fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
-                PriceTag(cost)
-            }
-            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Gold)
+        ItemEmblem(Icons.Default.ConfirmationNumber, accent = Toxic, size = 54.dp)
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text("SCRATCH CARDS", color = TextHi, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Text("Instant prizes: coins, Shields, Lucky Coins", color = TextMid, fontSize = 12.sp, lineHeight = 16.sp)
+            Spacer(Modifier.height(Spacing.xxs))
+            PriceTag(cost)
         }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Toxic, modifier = Modifier.size(20.dp))
     }
 }

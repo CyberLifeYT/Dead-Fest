@@ -1,4 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Fallback colour for the launcher icon background. The adaptive icon actually resolves
+    @drawable/ic_launcher_background (deep ink + ember bloom); this entry exists so any code or
+    theme that asks for @color/ic_launcher_background gets the brand base instead of the old stock
+    Android green.
+-->
 <resources>
-    <color name="ic_launcher_background">#000000</color>
+    <color name="ic_launcher_background">#FF0B0709</color>
 </resources>

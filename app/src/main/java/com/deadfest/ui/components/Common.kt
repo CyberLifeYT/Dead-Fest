@@ -5,6 +5,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,17 +32,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import com.deadfest.R
 import com.deadfest.ui.theme.*
 import kotlinx.coroutines.delay
 import java.text.NumberFormat
@@ -86,6 +93,38 @@ fun Modifier.pressClick(
         )
 }
 
+/**
+ * The brand mark in a tinted tile. Sits at the left of every screen header so the app reads as
+ * one product rather than a set of unrelated tabs.
+ */
+@Composable
+fun BrandMarkBadge(size: Int = 38, tint: Color = Ember) {
+    Box(
+        modifier = Modifier
+            .size(size.dp)
+            .clip(RoundedCornerShape(Radius.sm))
+            .background(
+                Brush.linearGradient(
+                    listOf(tint.copy(alpha = 0.22f), EmberDeep.copy(alpha = 0.10f))
+                )
+            )
+            .border(BorderStroke(Stroke.hair, tint.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.sm)),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_deadfest_mark),
+            contentDescription = null,
+            colorFilter = ColorFilter.tint(tint),
+            modifier = Modifier.size((size * 0.58f).dp)
+        )
+    }
+}
+
+/**
+ * Screen header: brand mark (or a back button), title, accent subtitle and a gradient rule.
+ *
+ * Used by every screen, so the app has exactly one header design.
+ */
 @Composable
 fun ScreenHeader(
     title: String,
@@ -94,55 +133,74 @@ fun ScreenHeader(
     onBack: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = if (onBack != null) 4.dp else 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (onBack != null) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.gutter, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(RoundedCornerShape(Radius.sm))
+                        .background(Ink3)
+                        .border(BorderStroke(Stroke.hair, InkLine), RoundedCornerShape(Radius.sm))
+                        .pressClick(RoundedCornerShape(Radius.sm), onClick = onBack),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = TextHi,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            } else {
+                BrandMarkBadge()
             }
-            Spacer(Modifier.width(4.dp))
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = TextHi,
+                    style = DeadFestType.screenTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    subtitle.uppercase(),
+                    color = Ember,
+                    style = DeadFestType.screenSubtitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (trailing != null) {
+                Spacer(Modifier.width(Spacing.xs))
+                trailing()
+            }
         }
-        Column(Modifier.weight(1f)) {
-            Text(
-                title,
-                color = TextPrimary,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 0.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                subtitle,
-                color = RedAccent,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        if (trailing != null) {
-            Spacer(Modifier.width(12.dp))
-            trailing()
-        }
+        GradientRule()
     }
 }
 
+/** Group heading with a leading ember bar. */
 @Composable
-fun SectionLabel(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        modifier = modifier,
-        color = TextMuted,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Black,
-        letterSpacing = 1.5.sp
-    )
+fun SectionLabel(text: String, modifier: Modifier = Modifier, accent: Color = Ember) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .height(12.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(accent)
+        )
+        Spacer(Modifier.width(Spacing.xs))
+        Text(text.uppercase(), color = TextMid, style = DeadFestType.section)
+    }
 }
 
 @Composable
@@ -150,10 +208,14 @@ fun CoinIcon(size: Int = 18) {
     Box(
         modifier = Modifier
             .size(size.dp)
-            .background(Gold, CircleShape),
+            .background(
+                Brush.verticalGradient(listOf(Amber, AmberDeep)),
+                CircleShape
+            )
+            .border(BorderStroke(Stroke.hair, AmberDeep.copy(alpha = 0.6f)), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Text("$", color = Color.Black, fontSize = (size * 0.6f).sp, fontWeight = FontWeight.Black)
+        Text("$", color = Color(0xFF2B1B00), fontSize = (size * 0.6f).sp, fontWeight = FontWeight.Black)
     }
 }
 
@@ -161,17 +223,17 @@ fun CoinIcon(size: Int = 18) {
 fun CoinBadge(coins: Long, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        color = CardBgRaised,
-        shape = RoundedCornerShape(50),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.35f))
+        color = Ink3,
+        shape = RoundedCornerShape(Radius.pill),
+        border = BorderStroke(Stroke.hair, Amber.copy(alpha = Tint.edge))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CoinIcon(18)
-            Spacer(Modifier.width(8.dp))
-            Text(formatNumber(coins), color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Black)
+            CoinIcon(16)
+            Spacer(Modifier.width(Spacing.xs))
+            Text(formatNumber(coins), color = Amber, fontSize = 15.sp, fontWeight = FontWeight.Black)
         }
     }
 }
@@ -183,23 +245,28 @@ fun PriceTag(price: Long, affordable: Boolean = true) {
         Spacer(Modifier.width(6.dp))
         Text(
             formatNumber(price),
-            color = if (affordable) TextPrimary else TextMuted,
+            color = if (affordable) Amber else TextLow,
             fontSize = 14.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Black
         )
     }
 }
 
 @Composable
 fun StatusPill(text: String, color: Color, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier, color = color.copy(alpha = 0.15f), shape = RoundedCornerShape(50)) {
+    Surface(
+        modifier = modifier,
+        color = color.copy(alpha = Tint.fill),
+        shape = RoundedCornerShape(Radius.pill),
+        border = BorderStroke(Stroke.hair, color.copy(alpha = Tint.edge))
+    ) {
         Row(
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(6.dp).background(color, CircleShape))
             Spacer(Modifier.width(6.dp))
-            Text(text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+            Text(text.uppercase(), color = color, style = DeadFestType.microLabel)
         }
     }
 }
@@ -212,29 +279,34 @@ fun NoticeCard(
     message: String,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBg),
-            shape = RoundedCornerShape(24.dp),
-            border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.6f))
+    Box(modifier = modifier.fillMaxSize().padding(Spacing.lg), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Radius.xl))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Ember.copy(alpha = 0.14f), Color.Transparent)
+                    )
+                )
+                .background(Ink2)
+                .border(BorderStroke(Stroke.hair, Ember.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.xl))
+                .padding(Spacing.xl),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(28.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .clip(CircleShape)
+                    .background(Ember.copy(alpha = Tint.wash))
+                    .border(BorderStroke(Stroke.hair, Ember.copy(alpha = Tint.edge)), CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .background(RedAccent.copy(alpha = 0.12f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = RedAccent, modifier = Modifier.size(36.dp))
-                }
-                Text(title, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
-                Text(message, color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
+                Icon(icon, contentDescription = null, tint = Ember, modifier = Modifier.size(34.dp))
             }
+            Text(title.uppercase(), color = TextHi, fontSize = 17.sp, fontWeight = FontWeight.Black, textAlign = TextAlign.Center)
+            Text(message, color = TextMid, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
         }
     }
 }
@@ -242,12 +314,21 @@ fun NoticeCard(
 @Composable
 fun EmptyState(icon: ImageVector, text: String, modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 24.dp),
+        modifier = modifier.fillMaxWidth().padding(vertical = 44.dp, horizontal = Spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
-        Icon(icon, contentDescription = null, tint = TextMuted, modifier = Modifier.size(40.dp))
-        Text(text, color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+        Box(
+            Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(Ink3)
+                .border(BorderStroke(Stroke.hair, InkLine), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = TextLow, modifier = Modifier.size(26.dp))
+        }
+        Text(text, color = TextMid, fontSize = 13.sp, textAlign = TextAlign.Center, lineHeight = 18.sp)
     }
 }
 
@@ -257,8 +338,13 @@ fun IconTile(icon: ImageVector, tint: Color = RedAccent, size: Int = 52) {
     Box(
         modifier = Modifier
             .size(size.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(tint.copy(alpha = 0.12f)),
+            .clip(RoundedCornerShape(Radius.md))
+            .background(
+                Brush.linearGradient(
+                    listOf(tint.copy(alpha = Tint.fill), tint.copy(alpha = 0.05f))
+                )
+            )
+            .border(BorderStroke(Stroke.hair, tint.copy(alpha = Tint.edge)), RoundedCornerShape(Radius.md)),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size((size * 0.55f).dp))
@@ -266,20 +352,24 @@ fun IconTile(icon: ImageVector, tint: Color = RedAccent, size: Int = 52) {
 }
 
 @Composable
-fun deadFestFieldColors() =OutlinedTextFieldDefaults.colors(
-    focusedTextColor = TextPrimary,
-    unfocusedTextColor = TextPrimary,
-    focusedBorderColor = RedAccent,
-    unfocusedBorderColor = Outline,
-    focusedContainerColor = CardBg,
-    unfocusedContainerColor = CardBg,
-    focusedLabelColor = RedAccent,
-    unfocusedLabelColor = TextSecondary,
-    cursorColor = RedAccent,
-    focusedLeadingIconColor = RedAccent,
-    unfocusedLeadingIconColor = TextSecondary,
-    focusedTrailingIconColor = TextSecondary,
-    unfocusedTrailingIconColor = TextSecondary
+fun deadFestFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = TextHi,
+    unfocusedTextColor = TextHi,
+    focusedBorderColor = Ember,
+    unfocusedBorderColor = InkLine,
+    focusedContainerColor = Ink2,
+    unfocusedContainerColor = Ink2,
+    focusedLabelColor = Ember,
+    unfocusedLabelColor = TextMid,
+    cursorColor = Ember,
+    focusedLeadingIconColor = Ember,
+    unfocusedLeadingIconColor = TextLow,
+    focusedTrailingIconColor = TextMid,
+    unfocusedTrailingIconColor = TextLow,
+    focusedPlaceholderColor = TextLow,
+    unfocusedPlaceholderColor = TextLow,
+    errorBorderColor = Ember,
+    errorContainerColor = Ink2
 )
 
 /** Consistent confirm dialog for anything that spends coins or changes data. */
@@ -336,9 +426,9 @@ object AvatarFrames {
         "rust" -> SolidColor(Bronze)
         "neon" -> SolidColor(RedAccent)
         "toxic" -> SolidColor(OnlineGreen)
-        "gold" -> Brush.sweepGradient(listOf(Gold, Color(0xFFFFF59D), Gold, Color(0xFFFFA000), Gold))
-        "inferno" -> Brush.sweepGradient(listOf(RedAccent, Color(0xFFFF9800), Gold, RedAccent))
-        "prestige" -> Brush.sweepGradient(listOf(Color(0xFFB388FF), ShieldCyan, Gold, Color(0xFFB388FF)))
+        "gold" -> Brush.sweepGradient(listOf(Amber, Color(0xFFFFF9C4), Amber, AmberDeep, Amber))
+        "inferno" -> Brush.sweepGradient(listOf(Ember, EmberGlow, Amber, Ember))
+        "prestige" -> Brush.sweepGradient(listOf(Prestige, Plasma, Amber, Prestige))
         else -> null
     }
 }
@@ -398,18 +488,19 @@ fun LevelBadge(level: Int, prestige: Int = 0, modifier: Modifier = Modifier) {
     }
 }
 
-val PrestigePurple = Color(0xFFB388FF)
+/** Kept as a named alias so existing call sites keep working; the value now comes from the scale. */
+val PrestigePurple = Prestige
 
 @Composable
 fun PrestigeBadge(count: Int) {
     Surface(
-        color = PrestigePurple.copy(alpha = 0.18f),
-        shape = RoundedCornerShape(6.dp),
-        border = BorderStroke(1.dp, PrestigePurple.copy(alpha = 0.7f))
+        color = Prestige.copy(alpha = Tint.fill),
+        shape = RoundedCornerShape(Radius.xs),
+        border = BorderStroke(Stroke.hair, Prestige.copy(alpha = Tint.edgeStrong))
     ) {
         Text(
             "★ P$count",
-            color = Color(0xFFD1C4E9),
+            color = Prestige,
             fontSize = 10.sp,
             fontWeight = FontWeight.Black,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
@@ -492,31 +583,46 @@ fun PenaltyStatusCard(bankruptcyLevel: Int, pendingSpins: Int, onClick: (() -> U
             "Balance hit 0. Survival payouts are halved. Another death means Level 2."
         else -> "FORCED SPIN PROTOCOL" to "Penalty spins are waiting for you on the Wheel of Fate."
     }
-    val accent = if (bankruptcyLevel >= 1) RedAccent else Gold
-    Card(
+    val accent = if (bankruptcyLevel >= 1) Ember else Amber
+    val critical = bankruptcyLevel >= 2
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.pressClick(RoundedCornerShape(16.dp), onClick = onClick) else Modifier),
-        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = if (bankruptcyLevel >= 2) 0.2f else 0.1f)),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(if (bankruptcyLevel >= 2) 2.dp else 1.dp, accent)
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (bankruptcyLevel >= 1) Icons.Default.MoneyOff else Icons.Default.Casino,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(30.dp)
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(accent.copy(alpha = if (critical) 0.24f else 0.13f), Color.Transparent)
+                )
             )
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 14.sp)
-                Text(message, color = TextSecondary, fontSize = 12.sp)
-            }
-            if (pendingSpins > 0) {
-                Spacer(Modifier.width(10.dp))
-                PendingSpinsChip(pendingSpins)
-            }
+            .background(Ink2)
+            .border(
+                BorderStroke(
+                    if (critical) Stroke.emphasis else Stroke.hair,
+                    accent.copy(alpha = if (critical) 1f else Tint.edgeStrong)
+                ),
+                RoundedCornerShape(Radius.lg)
+            )
+            .then(
+                if (onClick != null) Modifier.pressClick(RoundedCornerShape(Radius.lg), onClick = onClick)
+                else Modifier
+            )
+            .padding(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            if (bankruptcyLevel >= 1) Icons.Default.MoneyOff else Icons.Default.Casino,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(28.dp)
+        )
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = if (critical) accent else TextHi, fontWeight = FontWeight.Black, fontSize = 14.sp)
+            Text(message, color = TextMid, fontSize = 12.sp, lineHeight = 16.sp)
+        }
+        if (pendingSpins > 0) {
+            Spacer(Modifier.width(Spacing.xs))
+            PendingSpinsChip(pendingSpins)
         }
     }
 }
@@ -525,7 +631,7 @@ fun PenaltyStatusCard(bankruptcyLevel: Int, pendingSpins: Int, onClick: (() -> U
 fun PendingSpinsChip(count: Int) {
     Column(
         modifier = Modifier
-            .background(RedAccent, RoundedCornerShape(12.dp))
+            .background(Ember, RoundedCornerShape(Radius.sm))
             .padding(horizontal = 10.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -544,18 +650,17 @@ fun PendingSpinsChip(count: Int) {
 /** Elevated panel used by the Live Event Dashboard. */
 @Composable
 fun DashboardPanel(title: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, Outline),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(Ink2)
+            .border(BorderStroke(Stroke.hair, InkLine), RoundedCornerShape(Radius.lg))
+            .padding(Spacing.sm)
     ) {
-        Column(Modifier.padding(14.dp)) {
-            SectionLabel(title)
-            Spacer(Modifier.height(8.dp))
-            content()
-        }
+        SectionLabel(title)
+        Spacer(Modifier.height(Spacing.sm))
+        content()
     }
 }
 
@@ -618,45 +723,139 @@ fun showDateTimePicker(context: android.content.Context, initialMillis: Long, on
     ).show()
 }
 
-/** DAYS / HRS / MIN / SEC tiles. Plain text so it stays cheap on low-end phones. */
+/** Countdown display precision. Performance Mode drops seconds so the timer can idle. */
+private enum class CountdownPrecision { Seconds, Minutes }
+
+/** Tick interval for each precision: 1s for a live seconds readout, 30s when seconds are hidden. */
+private fun CountdownPrecision.intervalMs(): Long = when (this) {
+    CountdownPrecision.Seconds -> 1_000L
+    CountdownPrecision.Minutes -> 30_000L
+}
+
+/**
+ * A lifecycle-aware wall clock, shared by every live readout in the app.
+ *
+ * This is the only place in Dead-Fest where a repeating timer is allowed to exist. What it
+ * guarantees:
+ *  - **Lifecycle aware.** The loop runs inside `repeatOnLifecycle(RESUMED)`, so it is cancelled
+ *    the moment the app is backgrounded and restarted the moment it returns — immediately
+ *    re-reading the wall clock, so nothing shows a stale value after a resume.
+ *  - **Self-cancelling.** `LaunchedEffect` tears the coroutine down when the composable leaves the
+ *    composition, so navigating between tabs can never leak a timer.
+ *  - **Free when idle.** `running = false` schedules no coroutine at all, so screens with nothing
+ *    to count down to cost nothing.
+ *  - **A State, not a snapshot.** Callers read `.value` inside the smallest composable that needs
+ *    it, which scopes recomposition to those pixels instead of the whole screen.
+ *  - **Timezone-safe.** Epoch millis only, never local-time arithmetic.
+ *
+ * @param intervalMs how often to re-read the clock while running.
+ * @param running false to suspend the timer entirely.
+ * @param key restart the timer if this identity changes (e.g. an admin edits the target date).
+ * @param stopWhen called with the freshly read clock; returning true stops the timer for good.
+ */
 @Composable
-fun CountdownTiles(remainingMs: Long, modifier: Modifier = Modifier) {
-    val total = (remainingMs / 1000).coerceAtLeast(0)
-    val parts = listOf(
-        "DAYS" to total / 86_400,
-        "HRS" to (total % 86_400) / 3_600,
-        "MIN" to (total % 3_600) / 60,
-        "SEC" to total % 60
+fun rememberLiveNow(
+    intervalMs: Long,
+    running: Boolean = true,
+    key: Any? = null,
+    stopWhen: (Long) -> Boolean = { false }
+): State<Long> {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val now = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(intervalMs, running, lifecycleOwner, key) {
+        if (!running) {
+            now.value = System.currentTimeMillis()
+            return@LaunchedEffect
+        }
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val t = System.currentTimeMillis()
+                now.value = t
+                if (stopWhen(t)) break
+                delay(intervalMs)
+            }
+        }
+    }
+    return now
+}
+
+/**
+ * Live clock for the Dead-Fest countdown.
+ *
+ * Normally 1 Hz so seconds tick smoothly. In Performance Mode it drops to one tick every 30s,
+ * which is exactly why [CountdownTiles] hides the seconds tile in that mode — a 30s-stale seconds
+ * digit would be a lie, whereas DAYS/HRS/MIN stay correct at that rate. Does nothing at all when
+ * there is no target, or the target has already passed.
+ */
+@Composable
+private fun rememberCountdownNow(target: Long?): State<Long> {
+    val reduced = LocalPerformanceMode.current
+    val precision = if (reduced) CountdownPrecision.Minutes else CountdownPrecision.Seconds
+    return rememberLiveNow(
+        intervalMs = precision.intervalMs(),
+        running = target != null && target > System.currentTimeMillis(),
+        key = target,
+        stopWhen = { target != null && it >= target }
     )
-    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+}
+
+/**
+ * Day/hour/minute/second breakdown, shared by the tiles and the compact label.
+ *
+ * `internal` so the unit tests can pin the arithmetic: this is the function that decides what the
+ * survivor actually reads, so a subtle off-by-one here would be a wrong countdown on screen.
+ */
+internal fun countdownParts(totalSeconds: Long, withSeconds: Boolean): List<Pair<String, Long>> = buildList {
+    add("DAYS" to totalSeconds / 86_400)
+    add("HRS" to (totalSeconds % 86_400) / 3_600)
+    add("MIN" to (totalSeconds % 3_600) / 60)
+    if (withSeconds) add("SEC" to totalSeconds % 60)
+}
+
+/**
+ * DAYS / HRS / MIN / SEC readout. In Performance Mode the SEC tile is omitted so the display
+ * stays truthful at the reduced 30s tick rate. Plain text + solid fills: no bitmaps, no shadows.
+ */
+@Composable
+fun CountdownTiles(
+    remainingMs: Long,
+    modifier: Modifier = Modifier,
+    showSeconds: Boolean = !LocalPerformanceMode.current
+) {
+    val total = (remainingMs / 1000).coerceAtLeast(0)
+    val parts = countdownParts(total, showSeconds)
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         parts.forEach { (label, value) ->
-            Surface(
-                modifier = Modifier.weight(1f),
-                color = CardBgRaised,
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, Outline)
-            ) {
-                Column(
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        value.toString().padStart(2, '0'),
-                        color = TextPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(Radius.md))
+                    .background(
+                        Brush.verticalGradient(listOf(Ink4, Ink3))
                     )
-                    Text(label, color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
-                }
+                    .border(Stroke.hair, Amber.copy(alpha = if (label == "SEC") 0.34f else 0.16f), RoundedCornerShape(Radius.md))
+                    .padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    value.toString().padStart(2, '0'),
+                    color = if (label == "SEC") Amber else TextHi,
+                    style = DeadFestType.stat,
+                    maxLines = 1
+                )
+                Text(label, color = TextLow, style = DeadFestType.microLabel)
             }
         }
     }
 }
 
 /**
- * "Next Dead-Fest" hero panel: season name, a live countdown, the games lined up for it and
- * an admin blurb. The ticking lives in its own composable so only this panel recomposes.
- * Long countdowns tick every 15s; only the final day counts down every second.
+ * "Next Dead-Fest" hero panel: season name, a live countdown, the games lined up for it and an
+ * admin blurb.
+ *
+ * Only the two sub-composables that actually read the clock ([CountdownStatusPill] and
+ * [CountdownReadout]) recompose each tick — the season name, game chips and blurb are static and
+ * never re-run.
  */
 @Composable
 fun NextEventHero(
@@ -666,98 +865,99 @@ fun NextEventHero(
     startsAt: Long?,
     modifier: Modifier = Modifier
 ) {
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(startsAt) {
-        val target = startsAt ?: return@LaunchedEffect
-        while (true) {
-            now = System.currentTimeMillis()
-            if (now >= target) break
-            delay(if (target - now > 86_400_000L) 15_000L else 1_000L)
-        }
+    val nowState = rememberCountdownNow(startsAt)
+    // Formatted once per target instead of once per tick.
+    val startLabel = remember(startsAt) {
+        if (startsAt != null && startsAt > 0L) formatEventTime(startsAt) else null
     }
-    val remaining = startsAt?.let { it - now }
-    val started = remaining != null && remaining <= 0L
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(22.dp),
-        border = BorderStroke(1.dp, Gold.copy(alpha = 0.55f))
+    HeroPanel(
+        eyebrow = "Next Dead-Fest",
+        title = seasonName.uppercase(),
+        icon = Icons.Default.Celebration,
+        modifier = modifier,
+        accent = Amber,
+        badge = { CountdownStatusPill(startsAt, nowState) }
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Gold.copy(alpha = 0.12f), Color.Transparent)))
-                .padding(18.dp)
-        ) {
+        CountdownReadout(startsAt, nowState, startLabel)
+
+        if (games.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.md))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Celebration, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("NEXT DEAD-FEST", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
-                Spacer(Modifier.weight(1f))
-                if (started) StatusPill("STARTED", OnlineGreen) else if (startsAt == null) StatusPill("TBA", TextMuted)
+                Icon(Icons.Default.SportsEsports, contentDescription = null, tint = Ember, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("IN THE LINE-UP", color = TextLow, style = DeadFestType.section)
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                seasonName.uppercase(),
-                color = TextPrimary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            Spacer(Modifier.height(14.dp))
-            when {
-                started -> Text("It's on. Good luck out there.", color = OnlineGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                remaining == null -> Text("Start time hasn't been locked in yet.", color = TextSecondary, fontSize = 13.sp)
-                else -> CountdownTiles(remaining)
-            }
-
-            if (startsAt != null) {
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (started) "Started ${formatEventTime(startsAt)}" else "Starts ${formatEventTime(startsAt)}",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-
-            if (games.isNotEmpty()) {
-                Spacer(Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = RedAccent, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("IN THE LINE-UP", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
-                }
-                Spacer(Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(games, key = { it }) { game ->
-                        Surface(
-                            color = CardBgRaised,
-                            shape = RoundedCornerShape(50),
-                            border = BorderStroke(1.dp, Outline)
-                        ) {
-                            Text(
-                                game.uppercase(),
-                                color = TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
+            Spacer(Modifier.height(Spacing.xs))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                items(games, key = { it }) { game ->
+                    Surface(
+                        color = Ink4,
+                        shape = RoundedCornerShape(Radius.pill),
+                        border = BorderStroke(Stroke.hair, Amber.copy(alpha = 0.3f))
+                    ) {
+                        Text(
+                            game.uppercase(),
+                            color = TextHi,
+                            style = DeadFestType.chip,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                        )
                     }
                 }
             }
+        }
 
-            if (notes.isNotBlank()) {
-                Spacer(Modifier.height(14.dp))
-                Text(notes, color = TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
-            }
+        if (notes.isNotBlank()) {
+            Spacer(Modifier.height(Spacing.md))
+            GradientRule()
+            Spacer(Modifier.height(Spacing.sm))
+            Text(notes, color = TextMid, style = DeadFestType.body)
+        }
+    }
+}
+
+/** Live state pill. Isolated so a tick repaints only this pill. */
+@Composable
+private fun CountdownStatusPill(target: Long?, now: State<Long>) {
+    when {
+        target == null -> StatusPill("TBA", TextLow)
+        now.value >= target -> StatusPill("LIVE NOW", OnlineGreen)
+        else -> StatusPill("UPCOMING", Amber)
+    }
+}
+
+/** Live countdown body. Isolated so a tick repaints only the digits. */
+@Composable
+private fun CountdownReadout(target: Long?, now: State<Long>, startLabel: String?) {
+    if (target == null) {
+        Text(
+            "Start time hasn't been locked in yet.",
+            color = TextMid,
+            fontSize = 13.sp
+        )
+        return
+    }
+    val remaining = target - now.value
+    if (remaining <= 0L) {
+        Text(
+            "It's on. Good luck out there.",
+            color = OnlineGreen,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+    } else {
+        CountdownTiles(remaining)
+    }
+    if (startLabel != null) {
+        Spacer(Modifier.height(Spacing.sm))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Schedule, contentDescription = null, tint = TextLow, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                if (remaining <= 0L) "Started $startLabel" else "Starts $startLabel",
+                color = TextMid,
+                fontSize = 12.sp
+            )
         }
     }
 }

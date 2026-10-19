@@ -3,16 +3,18 @@ package com.deadfest.ui.screens
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.MoneyOff
+import androidx.compose.material.icons.filled.Paid
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,11 +24,12 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -51,7 +54,7 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
     val pool = remember(prizes) { prizes.filter { it.enabled } }
     val coins = user?.playerData?.coins ?: 0L
 
-    Column(Modifier.fillMaxSize().background(DarkBg)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "SCRATCH CARDS",
             subtitle = "INSTANT WASTELAND LOTTERY",
@@ -62,67 +65,141 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
         when {
             globalState.lockdownActive -> NoticeCard(Icons.Default.Lock, "SYSTEM LOCKDOWN ACTIVE", "Scratch Cards are frozen by an administrator.")
             !economy.scratchEnabled -> NoticeCard(Icons.Default.ConfirmationNumber, "SCRATCH CARDS OFFLINE", "An admin has switched Scratch Cards off for now.")
-            pool.isEmpty() -> NoticeCard(Icons.Default.ConfirmationNumber, "NO PRIZES LOADED", "An admin needs to stock the prize pool first.")
+            pool.isEmpty() -> Box(
+                modifier = Modifier.fillMaxSize().padding(Spacing.gutter),
+                contentAlignment = Alignment.Center
+            ) {
+                EmptyStateCard(
+                    icon = Icons.Default.ConfirmationNumber,
+                    title = "NO PRIZES LOADED",
+                    message = "An admin needs to stock the prize pool first."
+                )
+            }
             else -> {
                 val chances = remember(pool) { Weighted.chances(pool.map { it.weight }) }
                 LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(
+                        start = Spacing.gutter,
+                        top = Spacing.md,
+                        end = Spacing.gutter,
+                        bottom = Spacing.lg
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
                     item {
-                        ScratchCardView(
-                            state = scratch,
-                            cost = economy.scratchCost,
-                            onRevealed = { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
-                        )
+                        val result = scratch.result
+                        // The card is the hero: hero panel carries the state, the card carries the reveal.
+                        HeroPanel(
+                            eyebrow = "Instant Lottery",
+                            title = when {
+                                scratch.busy -> "STAMPING A FRESH CARD"
+                                result != null -> "CARD RESOLVED"
+                                else -> "READY TO SCRATCH"
+                            },
+                            icon = Icons.Default.ConfirmationNumber,
+                            modifier = Modifier.enterOnMount(0),
+                            accent = when (result?.outcome) {
+                                ScratchOutcome.ITEM -> Amber
+                                ScratchOutcome.WIN -> Toxic
+                                ScratchOutcome.LOSS -> Ember
+                                null -> Ember
+                            },
+                            badge = {
+                                StatusPill(
+                                    text = when {
+                                        scratch.busy -> "PRINTING"
+                                        result?.outcome == ScratchOutcome.ITEM -> "RARE FIND"
+                                        result?.outcome == ScratchOutcome.WIN -> "WIN"
+                                        result?.outcome == ScratchOutcome.LOSS -> if (result.coinsWon > 0) "SMALL RETURN" else "NO LUCK"
+                                        else -> "READY"
+                                    },
+                                    color = when {
+                                        scratch.busy -> Ember
+                                        result?.outcome == ScratchOutcome.ITEM -> Amber
+                                        result?.outcome == ScratchOutcome.WIN -> Toxic
+                                        result?.outcome == ScratchOutcome.LOSS -> if (result.coinsWon > 0) Amber else Ember
+                                        else -> Toxic
+                                    }
+                                )
+                            }
+                        ) {
+                            ScratchCardView(
+                                state = scratch,
+                                cost = economy.scratchCost,
+                                onRevealed = { haptics.performHapticFeedback(HapticFeedbackType.LongPress) }
+                            )
+                        }
                     }
                     item {
                         val affordable = coins >= economy.scratchCost
-                        Button(
+                        PrimaryAction(
+                            text = when {
+                                scratch.busy -> "SCRATCHING..."
+                                !affordable -> "NEED ${formatNumber(economy.scratchCost)} COINS"
+                                else -> "SCRATCH A CARD · ${formatNumber(economy.scratchCost)} COINS"
+                            },
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 viewModel.scratchCard(pool)
                             },
                             enabled = !scratch.busy && affordable,
-                            modifier = Modifier.fillMaxWidth().height(60.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = RedAccent, disabledContainerColor = CardBgRaised),
-                            shape = RoundedCornerShape(18.dp)
-                        ) {
-                            Text(
-                                when {
-                                    scratch.busy -> "SCRATCHING..."
-                                    !affordable -> "NEED ${formatNumber(economy.scratchCost)} COINS"
-                                    else -> "SCRATCH A CARD · ${formatNumber(economy.scratchCost)} COINS"
-                                },
-                                fontWeight = FontWeight.Black,
-                                fontSize = 15.sp
-                            )
-                        }
+                            modifier = Modifier.enterOnMount(1)
+                        )
                     }
-                    item { SectionLabel("PRIZE POOL & ODDS", Modifier.padding(top = 8.dp)) }
+                    item { SectionLabel("Prize Pool & Odds", Modifier.padding(top = Spacing.xs).enterOnMount(2)) }
                     items(pool.indices.toList(), key = { pool[it].id.ifEmpty { "p$it" } }) { i ->
-                        val p = pool[i]
-                        Surface(color = CardBg, shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Outline)) {
-                            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(14.dp).background(parseThemeColor(p.color), CircleShape))
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(p.label, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                    Text(prizeDescription(p), color = TextSecondary, fontSize = 12.sp)
-                                }
-                                Text(
-                                    "${CasualtyFormat.pct(chances[i])}%",
-                                    color = TextPrimary,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
+                        PrizeRow(prize = pool[i], pct = chances[i], modifier = Modifier.enterOnMount(3))
                     }
                 }
             }
         }
     }
+}
+
+/**
+ * One prize-pool row. Hierarchy: tinted icon carries the prize's own colour, the name is the
+ * loudest text, the payout description supports it and the coin value + odds sit right-aligned.
+ */
+@Composable
+private fun PrizeRow(prize: ScratchPrize, pct: Double, modifier: Modifier = Modifier) {
+    SurfaceCard(modifier = modifier, padding = Spacing.sm) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(icon = prize.icon(), tint = parseThemeColor(prize.color), size = 40)
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    prize.label,
+                    color = TextHi,
+                    style = DeadFestType.cardTitle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    prizeDescription(prize),
+                    color = TextMid,
+                    style = DeadFestType.body,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(Spacing.xs))
+            Column(horizontalAlignment = Alignment.End) {
+                if (prize.coinAmount > 0) {
+                    PriceTag(prize.coinAmount)
+                    Spacer(Modifier.height(Spacing.xxs))
+                }
+                Text("${CasualtyFormat.pct(pct)}%", color = TextMid, style = DeadFestType.chip)
+                Text("ODDS", color = TextLow, style = DeadFestType.microLabel)
+            }
+        }
+    }
+}
+
+private fun ScratchPrize.icon(): ImageVector = when (type) {
+    ScratchPrize.TYPE_SHIELD -> Icons.Default.Shield
+    ScratchPrize.TYPE_LUCKY -> Icons.Default.MonetizationOn
+    ScratchPrize.TYPE_COINS -> Icons.Default.Paid
+    else -> Icons.Default.MoneyOff
 }
 
 private object CasualtyFormat {
@@ -160,28 +237,27 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
 
     val result = state.result
     val accent = when (result?.outcome) {
-        ScratchOutcome.ITEM -> Gold
-        ScratchOutcome.WIN -> OnlineGreen
-        ScratchOutcome.LOSS -> RedAccent
-        null -> TextMuted
+        ScratchOutcome.ITEM -> Amber
+        ScratchOutcome.WIN -> Toxic
+        ScratchOutcome.LOSS -> Ember
+        null -> TextLow
     }
-    val shape = RoundedCornerShape(22.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1.7f)
-            .clip(shape)
-            .background(accent.copy(alpha = 0.12f))
+            .clip(RoundedCornerShape(Radius.xl))
+            .background(accent.copy(alpha = Tint.wash))
     ) {
         // Prize layer
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(Spacing.md),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
             if (result == null) {
-                Text("?", color = TextMuted, fontSize = 48.sp, fontWeight = FontWeight.Black)
+                Text("?", color = TextLow, fontSize = 48.sp, fontWeight = FontWeight.Black)
             } else {
                 Text(
                     when (result.outcome) {
@@ -196,11 +272,11 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
                 )
                 Text(
                     result.prize.label.uppercase(),
-                    color = TextPrimary,
-                    fontWeight = FontWeight.Black,
-                    fontSize = 26.sp,
+                    color = TextHi,
+                    style = DeadFestType.statHero,
                     textAlign = TextAlign.Center
                 )
+                Spacer(Modifier.height(Spacing.xxs))
                 Text(
                     when {
                         result.convertedItem -> "Already owned: cashed in for ${formatNumber(result.coinsWon)} coins"
@@ -208,8 +284,8 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
                         result.coinsWon > 0 -> "+${formatNumber(result.coinsWon)} coins (card cost ${formatNumber(cost)})"
                         else -> "Better luck next card"
                     },
-                    color = TextSecondary,
-                    fontSize = 12.sp,
+                    color = TextMid,
+                    style = DeadFestType.body,
                     textAlign = TextAlign.Center
                 )
             }

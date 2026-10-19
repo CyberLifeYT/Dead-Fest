@@ -14,8 +14,8 @@ android {
         applicationId = "com.deadfest"
         minSdk = 24
         targetSdk = 37
-        versionCode = 10
-        versionName = "2.0.7"
+        versionCode = 11
+        versionName = "2.0.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

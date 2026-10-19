@@ -1,217 +1,318 @@
 package com.deadfest.ui.screens
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MoneyOff
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
-import com.deadfest.ui.theme.CardBg
-import com.deadfest.ui.theme.RedAccent
+import com.deadfest.ui.components.*
+import com.deadfest.ui.theme.*
+
+/**
+ * One entry in the manual. Every entry used to be a single "Label: sentence" bullet; splitting at
+ * that colon gives the entry a heading the layout can style, while [body], [stats] and [trailer]
+ * still carry the original words unchanged. [warnIcon] marks the entries that are penalties, which
+ * are promoted to an [AlertBanner] so they cannot be skimmed past.
+ */
+private data class IntelRule(
+    val title: String,
+    val body: String,
+    val stats: List<Pair<String, String>> = emptyList(),
+    val trailer: String = "",
+    val warnIcon: ImageVector? = null
+)
+
+/**
+ * A dossier section. The copy is data rather than hand-built composables so every section renders
+ * through the same frame and a new section is one list entry.
+ */
+private data class IntelSection(
+    val title: String,
+    val logId: String,
+    val icon: ImageVector,
+    val accent: Color,
+    val rules: List<IntelRule>
+)
+
+/**
+ * The manual itself, in the original reading order. Numeric rules whose text was a list of
+ * "threshold = rate" pairs are the only entries split onto [IntelRule.stats] rows.
+ */
+private val intelSections = listOf(
+    IntelSection(
+        title = "Origin & Rebuild",
+        logId = "DISASTER RECOVERY LOG // 001",
+        icon = Icons.Default.Storage,
+        accent = Ember,
+        rules = listOf(
+            IntelRule(
+                title = "Catastrophic Failure",
+                body = "The original source code of Dead-Fest was stored exclusively on a single Hard Disk Drive (HDD) that suffered catastrophic hardware failure."
+            ),
+            IntelRule(
+                title = "Total Loss Protocol",
+                body = "All legacy project archives, version histories, and uncommitted modules were permanently lost to the wasteland static."
+            ),
+            IntelRule(
+                title = "Ground-Up Phoenix Protocol",
+                body = "Rather than abandoning the survivors, Dead-Fest was rebuilt entirely from scratch, engineering a more resilient, scalable, and powerful core architecture."
+            )
+        )
+    ),
+    IntelSection(
+        title = "Next-Gen Architecture",
+        logId = "SYSTEM SPECIFICATIONS // 002",
+        icon = Icons.Default.Build,
+        accent = Plasma,
+        rules = listOf(
+            IntelRule(
+                title = "Material 3 Cyberpunk Design",
+                body = "Crafted with modern UI components, sleek surfaces, high-contrast typography, and signature crimson atmospheric accents."
+            ),
+            IntelRule(
+                title = "Enhanced Stability",
+                body = "Rebuilt with strict reactive state management to eliminate memory leaks and runtime crashes under heavy network load."
+            ),
+            IntelRule(
+                title = "Streamlined Layouts",
+                body = "Redesigned navigation flows and touch targets optimized for high-stress tactical environments and quick operator decisions."
+            )
+        )
+    ),
+    IntelSection(
+        title = "Wasteland Optimizations",
+        logId = "HARDWARE EFFICIENCY // 003",
+        icon = Icons.Default.PhoneAndroid,
+        accent = Toxic,
+        rules = listOf(
+            IntelRule(
+                title = "Performance Mode",
+                body = "Cuts transitions and speeds up the wheel on older, battered wasteland hardware. Switches on automatically for low-RAM devices (Settings → System)."
+            ),
+            IntelRule(
+                title = "Battery Saver Integration",
+                body = "Live data feeds disconnect a few seconds after the terminal is backgrounded and reconnect instantly on return."
+            ),
+            IntelRule(
+                title = "Fast Startup Protocol",
+                body = "Bypasses unnecessary initialization checks to drop operators directly into active feeds with minimal latency."
+            )
+        )
+    ),
+    IntelSection(
+        title = "Economy Protocols",
+        logId = "SURVIVAL FINANCE // 005",
+        icon = Icons.Default.Security,
+        accent = Amber,
+        rules = listOf(
+            IntelRule(
+                title = "Casualty Tax",
+                body = "Every recorded death costs coins.",
+                stats = listOf(
+                    "Over 5,000" to "30%",
+                    "Over 1,000" to "20%",
+                    "Over 500" to "15%",
+                    "Otherwise" to "a flat 25"
+                ),
+                trailer = "Your balance never goes below 0."
+            ),
+            IntelRule(
+                title = "Wealth Insulation (Black Market)",
+                body = "Cuts the tax rate permanently.",
+                stats = listOf(
+                    "Tier I" to "-10%",
+                    "Tier II" to "-25%",
+                    "Tier III" to "-50%",
+                    "Tier IV" to "-100%"
+                ),
+                trailer = "Insurance then absorbs part of whatever tax is left, once."
+            ),
+            IntelRule(
+                title = "Forced Spin Protocol",
+                body = "Each death adds a pending penalty spin. Clear them on the Wheel of Fate.",
+                warnIcon = Icons.Default.Casino
+            ),
+            IntelRule(
+                title = "Bankruptcy",
+                body = "Hit 0 coins and you're Level 1 (survival payouts halved). Die again while bankrupt and it's Level 2 (+2 extra spins). Clear every spin with coins above 0 to escape.",
+                warnIcon = Icons.Default.MoneyOff
+            ),
+            IntelRule(
+                title = "Mutual Survival Reward",
+                body = "When anyone dies, everyone else collects a few coins."
+            ),
+            IntelRule(
+                title = "Daily Rations",
+                body = "Claim free coins once per day on the Dashboard. A Ration Upgrade doubles them for good."
+            ),
+            IntelRule(
+                title = "XP & Levels",
+                body = "Deaths, purchases, spins, scratch cards and surviving a full day all earn XP. Levels unlock badge colours, frames and titles. Hit the cap to Prestige."
+            )
+        )
+    ),
+    IntelSection(
+        title = "Community & Future",
+        logId = "OPERATIONAL HORIZON // 004",
+        icon = Icons.Default.Groups,
+        accent = Prestige,
+        rules = listOf(
+            IntelRule(
+                title = "Community-Driven Features",
+                body = "Built directly around survivor feedback, feature requests, and combat telemetry reports."
+            ),
+            IntelRule(
+                title = "Real-Time Firestore Sync",
+                body = "Instantaneous cloud updates ensuring all operatives receive intel, alerts, and schedule changes simultaneously."
+            ),
+            IntelRule(
+                title = "Custom Admin Overrides",
+                body = "Direct command channel integration allowing emergency broadcasts and rapid tactical updates from headquarters."
+            )
+        )
+    )
+)
 
 @Composable
 fun SurvivalIntelScreen(navController: NavController) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(24.dp)
-    ) {
-        // Top Bar & Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+    // No background of its own: DeadFestBackground is applied once behind the whole NavHost.
+    Column(Modifier.fillMaxSize()) {
+        ScreenHeader(
+            title = "SURVIVAL INTEL",
+            subtitle = "CLASSIFIED TERMINAL DATA // V${com.deadfest.BuildConfig.VERSION_NAME}",
+            onBack = { navController.popBackStack() }
+        )
+
+        // The manual is long, so it is one lazy scroll container with no nested scrollers.
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = Spacing.gutter,
+                end = Spacing.gutter,
+                top = Spacing.md,
+                bottom = Spacing.scrollBottom
+            ),
+            verticalArrangement = Arrangement.spacedBy(Spacing.lg)
         ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = RedAccent)
+            item {
+                HeroPanel(
+                    eyebrow = "Field Manual",
+                    title = "OPERATOR BRIEFING",
+                    icon = Icons.Default.Security,
+                    modifier = Modifier.enterOnMount(0),
+                    accent = Ember,
+                    badge = { StatusPill("PRIORITY", Ember) }
+                ) {
+                    Text(
+                        "What was lost, what was rebuilt, and the protocols that decide who survives.",
+                        color = TextMid,
+                        style = DeadFestType.body
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text(
-                    "SURVIVAL INTEL",
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.5.sp
-                )
-                Text(
-                    "CLASSIFIED TERMINAL DATA // V${com.deadfest.BuildConfig.VERSION_NAME}",
-                    color = RedAccent,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+
+            itemsIndexed(intelSections, key = { _, section -> section.logId }) { index, section ->
+                IntelSectionCard(
+                    title = section.title,
+                    subtitle = section.logId,
+                    icon = section.icon,
+                    modifier = Modifier.enterOnMount(index + 1),
+                    accent = section.accent
+                ) {
+                    section.rules.forEachIndexed { ruleIndex, rule ->
+                        if (ruleIndex > 0) Spacer(Modifier.height(Spacing.md))
+                        IntelRuleBlock(rule, section.accent)
+                    }
+                }
             }
         }
-
-        // Section 1: Origin & Rebuild
-        IntelSectionCard(
-            title = "ORIGIN & REBUILD",
-            subtitle = "DISASTER RECOVERY LOG // 001",
-            icon = Icons.Default.Storage
-        ) {
-            IntelBullet("Catastrophic Failure: The original source code of Dead-Fest was stored exclusively on a single Hard Disk Drive (HDD) that suffered catastrophic hardware failure.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Total Loss Protocol: All legacy project archives, version histories, and uncommitted modules were permanently lost to the wasteland static.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Ground-Up Phoenix Protocol: Rather than abandoning the survivors, Dead-Fest was rebuilt entirely from scratch, engineering a more resilient, scalable, and powerful core architecture.")
-        }
-
-        // Section 2: Next-Gen Architecture
-        IntelSectionCard(
-            title = "NEXT-GEN ARCHITECTURE",
-            subtitle = "SYSTEM SPECIFICATIONS // 002",
-            icon = Icons.Default.Build
-        ) {
-            IntelBullet("Material 3 Cyberpunk Design: Crafted with modern UI components, sleek surfaces, high-contrast typography, and signature crimson atmospheric accents.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Enhanced Stability: Rebuilt with strict reactive state management to eliminate memory leaks and runtime crashes under heavy network load.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Streamlined Layouts: Redesigned navigation flows and touch targets optimized for high-stress tactical environments and quick operator decisions.")
-        }
-
-        // Section 3: Wasteland Optimizations
-        IntelSectionCard(
-            title = "WASTELAND OPTIMIZATIONS",
-            subtitle = "HARDWARE EFFICIENCY // 003",
-            icon = Icons.Default.PhoneAndroid
-        ) {
-            IntelBullet("Performance Mode: Cuts transitions and speeds up the wheel on older, battered wasteland hardware. Switches on automatically for low-RAM devices (Settings → System).")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Battery Saver Integration: Live data feeds disconnect a few seconds after the terminal is backgrounded and reconnect instantly on return.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Fast Startup Protocol: Bypasses unnecessary initialization checks to drop operators directly into active feeds with minimal latency.")
-        }
-
-        // Section: Economy rules (v2.0.5)
-        IntelSectionCard(
-            title = "ECONOMY PROTOCOLS",
-            subtitle = "SURVIVAL FINANCE // 005",
-            icon = Icons.Default.Security
-        ) {
-            IntelBullet("Casualty Tax: every recorded death costs coins. Over 5,000 = 30%, over 1,000 = 20%, over 500 = 15%, otherwise a flat 25. Your balance never goes below 0.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Wealth Insulation (Black Market) cuts the tax rate permanently: Tier I -10%, II -25%, III -50%, IV -100%. Insurance then absorbs part of whatever tax is left, once.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Forced Spin Protocol: each death adds a pending penalty spin. Clear them on the Wheel of Fate.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Bankruptcy: hit 0 coins and you're Level 1 (survival payouts halved). Die again while bankrupt and it's Level 2 (+2 extra spins). Clear every spin with coins above 0 to escape.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Mutual Survival Reward: when anyone dies, everyone else collects a few coins.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Daily Rations: claim free coins once per day on the Dashboard. A Ration Upgrade doubles them for good.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("XP & Levels: deaths, purchases, spins, scratch cards and surviving a full day all earn XP. Levels unlock badge colours, frames and titles. Hit the cap to Prestige.")
-        }
-
-        // Section 4: Community & Future
-        IntelSectionCard(
-            title = "COMMUNITY & FUTURE",
-            subtitle = "OPERATIONAL HORIZON // 004",
-            icon = Icons.Default.Security
-        ) {
-            IntelBullet("Community-Driven Features: Built directly around survivor feedback, feature requests, and combat telemetry reports.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Real-Time Firestore Sync: Instantaneous cloud updates ensuring all operatives receive intel, alerts, and schedule changes simultaneously.")
-            Spacer(modifier = Modifier.height(8.dp))
-            IntelBullet("Custom Admin Overrides: Direct command channel integration allowing emergency broadcasts and rapid tactical updates from headquarters.")
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
     }
 }
 
+/**
+ * One dossier section: icon, [SectionLabel] heading, archive stamp and a [SurfaceCard] holding the
+ * section's rules. Same shape for every section, so the document reads as one continuous file.
+ */
 @Composable
 fun IntelSectionCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
+    modifier: Modifier = Modifier,
+    accent: Color = Ember,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.3f))
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = RedAccent,
-                    modifier = Modifier.size(28.dp)
+    Column(modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(icon, tint = accent, size = 40)
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                SectionLabel(title, accent = accent)
+                Spacer(Modifier.height(Spacing.xxs))
+                Text(
+                    subtitle,
+                    color = TextLow,
+                    style = DeadFestType.microLabel,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(
-                        title,
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 16.sp,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        subtitle,
-                        color = RedAccent.copy(alpha = 0.8f),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp,
-                        letterSpacing = 0.5.sp
-                    )
-                }
             }
-
-            HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.5f))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                content = content
-            )
         }
+        Spacer(Modifier.height(Spacing.xs))
+        SurfaceCard(accent = accent, content = content)
     }
 }
 
+/** A single rule: accent marker, heading, body and any label/value stats. */
 @Composable
-fun IntelBullet(text: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            text = "▶",
-            color = RedAccent,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 2.dp)
+private fun IntelRuleBlock(rule: IntelRule, accent: Color) {
+    val warnIcon = rule.warnIcon
+    if (warnIcon != null) {
+        AlertBanner(
+            icon = warnIcon,
+            title = rule.title.uppercase(),
+            message = rule.body,
+            accent = accent
         )
-        Spacer(modifier = Modifier.width(10.dp))
-        Text(
-            text = text,
-            color = Color.LightGray,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            fontWeight = FontWeight.Normal
-        )
+        return
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(5.dp)
+                    .background(accent, CircleShape)
+            )
+            Spacer(Modifier.width(Spacing.xs))
+            Text(rule.title, color = TextHi, style = DeadFestType.cardTitle)
+        }
+        Spacer(Modifier.height(Spacing.xxs))
+        Text(rule.body, color = TextMid, style = DeadFestType.body)
+        if (rule.stats.isNotEmpty()) {
+            Spacer(Modifier.height(Spacing.xs))
+            rule.stats.forEach { (label, value) -> KeyValueRow(label, value) }
+        }
+        if (rule.trailer.isNotBlank()) {
+            Spacer(Modifier.height(Spacing.xs))
+            Text(rule.trailer, color = TextMid, style = DeadFestType.body)
+        }
     }
 }

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Dead-Fest brand mark: an ember skull.
+
+    Authored as a single filled path with a nonZero fill rule:
+      * the cranium and the jaw are wound clockwise, so where they overlap they union;
+      * the eye sockets, nose and teeth are wound counter-clockwise, so they subtract and
+        punch clean transparent holes.
+
+    Pure white fill so it can be tinted anywhere (Icon(painter, tint = ...)). No bitmaps, no
+    density buckets: this is ~1 KB and perfect at every size, which matters on a low-end phone.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M40,6L60,6A24,24 0 0 1 84,30L84,38A24,24 0 0 1 60,62L40,62A24,24 0 0 1 16,38L16,30A24,24 0 0 1 40,6Z
+            M30,52L70,52L70,68A20,20 0 0 1 50,88A20,20 0 0 1 30,68Z
+            M36,21A11,12 0 0 0 25,33A11,12 0 0 0 36,45A11,12 0 0 0 47,33A11,12 0 0 0 36,21Z
+            M64,21A11,12 0 0 0 53,33A11,12 0 0 0 64,45A11,12 0 0 0 75,33A11,12 0 0 0 64,21Z
+            M50,40L43,50L57,50Z
+            M41,76L41,84L45,84L45,76Z
+            M48,76L48,84L52,84L52,76Z
+            M55,76L55,84L59,84L59,76Z" />
+</vector>

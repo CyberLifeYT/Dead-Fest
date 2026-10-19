@@ -9,19 +9,22 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Whatshot
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -31,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.deadfest.data.model.PlayerData
+import com.deadfest.data.model.ShopItem
 import com.deadfest.data.model.User
 import com.deadfest.domain.Presence
 import com.deadfest.domain.XpConfig
@@ -43,11 +47,18 @@ private enum class PlayerView(val label: String) { SURVIVORS("Survivors"), WEALT
 
 private val User.totalDeaths: Long get() = playerData.games.values.sumOf { it.deaths }
 
-
 @Composable
 private fun PlayerAvatar(player: User, size: Int) =
     FramedAvatar(player.playerData.avatar, player.playerData.avatarFrame, player.playerData.color, size, player.playerData.onlineNow())
 
+/**
+ * Survivor network.
+ *
+ * Three lenses on the same roster — presence, wealth and survival prowess. The list is the
+ * product here, so each row is built as a dense but legible dossier line: identity and rank on
+ * the left, the metric that the current lens cares about on the right, and a colour wash for the
+ * top three so standings are readable without scanning the numbers.
+ */
 @Composable
 fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
     val users by viewModel.users.collectAsStateWithLifecycle()
@@ -77,69 +88,67 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
     val selectedPlayer = remember(users, selectedUid) { users.firstOrNull { it.uid == selectedUid } }
     selectedPlayer?.let { SurvivorDetailsDialog(player = it, xpCfg = globalState.economy.xp, onDismiss = { selectedUid = null }) }
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "SURVIVOR NETWORK",
-            subtitle = "${users.size} REGISTERED",
+            subtitle = "${users.size} registered // leaderboard",
             trailing = { StatusPill("$onlineCount ONLINE", OnlineGreen) }
         )
 
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             items(PlayerView.entries.size) { i ->
                 val option = PlayerView.entries[i]
-                FilterChip(
+                PillChip(
+                    text = option.label,
                     selected = view == option,
-                    onClick = { view = option },
-                    label = { Text(option.label.uppercase(), fontWeight = FontWeight.Black, fontSize = 12.sp) },
-                    shape = RoundedCornerShape(50),
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = CardBg,
-                        labelColor = TextSecondary,
-                        selectedContainerColor = RedAccent,
-                        selectedLabelColor = Color.White
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = view == option,
-                        borderColor = Outline,
-                        selectedBorderColor = RedAccent
-                    )
+                    onClick = { view = option }
                 )
             }
         }
 
-        Spacer(Modifier.height(10.dp))
-
         OutlinedTextField(
             value = searchQuery,
             onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            placeholder = { Text("Search survivors...", color = TextMuted) },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter),
+            placeholder = { Text("Search survivors...", color = TextLow) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextLow) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear") }
+                    IconButton(onClick = { searchQuery = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextLow)
+                    }
                 }
             },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(Radius.md),
             colors = deadFestFieldColors(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
         )
 
+        Spacer(Modifier.height(Spacing.sm))
+
         if (displayUsers.isEmpty()) {
-            EmptyState(
-                Icons.Default.People,
-                if (users.isEmpty()) "Scanning the wasteland for survivors..." else "No survivors match \"$searchQuery\"."
+            EmptyStateCard(
+                icon = Icons.Default.People,
+                title = if (users.isEmpty()) "Scanning the wasteland" else "No matches",
+                message = if (users.isEmpty()) "Survivors will appear here as they register."
+                else "No survivor matches \"$searchQuery\".",
+                modifier = Modifier.padding(horizontal = Spacing.gutter)
             )
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                contentPadding = PaddingValues(
+                    start = Spacing.gutter,
+                    end = Spacing.gutter,
+                    top = Spacing.xxs,
+                    bottom = Spacing.scrollBottom
+                ),
+                verticalArrangement = Arrangement.spacedBy(Spacing.xs)
             ) {
                 itemsIndexed(displayUsers, key = { _, u -> u.uid }) { index, player ->
                     SurvivorItem(
@@ -147,7 +156,8 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
                         isMe = player.uid == me?.uid,
                         rank = if (view == PlayerView.SURVIVORS) null else index + 1,
                         emphasizeCoins = view == PlayerView.WEALTH,
-                        onClick = { selectedUid = player.uid }
+                        onClick = { selectedUid = player.uid },
+                        modifier = Modifier.enterOnMount(index)
                     )
                 }
             }
@@ -157,21 +167,33 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
 
 @Composable
 fun SurvivorDetailsDialog(player: User, xpCfg: XpConfig, onDismiss: () -> Unit) {
+    val data = player.playerData
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = CardBg,
-        shape = RoundedCornerShape(24.dp),
+        containerColor = Ink2,
+        shape = RoundedCornerShape(Radius.xxl),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 PlayerAvatar(player, 48)
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(Spacing.sm))
                 Column {
-                    Text("SURVIVOR DOSSIER", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
-                    Text(player.displayName?.takeIf { it.isNotBlank() } ?: "Survivor", color = TextPrimary, fontWeight = FontWeight.Black)
+                    Text("SURVIVOR DOSSIER", color = Ember, style = DeadFestType.microLabel)
+                    Text(
+                        player.displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
+                        color = TextHi,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        LevelBadge(player.playerData.level, player.playerData.prestigeCount)
+                        LevelBadge(data.level, data.prestigeCount)
                         Spacer(Modifier.width(6.dp))
-                        Text((player.playerData.title ?: "SURVIVOR").uppercase(), color = RedAccent, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            (data.title ?: "SURVIVOR").uppercase(),
+                            color = Ember,
+                            style = DeadFestType.microLabel
+                        )
                     }
                 }
             }
@@ -179,161 +201,164 @@ fun SurvivorDetailsDialog(player: User, xpCfg: XpConfig, onDismiss: () -> Unit) 
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                XpBar(player.playerData.xp, player.playerData.level, xpCfg)
-                Spacer(Modifier.height(4.dp))
-                SectionLabel("SURVIVAL STATS")
-                DetailRow("TOTAL DEATHS", formatNumber(player.totalDeaths), RedAccent, bold = true)
-                player.playerData.games.toSortedMap().forEach { (game, stats) ->
-                    DetailRow(game, "${formatNumber(stats.deaths)} deaths", TextPrimary)
+                XpBar(data.xp, data.level, xpCfg)
+                Spacer(Modifier.height(Spacing.xxs))
+                SectionLabel("Survival Stats")
+                KeyValueRow("Total deaths", formatNumber(player.totalDeaths), valueColor = Ember)
+                data.games.toSortedMap().forEach { (game, stats) ->
+                    KeyValueRow(game, "${formatNumber(stats.deaths)} deaths")
                 }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = Outline)
-                DetailRow("BANK COINS", formatNumber(player.playerData.coins), Gold, bold = true)
-                DetailRow(
-                    "SHIELD",
-                    if (player.playerData.shield) "ACTIVE" else "NONE",
-                    if (player.playerData.shield) ShieldCyan else TextMuted
+                Spacer(Modifier.height(Spacing.xs))
+                GradientRule()
+                Spacer(Modifier.height(Spacing.xs))
+                SectionLabel("Standing")
+                KeyValueRow("Bank coins", formatNumber(data.coins), valueColor = Amber)
+                KeyValueRow("Shield", if (data.shield) "ACTIVE" else "NONE", valueColor = if (data.shield) Plasma else TextLow)
+                KeyValueRow("Insurance", if (data.insurance) "ARMED" else "NONE", valueColor = if (data.insurance) Plasma else TextLow)
+                KeyValueRow(
+                    "Insulation",
+                    if (data.insulationTier > 0) "TIER ${ShopItem.roman(data.insulationTier)}" else "NONE",
+                    valueColor = if (data.insulationTier > 0) Amber else TextLow
                 )
-                DetailRow(
-                    "INSURANCE",
-                    if (player.playerData.insurance) "ARMED" else "NONE",
-                    if (player.playerData.insurance) ShieldCyan else TextMuted
+                KeyValueRow(
+                    "Bankruptcy",
+                    if (data.bankruptcyLevel > 0) "LEVEL ${data.bankruptcyLevel}" else "SOLVENT",
+                    valueColor = if (data.bankruptcyLevel > 0) Ember else OnlineGreen
                 )
-                DetailRow(
-                    "INSULATION",
-                    if (player.playerData.insulationTier > 0) "TIER ${com.deadfest.data.model.ShopItem.roman(player.playerData.insulationTier)}" else "NONE",
-                    if (player.playerData.insulationTier > 0) Gold else TextMuted
+                KeyValueRow(
+                    "Pending spins",
+                    "${data.pendingSpins}",
+                    valueColor = if (data.pendingSpins > 0) Ember else TextLow
                 )
-                DetailRow(
-                    "BANKRUPTCY",
-                    if (player.playerData.bankruptcyLevel > 0) "LEVEL ${player.playerData.bankruptcyLevel}" else "SOLVENT",
-                    if (player.playerData.bankruptcyLevel > 0) RedAccent else OnlineGreen
+                KeyValueRow(
+                    "Prestige",
+                    if (data.prestigeCount > 0) "★ ${data.prestigeCount}" else "NONE",
+                    valueColor = if (data.prestigeCount > 0) Prestige else TextLow
                 )
-                DetailRow(
-                    "PENDING SPINS",
-                    "${player.playerData.pendingSpins}",
-                    if (player.playerData.pendingSpins > 0) RedAccent else TextMuted
+                val online = data.onlineNow()
+                KeyValueRow(
+                    "Status",
+                    if (online) "ONLINE" else "OFFLINE · ${Presence.lastSeenLabel(data.lastSeenMs, System.currentTimeMillis())}",
+                    valueColor = if (online) OnlineGreen else TextLow
                 )
-                DetailRow(
-                    "PRESTIGE",
-                    if (player.playerData.prestigeCount > 0) "★ ${player.playerData.prestigeCount}" else "NONE",
-                    if (player.playerData.prestigeCount > 0) PrestigePurple else TextMuted
-                )
-                val online = player.playerData.onlineNow()
-                DetailRow(
-                    "STATUS",
-                    if (online) "ONLINE" else "OFFLINE · last seen ${Presence.lastSeenLabel(player.playerData.lastSeenMs, System.currentTimeMillis())}",
-                    if (online) OnlineGreen else TextMuted
-                )
-                if (!player.playerData.bio.isNullOrBlank()) {
-                    Spacer(Modifier.height(6.dp))
-                    SectionLabel("BIO")
-                    Text(player.playerData.bio!!, color = TextPrimary, fontSize = 13.sp)
+                if (!data.bio.isNullOrBlank()) {
+                    Spacer(Modifier.height(Spacing.xs))
+                    SectionLabel("Bio")
+                    Spacer(Modifier.height(Spacing.xxs))
+                    Text(data.bio!!, color = TextMid, fontSize = 13.sp, lineHeight = 18.sp)
                 }
             }
         },
         confirmButton = {
             Button(
                 onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("CLOSE", fontWeight = FontWeight.Black) }
+                colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Color.White),
+                shape = RoundedCornerShape(Radius.md),
+                elevation = null
+            ) { Text("CLOSE", style = DeadFestType.chip) }
         }
     )
 }
 
-@Composable
-private fun DetailRow(label: String, value: String, valueColor: Color, bold: Boolean = false) {
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = TextSecondary, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(value, color = valueColor, fontWeight = if (bold) FontWeight.Black else FontWeight.Bold, fontSize = 13.sp)
-    }
-}
-
+/**
+ * One roster row.
+ *
+ * `modifier` was added with a default so existing callers keep compiling; it exists so the list
+ * can pass a staggered entrance without wrapping the row in another layout node.
+ */
 @Composable
 fun SurvivorItem(
     player: User,
     isMe: Boolean,
     rank: Int? = null,
     emphasizeCoins: Boolean = false,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val name = player.displayName?.takeIf { it.isNotBlank() } ?: "Survivor"
     val title = player.playerData.title?.takeIf { it.isNotBlank() } ?: "SURVIVOR"
     val themeColor = remember(player.playerData.color) { parseThemeColor(player.playerData.color) }
     val medal = when (rank) {
-        1 -> Gold
+        1 -> Amber
         2 -> Silver
         3 -> Bronze
         else -> null
     }
+    val accent = when {
+        isMe -> Ember
+        medal != null -> medal
+        else -> InkLine
+    }
 
-    Surface(
-        modifier = Modifier.fillMaxWidth().pressClick(RoundedCornerShape(20.dp), onClick = onClick),
-        color = if (medal != null) medal.copy(alpha = 0.06f) else CardBg,
-        shape = RoundedCornerShape(20.dp),
-        border = when {
-            isMe -> BorderStroke(1.5.dp, RedAccent)
-            medal != null -> BorderStroke(1.dp, medal.copy(alpha = 0.8f))
-            else -> BorderStroke(1.dp, Outline)
-        }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(Radius.lg))
+            .background(Ink2)
+            .then(
+                if (medal != null) Modifier.background(
+                    Brush.horizontalGradient(listOf(medal.copy(alpha = 0.10f), Color.Transparent))
+                ) else Modifier
+            )
+            .border(BorderStroke(Stroke.hair, accent), RoundedCornerShape(Radius.lg))
+            .pressClick(RoundedCornerShape(Radius.lg), onClick = onClick)
+            .padding(Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (rank != null) {
+        if (rank != null) {
+            RankBadge(rank)
+            Spacer(Modifier.width(Spacing.xs))
+        }
+        PlayerAvatar(player, 44)
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "#$rank",
-                    color = medal ?: TextMuted,
-                    fontSize = 16.sp,
+                    name,
+                    color = TextHi,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Black,
-                    modifier = Modifier.width(40.dp)
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
-            }
-            PlayerAvatar(player, 46)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        name,
-                        color = TextPrimary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (isMe) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("YOU", color = RedAccent, fontSize = 10.sp, fontWeight = FontWeight.Black)
-                    }
-                    if (player.playerData.shield) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Default.Shield, contentDescription = "Shielded", tint = ShieldCyan, modifier = Modifier.size(14.dp))
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    LevelBadge(player.playerData.level, player.playerData.prestigeCount)
+                if (isMe) {
                     Spacer(Modifier.width(6.dp))
-                    Text(title.uppercase(), color = themeColor, fontSize = 10.sp, fontWeight = FontWeight.Black, maxLines = 1)
-                    if (player.playerData.bankruptcyLevel > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Text("BANKRUPT", color = RedAccent, fontSize = 9.sp, fontWeight = FontWeight.Black)
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(Radius.xs))
+                            .background(Ember.copy(alpha = Tint.fill))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
+                    ) {
+                        Text("YOU", color = Ember, style = DeadFestType.microLabel)
                     }
+                }
+                if (player.playerData.shield) {
+                    Spacer(Modifier.width(5.dp))
+                    Icon(Icons.Default.Shield, contentDescription = "Shielded", tint = Plasma, modifier = Modifier.size(13.dp))
+                }
+                if (player.playerData.bankruptcyLevel > 0) {
+                    Spacer(Modifier.width(5.dp))
+                    Icon(Icons.Default.Whatshot, contentDescription = "Bankrupt", tint = Ember, modifier = Modifier.size(13.dp))
                 }
             }
-            Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                if (emphasizeCoins) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(formatNumber(player.playerData.coins), color = Gold, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                        Spacer(Modifier.width(4.dp))
-                        CoinIcon(14)
-                    }
-                    Text("${formatNumber(player.totalDeaths)} DEATHS", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                } else {
-                    Text(formatNumber(player.totalDeaths), color = RedAccent, fontSize = 19.sp, fontWeight = FontWeight.Black)
-                    Text("DEATHS", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
+            Spacer(Modifier.height(3.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LevelBadge(player.playerData.level, player.playerData.prestigeCount)
+                Spacer(Modifier.width(6.dp))
+                Text(title.uppercase(), color = themeColor, style = DeadFestType.microLabel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Spacer(Modifier.width(Spacing.xs))
+        Column(horizontalAlignment = Alignment.End) {
+            if (emphasizeCoins) {
+                Text(formatNumber(player.playerData.coins), color = Amber, fontSize = 16.sp, fontWeight = FontWeight.Black)
+                Text("${formatNumber(player.totalDeaths)} DEATHS", color = TextLow, style = DeadFestType.microLabel)
+            } else {
+                Text(formatNumber(player.totalDeaths), color = Ember, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                Text("DEATHS", color = TextLow, style = DeadFestType.microLabel)
             }
         }
     }

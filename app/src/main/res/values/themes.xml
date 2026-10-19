@@ -1,11 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Dark window from the very first frame: no white flash while Compose starts up. -->
+    <!--
+        Dark from the very first frame.
+
+        windowBackground matches the Compose ink base exactly, so the cold-start paint and the app
+        background are the same colour: no white flash while Compose starts, and no seam when the
+        launcher hands over to the app.
+
+        The status/navigation bars are painted to the same ink colour and explicitly marked as
+        light-on-dark. The light-status-bar flags are API 27+/29+ attributes; compileSdk knows them
+        and older devices simply ignore them.
+    -->
     <style name="Theme.DeadFest" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/black</item>
-        <item name="android:colorBackground">@color/black</item>
-        <item name="android:statusBarColor">@color/black</item>
-        <item name="android:navigationBarColor">@color/black</item>
+        <item name="android:windowBackground">@color/ink_0</item>
+        <item name="android:colorBackground">@color/ink_0</item>
+        <item name="android:statusBarColor">@color/ink_0</item>
+        <item name="android:navigationBarColor">@color/ink_0</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:textColorPrimary">@color/text_hi</item>
+        <item name="android:colorAccent">@color/ember</item>
+        <!-- The app is dark by design; never let the platform auto-darken it. -->
+        <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>

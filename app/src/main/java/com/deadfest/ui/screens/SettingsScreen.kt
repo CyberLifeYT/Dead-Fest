@@ -10,6 +10,7 @@ import android.net.Uri
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -40,36 +42,32 @@ import com.deadfest.ui.components.*
 import com.deadfest.ui.theme.*
 import com.deadfest.ui.viewmodel.MainViewModel
 
+/**
+ * Terminal configuration.
+ *
+ * Split into three tabs because the concerns genuinely differ: what the app is (General), how it
+ * behaves (System: performance, alerts, background survival), and what it's doing right now
+ * (Diagnostics). Alerts and performance are the two settings that actually change the experience,
+ * so they are the ones given the most visual weight.
+ */
 @Composable
 fun SettingsScreen(navController: NavController, viewModel: MainViewModel) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     val tabs = listOf("General", "System", "Diagnostics")
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
-        ScreenHeader(title = "TERMINAL CONFIG", subtitle = "SYSTEM OPERATIONS & PERSONALIZATION")
+    Column(modifier = Modifier.fillMaxSize()) {
+        ScreenHeader(title = "TERMINAL CONFIG", subtitle = "System Operations & Personalization")
 
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            contentPadding = PaddingValues(horizontal = Spacing.gutter, vertical = Spacing.sm),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             items(tabs.size) { index ->
-                FilterChip(
+                PillChip(
+                    text = tabs[index],
                     selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    label = { Text(tabs[index].uppercase(), fontWeight = FontWeight.Black, fontSize = 12.sp) },
-                    shape = RoundedCornerShape(50),
-                    colors = FilterChipDefaults.filterChipColors(
-                        containerColor = CardBg,
-                        labelColor = TextSecondary,
-                        selectedContainerColor = RedAccent,
-                        selectedLabelColor = Color.White
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
-                        selected = selectedTab == index,
-                        borderColor = Outline,
-                        selectedBorderColor = RedAccent
-                    )
+                    onClick = { selectedTab = index }
                 )
             }
         }
@@ -78,14 +76,15 @@ fun SettingsScreen(navController: NavController, viewModel: MainViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(horizontal = Spacing.gutter, vertical = Spacing.xs),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md)
         ) {
             when (selectedTab) {
                 0 -> GeneralTab(viewModel)
                 1 -> SystemTab(viewModel)
                 2 -> DiagnosticsTab(viewModel)
             }
+            Spacer(Modifier.height(Spacing.md))
         }
     }
 }
@@ -103,7 +102,7 @@ private fun GeneralTab(viewModel: MainViewModel) {
     if (confirmLogout) {
         ConfirmDialog(
             title = "TERMINATE SESSION?",
-            message = "You'll be logged out of Dead-Fest on this device.",
+            message = "You'll be logged out of Dead-Fest on this device. Your coins, level and history stay safe on the server.",
             confirmText = "LOG OUT",
             destructive = true,
             onConfirm = { viewModel.logout() },
@@ -113,89 +112,103 @@ private fun GeneralTab(viewModel: MainViewModel) {
 
     val updateAvailable = globalState.latestVersionCode > BuildConfig.VERSION_CODE
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp)
+    // Firmware is the top block: an available update is the only thing on this screen that changes
+    // what the app can do, so it leads.
+    HeroPanel(
+        eyebrow = if (updateAvailable) "Update available" else "Firmware current",
+        title = "v${BuildConfig.VERSION_NAME}",
+        icon = Icons.Default.SystemUpdate,
+        accent = if (updateAvailable) Ember else OnlineGreen,
+        modifier = Modifier.enterOnMount(0)
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Text("ABOUT DEAD-FEST", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.height(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "The ultimate companion for your survival journey: your central hub for data tracking, surveillance, and economic warfare.",
-                color = TextSecondary,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
+                "Build ${BuildConfig.VERSION_CODE}",
+                color = TextMid,
+                fontSize = 12.sp,
+                modifier = Modifier.weight(1f)
+            )
+            if (updateAvailable) StatusPill(globalState.latestVersionName, Ember)
+            else StatusPill("LATEST", OnlineGreen)
+        }
+        Spacer(Modifier.height(Spacing.sm))
+        Button(
+            onClick = {
+                viewModel.checkUpdate(
+                    BuildConfig.VERSION_CODE,
+                    onUpdateAvailable = { url, name -> downloading = url to name },
+                    onUpToDate = { viewModel.showMessage("Terminal is up to date (v${BuildConfig.VERSION_NAME}).") }
+                )
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (updateAvailable) Ember else Ink4,
+                contentColor = if (updateAvailable) Color.White else TextHi
+            ),
+            shape = RoundedCornerShape(Radius.md),
+            elevation = null
+        ) {
+            Text(
+                if (updateAvailable) "INSTALL v${globalState.latestVersionName}" else "CHECK FOR UPDATES",
+                style = DeadFestType.action
             )
         }
     }
 
-    // Firmware card
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, if (updateAvailable) RedAccent else Outline)
-    ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconTile(Icons.Default.SystemUpdate, size = 44)
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("SYSTEM UPDATES", color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 15.sp)
-                    Text("Installed v${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})", color = TextSecondary, fontSize = 12.sp)
-                }
-                if (updateAvailable) StatusPill("NEW", RedAccent) else StatusPill("LATEST", OnlineGreen)
-            }
-            Button(
-                onClick = {
-                    viewModel.checkUpdate(
-                        BuildConfig.VERSION_CODE,
-                        onUpdateAvailable = { url, name -> downloading = url to name },
-                        onUpToDate = { viewModel.showMessage("Terminal is up to date (v${BuildConfig.VERSION_NAME}).") }
-                    )
-                },
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = if (updateAvailable) RedAccent else CardBgRaised),
-                shape = RoundedCornerShape(14.dp)
-            ) {
+    SurfaceCard(modifier = Modifier.enterOnMount(1)) {
+        Text("ABOUT DEAD-FEST", color = TextHi, style = DeadFestType.cardTitle)
+        Spacer(Modifier.height(Spacing.xxs))
+        Text(
+            "The ultimate companion for your survival journey: your central hub for data tracking, " +
+                "surveillance, and economic warfare.",
+            color = TextMid,
+            style = DeadFestType.body,
+            lineHeight = 20.sp
+        )
+    }
+
+    SurfaceCard(modifier = Modifier.enterOnMount(2)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Default.Forum, tint = Color(0xFF5865F2), size = 44)
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text("SURVIVOR RELAY", color = TextHi, style = DeadFestType.cardTitle)
                 Text(
-                    if (updateAvailable) "INSTALL v${globalState.latestVersionName}" else "CHECK FOR UPDATES",
-                    fontWeight = FontWeight.Black
+                    "Chat, arrange matches and get help from the rest of the group.",
+                    color = TextMid,
+                    style = DeadFestType.body
                 )
             }
         }
+        Spacer(Modifier.height(Spacing.sm))
+        Button(
+            onClick = {
+                try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/rYq5WywRBG")))
+                } catch (_: ActivityNotFoundException) {
+                    viewModel.showMessage("No browser found to open Discord.")
+                }
+            },
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2), contentColor = Color.White),
+            shape = RoundedCornerShape(Radius.md),
+            elevation = null
+        ) {
+            Icon(Icons.Default.Forum, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(Spacing.xs))
+            Text("JOIN OUR DISCORD", style = DeadFestType.action)
+        }
     }
 
-    Button(
-        onClick = {
-            try {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/rYq5WywRBG")))
-            } catch (_: ActivityNotFoundException) {
-                viewModel.showMessage("No browser found to open Discord.")
-            }
-        },
-        modifier = Modifier.fillMaxWidth().height(56.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5865F2)),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Icon(Icons.Default.Forum, contentDescription = null)
-        Spacer(Modifier.width(10.dp))
-        Text("JOIN OUR DISCORD", fontWeight = FontWeight.Black)
-    }
-
-    Spacer(Modifier.height(4.dp))
-    SectionLabel("SESSION")
-    OutlinedButton(
+    // Destructive action, visually separated, last.
+    Spacer(Modifier.height(Spacing.xxs))
+    SectionLabel("Session")
+    GhostAction(
+        text = "Terminate session (log out)",
         onClick = { confirmLogout = true },
-        modifier = Modifier.fillMaxWidth().height(56.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, RedAccent.copy(alpha = 0.6f))
-    ) {
-        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, tint = RedAccent)
-        Spacer(Modifier.width(10.dp))
-        Text("TERMINATE SESSION (LOGOUT)", color = RedAccent, fontWeight = FontWeight.Black)
-    }
+        accent = Ember,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
@@ -210,22 +223,44 @@ private fun SystemTab(viewModel: MainViewModel) {
 
     BackgroundActivityGroup()
 
-    SettingsGroup("PERFORMANCE") {
+    SettingsGroup("Performance", modifier = Modifier.enterOnMount(1)) {
         SettingSwitch(
             icon = Icons.Default.Speed,
             title = "Performance mode",
-            subtitle = if (lowEnd) "Recommended for this device. Fewer animations and a faster wheel." else "Fewer animations and a faster wheel for older phones.",
+            subtitle = if (lowEnd) {
+                "Recommended for this device. Turns off animations and drops the countdown to one update every 30 seconds."
+            } else {
+                "Turns off animations, trims the background grid and drops the countdown to one update every 30 seconds."
+            },
             checked = performance,
             onChange = prefs::setPerformanceMode
         )
     }
 
-    SettingsGroup("FEED & ALERTS") {
-        SettingSwitch(Icons.Default.Casino, "Wheel spins", "Show other survivors' spins in the live ticker", wheel, prefs::setWheelAlerts)
-        HorizontalDivider(color = Outline)
-        SettingSwitch(Icons.Default.ShoppingCart, "Black Market", "Purchases and curses", market, prefs::setMarketAlerts)
-        HorizontalDivider(color = Outline)
-        SettingSwitch(Icons.Default.Campaign, "Wasteland alerts", "Admin broadcasts and firmware notices, including push notifications", wasteland, prefs::setWastelandAlerts)
+    SettingsGroup("Feed & alerts", modifier = Modifier.enterOnMount(2)) {
+        SettingSwitch(
+            icon = Icons.Default.Casino,
+            title = "Wheel spins",
+            subtitle = "Show other survivors' spins in the live ticker",
+            checked = wheel,
+            onChange = prefs::setWheelAlerts
+        )
+        GroupDivider()
+        SettingSwitch(
+            icon = Icons.Default.ShoppingCart,
+            title = "Black Market",
+            subtitle = "Purchases and curses",
+            checked = market,
+            onChange = prefs::setMarketAlerts
+        )
+        GroupDivider()
+        SettingSwitch(
+            icon = Icons.Default.Campaign,
+            title = "Wasteland alerts",
+            subtitle = "Admin broadcasts and firmware notices, including push notifications",
+            checked = wasteland,
+            onChange = prefs::setWastelandAlerts
+        )
     }
 }
 
@@ -240,63 +275,58 @@ private fun BackgroundActivityGroup() {
     val unrestricted = remember(lifecycleState) { BatteryOptimization.isIgnoring(context) }
     val restricted = remember(lifecycleState) { BatteryOptimization.isBackgroundRestricted(context) }
 
-    SettingsGroup("BACKGROUND ACTIVITY") {
-        Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                if (unrestricted) Icons.Default.BatteryChargingFull else Icons.Default.BatteryAlert,
-                contentDescription = null,
-                tint = if (unrestricted) OnlineGreen else Gold,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Battery optimisation", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                Text(
-                    if (unrestricted) "Disabled for Dead-Fest. Alerts and updates won't be held back."
-                    else "On. Your phone may delay alerts and updates while Dead-Fest is closed.",
-                    color = TextSecondary,
-                    fontSize = 12.sp
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            if (unrestricted) {
-                StatusPill("OFF", OnlineGreen)
+    SettingsGroup("Background activity", modifier = Modifier.enterOnMount(0)) {
+        StatusRow(
+            icon = if (unrestricted) Icons.Default.BatteryChargingFull else Icons.Default.BatteryAlert,
+            tint = if (unrestricted) OnlineGreen else Amber,
+            title = "Battery optimisation",
+            subtitle = if (unrestricted) {
+                "Disabled for Dead-Fest. Alerts and updates won't be held back."
             } else {
-                Button(
-                    onClick = {
-                        if (!BatteryOptimization.requestExemption(context)) {
-                            BatteryOptimization.openAppSettings(context)
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
-                ) { Text("DISABLE", fontWeight = FontWeight.Black, fontSize = 12.sp) }
-            }
-        }
-        if (restricted) {
-            HorizontalDivider(color = Outline)
-            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Block, contentDescription = null, tint = RedAccent, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Background usage restricted", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("Lift it under App info → Battery → Unrestricted.", color = TextSecondary, fontSize = 12.sp)
+                "On. Your phone may delay alerts and updates while Dead-Fest is closed."
+            },
+            trailing = {
+                if (unrestricted) {
+                    StatusPill("OFF", OnlineGreen)
+                } else {
+                    Button(
+                        onClick = {
+                            if (!BatteryOptimization.requestExemption(context)) {
+                                BatteryOptimization.openAppSettings(context)
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Color.White),
+                        shape = RoundedCornerShape(Radius.sm),
+                        elevation = null,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                    ) { Text("DISABLE", style = DeadFestType.chip) }
                 }
-                OutlinedButton(
-                    onClick = { BatteryOptimization.openAppSettings(context) },
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, Outline),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
-                ) { Text("OPEN", color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 12.sp) }
             }
+        )
+        if (restricted) {
+            GroupDivider()
+            StatusRow(
+                icon = Icons.Default.Block,
+                tint = Ember,
+                title = "Background usage restricted",
+                subtitle = "Lift it under App info → Battery → Unrestricted.",
+                trailing = {
+                    GhostAction(
+                        text = "Open",
+                        onClick = { BatteryOptimization.openAppSettings(context) },
+                        accent = TextHi
+                    )
+                }
+            )
         }
-        HorizontalDivider(color = Outline)
+        GroupDivider()
         Text(
-            "Some brands (Xiaomi, Huawei, Oppo, Samsung) have their own extra \"auto-start\" or \"sleeping apps\" lists. Allow Dead-Fest there too.",
-            color = TextMuted,
+            "Some brands (Xiaomi, Huawei, Oppo, Samsung) have their own extra \"auto-start\" or " +
+                "\"sleeping apps\" lists. Allow Dead-Fest there too.",
+            color = TextLow,
             fontSize = 11.sp,
-            modifier = Modifier.padding(vertical = 10.dp)
+            lineHeight = 15.sp,
+            modifier = Modifier.padding(vertical = Spacing.xs)
         )
     }
 }
@@ -319,14 +349,14 @@ private fun DiagnosticsTab(viewModel: MainViewModel) {
     }
     val online = remember { isOnline(context) }
 
-    SettingsGroup("UPLINK") {
-        DiagRow("Network", if (online) "CONNECTED" else "OFFLINE", if (online) OnlineGreen else RedAccent)
-        DiagRow("Firebase node", if (online) "SECURE" else "WAITING FOR SIGNAL", if (online) OnlineGreen else Gold)
-        DiagRow("Survivor ID", user?.uid?.take(10)?.plus("…") ?: "-", TextSecondary)
+    SettingsGroup("Uplink", modifier = Modifier.enterOnMount(0)) {
+        DiagRow("Network", if (online) "CONNECTED" else "OFFLINE", if (online) OnlineGreen else Ember)
+        DiagRow("Firebase node", if (online) "SECURE" else "WAITING FOR SIGNAL", if (online) OnlineGreen else Amber)
+        DiagRow("Survivor ID", user?.uid?.take(10)?.plus("…") ?: "-", TextMid)
     }
-    SettingsGroup("HARDWARE") {
-        info.forEach { (k, v) -> DiagRow(k, v, TextPrimary) }
-        DiagRow("Performance mode", if (performance) "ON" else "OFF", if (performance) Gold else TextSecondary)
+    SettingsGroup("Hardware", modifier = Modifier.enterOnMount(1)) {
+        info.forEach { (k, v) -> DiagRow(k, v, TextHi) }
+        DiagRow("Performance mode", if (performance) "ON" else "OFF", if (performance) Amber else TextMid)
     }
 }
 
@@ -337,16 +367,51 @@ private fun isOnline(context: Context): Boolean = try {
     false
 }
 
+// ================================================================== shared bits
+
+/** Hairline between rows inside one settings card. */
 @Composable
-private fun SettingsGroup(label: String, content: @Composable ColumnScope.() -> Unit) {
-    SectionLabel(label)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, Outline)
+private fun GroupDivider() = HorizontalDivider(color = InkLine, thickness = Stroke.hair)
+
+@Composable
+private fun SettingsGroup(
+    label: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(modifier) {
+        SectionLabel(label)
+        Spacer(Modifier.height(Spacing.xs))
+        SurfaceCard {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                content = content
+            )
+        }
+    }
+}
+
+/** Icon + title + subtitle + trailing control. Shared by settings rows so they align. */
+@Composable
+private fun StatusRow(
+    icon: ImageVector,
+    tint: Color,
+    title: String,
+    subtitle: String,
+    trailing: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), content = content)
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextHi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(subtitle, color = TextMid, fontSize = 12.sp, lineHeight = 16.sp)
+        }
+        Spacer(Modifier.width(Spacing.xs))
+        trailing()
     }
 }
 
@@ -358,37 +423,39 @@ private fun SettingSwitch(
     checked: Boolean,
     onChange: (Boolean) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .pressClick(RoundedCornerShape(12.dp)) { onChange(!checked) }
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = if (checked) RedAccent else TextMuted, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(subtitle, color = TextSecondary, fontSize = 12.sp)
-        }
-        Spacer(Modifier.width(8.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = RedAccent,
-                uncheckedTrackColor = CardBgRaised,
-                uncheckedBorderColor = Outline
+    StatusRow(
+        icon = icon,
+        tint = if (checked) Ember else TextLow,
+        title = title,
+        subtitle = subtitle,
+        trailing = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Ember,
+                    uncheckedTrackColor = Ink4,
+                    uncheckedBorderColor = InkLine
+                )
             )
-        )
-    }
+        }
+    )
 }
 
 @Composable
 private fun DiagRow(label: String, value: String, color: Color) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = TextSecondary, fontSize = 13.sp, modifier = Modifier.weight(1f))
-        Text(value, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = Spacing.xs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, color = TextMid, fontSize = 13.sp, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            color = color,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
     }
 }

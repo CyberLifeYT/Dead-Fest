@@ -6,12 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Casino
 import androidx.compose.material.icons.filled.Lock
@@ -85,7 +81,7 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
         if (spin.resultText != null && !spin.spinning) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(DarkBg)) {
+    Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "WHEEL OF FATE",
             subtitle = "TEST YOUR LUCK, SURVIVOR",
@@ -103,61 +99,98 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
                 title = "WHEEL PROTOCOL CLOSED",
                 message = "Spinning is temporarily suspended by an admin until further notice."
             )
-            wheelItems.isEmpty() -> NoticeCard(
-                icon = Icons.Default.Casino,
-                title = "WHEEL IS EMPTY",
-                message = "No rewards are loaded yet. An admin needs to add some slices."
-            )
+            wheelItems.isEmpty() -> Box(
+                modifier = Modifier.fillMaxSize().padding(Spacing.gutter),
+                contentAlignment = Alignment.Center
+            ) {
+                EmptyStateCard(
+                    icon = Icons.Default.Casino,
+                    title = "WHEEL IS EMPTY",
+                    message = "No rewards are loaded yet. An admin needs to add some slices."
+                )
+            }
             else -> {
                 val pending = user?.playerData?.pendingSpins ?: 0
-                Box(Modifier.padding(horizontal = 16.dp)) {
-                    PenaltyStatusCard(user?.playerData?.bankruptcyLevel ?: 0, pending)
+                val bankruptcy = user?.playerData?.bankruptcyLevel ?: 0
+                val penaltyMode = pending > 0
+                val resolved = spin.resultText != null && !spin.spinning
+                // Win / loss / neutral colour shared by the readout and the state pill.
+                val resultColor = when (spin.resultPositive) {
+                    true -> Toxic
+                    false -> Ember
+                    null -> if (spin.resultText != null) Amber else TextLow
                 }
-                if (pending > 0 || (user?.playerData?.bankruptcyLevel ?: 0) > 0) Spacer(Modifier.height(8.dp))
+
+                Box(Modifier.padding(horizontal = Spacing.gutter)) {
+                    PenaltyStatusCard(bankruptcy, pending)
+                }
+                if (pending > 0 || bankruptcy > 0) Spacer(Modifier.height(Spacing.xs))
+
                 if (user?.playerData?.luckyCoin == true) {
                     StatusPill(
                         "LUCKY COIN ARMED: NEXT WIN x2",
-                        Gold,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                        Amber,
+                        modifier = Modifier.align(Alignment.CenterHorizontally).enterOnMount(0)
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(Spacing.xs))
                 }
 
-                BoxWithConstraints(
-                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Fit the wheel to the space available, so short/small phones still see all of it.
-                    val wheelSize = min(maxWidth.value, maxHeight.value - 24f).coerceIn(160f, 340f).dp
-                    Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.size(wheelSize + 24.dp)) {
-                        FateWheel(
-                            items = wheelItems,
-                            modifier = Modifier
-                                .padding(top = 18.dp)
-                                .size(wheelSize)
-                                // Rotation happens in the draw layer: no recomposition per frame.
-                                .graphicsLayer { rotationZ = rotation.value }
+                // The wheel is the screen's hero: panel, live state pill and result readout.
+                HeroPanel(
+                    eyebrow = "Fate Protocol",
+                    title = when {
+                        spin.spinning -> "SPIN IN PROGRESS"
+                        spin.resultText != null -> "SPIN COMPLETE"
+                        penaltyMode -> "PENALTY SPINS QUEUED"
+                        else -> "READY TO SPIN"
+                    },
+                    icon = Icons.Default.Casino,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = Spacing.gutter)
+                        .enterOnMount(1),
+                    accent = if (penaltyMode) EmberDeep else Ember,
+                    badge = {
+                        StatusPill(
+                            text = when {
+                                spin.spinning -> "IN FLIGHT"
+                                resolved -> "RESOLVED"
+                                penaltyMode -> "$pending QUEUED"
+                                else -> "ARMED"
+                            },
+                            color = when {
+                                spin.spinning -> Ember
+                                resolved -> resultColor
+                                penaltyMode -> EmberDeep
+                                else -> Toxic
+                            }
                         )
-                        WheelPointer(Modifier.size(width = 30.dp, height = 36.dp))
                     }
-                }
-
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val resultColor = when (spin.resultPositive) {
-                        true -> OnlineGreen
-                        false -> RedAccent
-                        null -> if (spin.resultText != null) Gold else TextMuted
-                    }
-                    Card(
-                        modifier = Modifier.fillMaxWidth().height(68.dp),
-                        colors = CardDefaults.cardColors(containerColor = CardBg),
-                        shape = RoundedCornerShape(18.dp),
-                        border = BorderStroke(1.dp, if (spin.resultText != null && !spin.spinning) resultColor.copy(alpha = 0.6f) else Outline)
+                    BoxWithConstraints(
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                        // Fit the wheel to the space available, so short/small phones still see all of it.
+                        val wheelSize = min(maxWidth.value, maxHeight.value - 24f).coerceIn(160f, 340f).dp
+                        Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.size(wheelSize + 24.dp)) {
+                            FateWheel(
+                                items = wheelItems,
+                                modifier = Modifier
+                                    .padding(top = 18.dp)
+                                    .size(wheelSize)
+                                    // Rotation happens in the draw layer: no recomposition per frame.
+                                    .graphicsLayer { rotationZ = rotation.value }
+                            )
+                            WheelPointer(Modifier.size(width = 30.dp, height = 36.dp))
+                        }
+                    }
+
+                    SurfaceCard(
+                        accent = if (resolved) resultColor else null,
+                        padding = Spacing.sm
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
                             val label = when {
                                 spin.spinning -> "SPINNING..."
                                 spin.resultText != null -> spin.resultText!!
@@ -173,9 +206,8 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
                             ) { text ->
                                 Text(
                                     text = text,
-                                    color = if (spin.spinning) TextSecondary else resultColor,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 17.sp,
+                                    color = if (spin.spinning) TextMid else resultColor,
+                                    style = DeadFestType.cardTitle,
                                     textAlign = TextAlign.Center,
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis
@@ -183,40 +215,32 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
                             }
                         }
                     }
+                }
 
-                    val penaltyMode = pending > 0
-                    Button(
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.gutter, vertical = Spacing.sm)
+                        .enterOnMount(2)
+                ) {
+                    PrimaryAction(
+                        text = when {
+                            spin.spinning -> "FATE IS DECIDING..."
+                            penaltyMode -> "EXECUTE PENALTY SPIN ($pending)"
+                            else -> "INITIATE SPIN"
+                        },
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                             viewModel.spinWheel(wheelItems, spinMs)
                         },
                         enabled = !spin.spinning,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp)
-                            .then(
-                                if (penaltyMode) Modifier.penaltyRing(pulsing = !performanceMode && !spin.spinning)
-                                else Modifier
-                            ),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (penaltyMode) RedDeep else RedAccent,
-                            disabledContainerColor = CardBgRaised
-                        ),
-                        shape = RoundedCornerShape(18.dp)
-                    ) {
-                        Text(
-                            when {
-                                spin.spinning -> "FATE IS DECIDING..."
-                                penaltyMode -> "EXECUTE PENALTY SPIN ($pending)"
-                                else -> "INITIATE SPIN"
-                            },
-                            color = if (spin.spinning) TextSecondary else Color.White,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 17.sp,
-                            letterSpacing = 1.sp
-                        )
-                    }
-                    Spacer(Modifier.height(4.dp))
+                        // Penalty spins keep their pulsing ring; the pulse is skipped in Performance Mode.
+                        modifier = if (penaltyMode) {
+                            Modifier.penaltyRing(pulsing = !performanceMode && !spin.spinning)
+                        } else {
+                            Modifier
+                        },
+                        accent = if (penaltyMode) EmberDeep else Ember
+                    )
                 }
             }
         }
@@ -318,7 +342,8 @@ private fun WheelPointer(modifier: Modifier = Modifier) {
 
 /**
  * Pulsing white ring for the penalty-spin button. The animated alpha is only read in the
- * draw phase, so the pulse repaints the ring without recomposing the screen.
+ * draw phase, so the pulse repaints the ring without recomposing the screen. The corner
+ * radius matches PrimaryAction's shape so the ring hugs the button.
  */
 @Composable
 private fun Modifier.penaltyRing(pulsing: Boolean): Modifier {
@@ -339,7 +364,7 @@ private fun Modifier.penaltyRing(pulsing: Boolean): Modifier {
             color = Color.White.copy(alpha = alpha.value),
             topLeft = Offset(stroke / 2, stroke / 2),
             size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx()),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(Radius.md.toPx()),
             style = Stroke(width = stroke)
         )
     }
