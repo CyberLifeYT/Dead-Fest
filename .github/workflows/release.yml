@@ -159,6 +159,12 @@ jobs:
 
           echo "body_path=$body" >> "$GITHUB_OUTPUT"
 
+          # Print what is about to be published. The step otherwise says nothing, which would leave
+          # a wrong table invisible until someone opened the release page.
+          echo "--- assembled release notes ---"
+          cat "$body"
+          echo "--- end of notes ---"
+
       # Only a tag publishes. A manual run stops after the artifacts above.
       - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/v')
