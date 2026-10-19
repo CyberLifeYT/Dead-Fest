@@ -67,6 +67,25 @@ certificates against the expected fingerprint, and attaches the two APKs to a re
 of the same workflow produces the APKs as build artifacts without publishing. Nothing else needs the
 keystore — including the release itself, which the publish step does with the built-in `GITHUB_TOKEN`.
 
+The notes are assembled in the runner rather than published verbatim: the size and SHA-256 of each
+APK are read off the files being attached, because a hash copied from a build log goes stale the
+moment CI produces different bytes than the machine that wrote the log. Build outputs are not
+reproducible byte-for-byte across machines, so never hard-code them in the committed notes.
+
+### Asset names
+
+GitHub **does not allow spaces in release asset file names and rewrites them to dots**: uploading
+`Dead-Fest R8.apk` stores `Dead-Fest.R8.apk`. That rename is GitHub's, not ours — sending the name
+percent-encoded as `%20` makes no difference, it still comes back with a dot. So the two assets are:
+
+| Local file the workflow uploads | Name stored on the release |
+|---|---|
+| `Dead-Fest.apk` | `Dead-Fest.apk` |
+| `Dead-Fest R8.apk` | `Dead-Fest.R8.apk` |
+
+The download URLs must use the **stored** names, so the R8 link contains `Dead-Fest.R8.apk`. The
+in-app label is a display string and stays "Dead-Fest R8".
+
 ### Repository secrets the workflow expects
 
 All five are already set. The workflow fails on a missing one before it starts building, rather than

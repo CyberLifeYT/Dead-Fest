@@ -33,7 +33,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 ## 🔄 What’s New
 
 ### v2.0.7.2 – Two Builds, Splash & Screen Readers
-- **📦 Pick your build** – Every release is now published twice: **Dead-Fest R8.apk** (3.78 MB, shrunk by R8) and **Dead-Fest.apk** (26.8 MB, the full build). Same version, same signing key, so either installs over the other whenever you change your mind. **Settings → Update** shows both and remembers your choice, starting you on the same kind of build you're already running. If only one has been uploaded, everyone is served that one rather than being told there's nothing to install.
+- **📦 Pick your build** – Every release is now published twice: **Dead-Fest.R8.apk** (3.78 MB, shrunk by R8) and **Dead-Fest.apk** (27 MB, the full build). Same version, same signing key, so either installs over the other whenever you change your mind. **Settings → Update** shows both and remembers your choice, starting you on the same kind of build you're already running. If only one has been uploaded, everyone is served that one rather than being told there's nothing to install.
 - **💀 A real splash screen** – Cold start shows the Dead-Fest skull on ink on **every** Android version from 7.0 up, not just on Android 12+ where the system invents one from the launcher icon. It also waits for your saved session to come back before handing over, so a returning survivor can't glimpse an empty dashboard or the login screen for a frame — capped, so a broken session can never strand you behind a logo.
 - **♿ Screen-reader support** – The countdown is now **one** TalkBack stop spoken as "Starts in 2 days 5 hours 30 minutes" instead of eight loose numbers, deliberately rounded to the minute so it holds still (the tiles still tick every second). Section titles are headings, progress bars report their real value, label/value rows read as one fact, selected options announce that they're selected, small controls got proper touch targets, and icons that only repeat the text beside them are no longer read twice.
 - **🔐 Signed releases + CI** – `assembleRelease` and `assembleDebug` sign from a keystore read out of `local.properties` or the environment, and a GitHub Actions workflow builds, tests, signs, **verifies both certificates against the expected fingerprint** and publishes on a tag. The signature is still the one every earlier build carried — a different key would make Android refuse the update and force an uninstall. See [docs/SIGNING.md](docs/SIGNING.md).
@@ -358,9 +358,10 @@ Release builds must be **signed**. Phones only accept updates signed with the **
 Dead-Fest updates itself; players never need to re-download manually.
 
 1. Make your changes, then bump **both** `versionCode` (+1) and `versionName` in `app/build.gradle.kts`.
-2. Build **both** variants with the **same keystore** — `assembleDebug` (full) and `assembleRelease` (R8). Rename them for download as `Dead-Fest.apk` and `Dead-Fest R8.apk`, matching the names the app shows.
+2. Build **both** variants with the **same keystore** — `assembleDebug` (full) and `assembleRelease` (R8). Name them for download `Dead-Fest.apk` and `Dead-Fest R8.apk`, matching the names the app shows.
+   - GitHub **refuses spaces in release asset names and rewrites them to dots**, so `Dead-Fest R8.apk` is stored as `Dead-Fest.R8.apk`. Upload it under either name and link the dotted one; the app's label is unaffected.
 3. Upload both to a release with **direct download links**:
-   - **GitHub Release asset:** right-click the asset → copy link. It looks like `https://github.com/<you>/<repo>/releases/download/v2.0.7.2/Dead-Fest%20R8.apk`.
+   - **GitHub Release asset:** right-click the asset → copy link. GitHub rewrites the space in `Dead-Fest R8.apk` to a dot, so the link looks like `https://github.com/<you>/<repo>/releases/download/v2.0.7.2/Dead-Fest.R8.apk`.
 4. In the app: **Admin → Global → Publish Firmware**. Enter the version code, version name, a URL for each build and the notes, and tick **Force** if the update is mandatory.
    - Both builds share one version — they are built together from the same source — so there is one code/name pair and one URL each.
    - Leave a URL blank if you only uploaded one build: anyone who picked the missing build falls back to the other one instead of being told there's no update.

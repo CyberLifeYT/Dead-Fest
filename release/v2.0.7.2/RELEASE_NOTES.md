@@ -11,14 +11,21 @@ your coins, level and history are untouched.
 This release is published twice. Same version, same features, same signing key — the only difference
 is how the file was packaged, so either one installs over the other whenever you change your mind.
 
-| Download | Bytes | SHA-256 | Choose it if |
-|---|---|---|---|
-| **Dead-Fest R8.apk** | 3,963,291 (3.78 MB) | `d3b28a2f6738bdd8c2b4bffc6e3116a0e6d86ecbdd2707d42edf01470935d5a7` | You want the small one. R8 has stripped the code and resources that were never used. Quicker to download, quicker to start, kinder to a nearly-full phone. |
-| **Dead-Fest.apk** | 28,075,391 (26.8 MB) | `c517fafa9b0be7b85702b58599b7218070c779ae2dd51ea75cae0ddea2e8304b` | Something is behaving oddly on your device and you want the unshrunk build to compare against, or you want a build you can attach a debugger to. |
+| Download | Roughly | Choose it if |
+|---|---|---|
+| **Dead-Fest.R8.apk** | 3.8 MB | You want the small one. R8 has stripped the code and resources that were never used. Quicker to download, quicker to start, kinder to a nearly-full phone. |
+| **Dead-Fest.apk** | 27 MB | Something is behaving oddly on your device and you want the unshrunk build to compare against, or you want a build you can attach a debugger to. |
+
+> GitHub does not allow spaces in release asset file names, so `Dead-Fest R8.apk` is stored here as
+> `Dead-Fest.R8.apk`. It is the same file — the dot is GitHub's doing, not a different build — and the
+> app calls it "Dead-Fest R8" everywhere you see it.
 
 Both are version 2.0.7.2, build 12, `minSdk 24`, package `com.deadfest`, signed with certificate
 `SHA-256 876d1bfd47566e4c3530397ececebc562795059c7d984e65a4d8f85caf260bcc` — the same one every
 earlier Dead-Fest build carried, which is what lets either install straight over what you have.
+
+The exact size and SHA-256 of each attached file is listed at the bottom of these notes, read off the
+files themselves when the release was published rather than copied from a build log.
 
 > One honest note about the full build: it is a *debug* build, so it carries `android:debuggable=true`.
 > That does not affect normal use, but it does mean the app's private data can be read over a USB

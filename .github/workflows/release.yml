@@ -85,6 +85,9 @@ jobs:
 
       - name: Rename the artifacts for download
         run: |
+          # GitHub does not allow spaces in release asset names and rewrites them to dots, so
+          # 'Dead-Fest R8.apk' is stored as 'Dead-Fest.R8.apk'. The names below are the local
+          # names; the release notes list the stored ones.
           cp app/build/outputs/apk/debug/app-debug.apk "Dead-Fest.apk"
           cp app/build/outputs/apk/release/app-release.apk "Dead-Fest R8.apk"
           ls -l "Dead-Fest.apk" "Dead-Fest R8.apk"
@@ -117,17 +120,44 @@ jobs:
             Dead-Fest.apk
             Dead-Fest R8.apk
 
-      # Curated notes when the version has them committed, generated notes otherwise.
-      - name: Resolve the release notes
+      # Curated notes when the version has them committed, generated notes otherwise. The body is
+      # assembled in the runner's temp directory so the checkout is never mutated, and the hashes are
+      # read off the very files about to be attached: a hash copied from a build log is wrong the
+      # moment CI produces different bytes than the machine that wrote the log.
+      - name: Assemble the release notes
         id: notes
         run: |
           version="${GITHUB_REF_NAME#v}"
-          file="release/v${version}/RELEASE_NOTES.md"
-          if [ -f "$file" ]; then
-            echo "body_path=$file" >> "$GITHUB_OUTPUT"
+          body="$RUNNER_TEMP/RELEASE_NOTES.md"
+          curated="release/v${version}/RELEASE_NOTES.md"
+          if [ -f "$curated" ]; then
+            cp "$curated" "$body"
+            echo "curated=true" >> "$GITHUB_OUTPUT"
           else
-            echo "body_path=" >> "$GITHUB_OUTPUT"
+            : > "$body"
+            echo "curated=false" >> "$GITHUB_OUTPUT"
           fi
+
+          {
+            echo ""
+            echo "## Attached files"
+            echo ""
+            echo "Sizes and hashes read off the files attached to this release:"
+            echo ""
+            echo "| File | Bytes | SHA-256 |"
+            echo "|---|---|---|"
+            # local name on the left, the name GitHub will store on the right (space -> dot)
+            for pair in "Dead-Fest.apk:Dead-Fest.apk" "Dead-Fest R8.apk:Dead-Fest.R8.apk"; do
+              local_name="${pair%%:*}"
+              stored_name="${pair##*:}"
+              printf '| `%s` | %s | `%s` |\n' \
+                "$stored_name" \
+                "$(stat -c %s "$local_name")" \
+                "$(sha256sum "$local_name" | awk '{print $1}')"
+            done
+          } >> "$body"
+
+          echo "body_path=$body" >> "$GITHUB_OUTPUT"
 
       # Only a tag publishes. A manual run stops after the artifacts above.
       - name: Publish the release
@@ -138,6 +168,6 @@ jobs:
             Dead-Fest.apk
             Dead-Fest R8.apk
           body_path: ${{ steps.notes.outputs.body_path }}
-          generate_release_notes: ${{ steps.notes.outputs.body_path == '' }}
+          generate_release_notes: ${{ steps.notes.outputs.curated == 'false' }}
           draft: false
           prerelease: false
