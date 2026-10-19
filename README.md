@@ -9,7 +9,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.8-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.0.9-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 [![APK](https://img.shields.io/badge/APK-3.9%20MB%20(R8)%20%2F%2026.2%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
@@ -32,7 +32,14 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ## 🔄 What's New
 
-### v2.0.8 – Handles, Themes, Game Requests & the desktop client *(Latest)*
+### v2.0.9 – The admin side, enforced by the database *(Latest)*
+
+- **🔐 Firestore security rules** – The rules are now part of the project, in [`firestore.rules`](firestore.rules), and **tested on every change** — 45 cases decided against the real rules file on the Firestore emulator. This was not a formality: **the two features added in 2.0.8 — changing your handle and asking for a game — were being refused by the server**, because nothing had told Firestore those collections were allowed to exist. Now only an **admin** can change the global document (which holds the update link every survivor is told to download, the economy, the sectors and every switch), nobody can promote themselves, only an admin can approve or remove a game request or edit the shop, a handle can only be claimed once, and the global death counter can only move one step at a time. See [docs/ADMIN.md](docs/ADMIN.md).
+- **🖥️ The desktop console caught up** – The Windows client can now **inject a death** (the full pipeline: tax, penalty spin, bankruptcy, XP) and **grant or revoke admin rights** — the two player controls the phone app has always had. It also refuses to render the console for anybody who is not an admin.
+- **🩹 One quiet fix** – The rules read the admin flag from your player document, so a survivor whose document was missing could not write anything. The app now repairs that document the moment it notices it is gone.
+- **Honest limit** – The **economy is still client-trusted**: a survivor can write their own coins and XP, because those are the same writes the app makes when you spin. Rules cannot tell the two apart. Moving the economy into Cloud Functions is the real fix and needs the Blaze plan; the rules close every door that can be closed without it.
+
+### v2.0.8 – Handles, Themes, Game Requests & the desktop client
 
 - **🖥️ Dead-Fest for Windows** – The same app as a **desktop program**: `Dead-Fest-Desktop-2.0.8.exe` on the releases page is a single self-contained file — no installer, no uninstaller, run it from anywhere. It talks to the **same Firebase project**, so it is the *same accounts and the same live game* — your coins, deaths, level, handle and the whole survivor network are the ones you already have, and anything that changes on a phone appears on the desktop immediately. Same ember-on-ink design system, same cards, same type, same themes — the phone app stood up for a desktop. Source is in [`desktop/`](desktop/).
 - **🪪 Your handle, your call** – Change the name the community sees from **Settings → General → Identity**. It updates everywhere the moment you save it (player list, death feed, game requests) because every screen reads the same live field. Handles are unique across the whole app — `Slayer` and `slayer` are the same name — 3–20 characters of letters, numbers and underscores, with `Admin`/`Dead-Fest`/`Moderator` reserved. Coins, level, stats, titles and history are untouched.

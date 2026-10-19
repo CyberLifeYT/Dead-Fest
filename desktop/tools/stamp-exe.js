@@ -1,16 +1,16 @@
-/**
+﻿/**
  * Stamps the built executables with the Dead-Fest icon and version information.
  *
  * Two wrinkles, both worth explaining:
  *
  * 1. electron-builder's own resource editor (rcedit) normally does this, but it ships in a
- *    package whose extraction needs symlink privileges on Windows — a privilege a normal user
+ *    package whose extraction needs symlink privileges on Windows â€” a privilege a normal user
  *    does not have, so the build cannot download it here. The tool itself is fine, so this
  *    script finds the already-downloaded copy in electron-builder's cache and runs it directly.
  *
  * 2. rcedit rewrites the executable and DROPS any data appended after the PE sections. For a
  *    normal .exe that is harmless, but electron-builder's portable build is a 7-Zip self-extractor
- *    whose payload lives in exactly that appended region — stamping it naively turns a 74 MB
+ *    whose payload lives in exactly that appended region â€” stamping it naively turns a 74 MB
  *    application into an 82 KB stub that does nothing. So the overlay is measured out of the
  *    original file and put back afterwards, which leaves a self-extractor that is both branded
  *    and whole.
@@ -78,8 +78,8 @@ function stamp(target) {
       '--set-version-string', 'ProductName', 'Dead-Fest',
       '--set-version-string', 'CompanyName', 'CyberLifeYT',
       '--set-version-string', 'InternalName', 'Dead-Fest',
-      '--set-file-version', '2.0.8.0',
-      '--set-product-version', '2.0.8.0'
+      '--set-file-version', '2.0.9.0',
+      '--set-product-version', '2.0.9.0'
     ], { stdio: 'pipe' });
   } catch (e) {
     console.warn('  rcedit failed on ' + path.basename(target) + ': ' + (e.message || e));
@@ -100,7 +100,7 @@ function stamp(target) {
   fs.writeFileSync(target, Buffer.concat([stamped, overlay]));
   const after = fs.statSync(target).size;
   if (after < original.length * 0.95) {
-    console.warn('  ' + path.basename(target) + ' shrank unexpectedly (' + after + ' bytes) — restoring the original');
+    console.warn('  ' + path.basename(target) + ' shrank unexpectedly (' + after + ' bytes) â€” restoring the original');
     fs.writeFileSync(target, original);
     return false;
   }
@@ -116,7 +116,7 @@ const targets = fs.existsSync(DIST)
   : [];
 
 if (!fs.existsSync(ICON)) {
-  console.error('assets/icon.ico is missing — run `npm run icon` first.');
+  console.error('assets/icon.ico is missing â€” run `npm run icon` first.');
   process.exit(1);
 }
 
@@ -125,3 +125,4 @@ for (const target of targets) {
   if (stamp(target)) stamped++;
 }
 console.log('stamped ' + stamped + ' executable(s)');
+
