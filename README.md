@@ -32,8 +32,6 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ## 🔄 What's New
 
-### v2.0.8 – Handles, Themes & Game Requests *(Latest)*
-
 ### v2.0.8 – Handles, Themes, Game Requests & the desktop client *(Latest)*
 
 - **🖥️ Dead-Fest for Windows** – The same app as a **desktop program**: `Dead-Fest-Desktop-2.0.8.exe` on the releases page is a single self-contained file — no installer, no uninstaller, run it from anywhere. It talks to the **same Firebase project**, so it is the *same accounts and the same live game* — your coins, deaths, level, handle and the whole survivor network are the ones you already have, and anything that changes on a phone appears on the desktop immediately. Same ember-on-ink design system, same cards, same type, same themes — the phone app stood up for a desktop. Source is in [`desktop/`](desktop/).
@@ -182,6 +180,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **In‑App OTA Updates** – Two published builds, per-user choice in Settings, progress dialog and automatic installer handoff.
 - **Home Screen Widget** – Global eliminations, online survivors and overload status.
 - **75 Unit Tests** – Covering handle rules, theme system, death-pipeline toggle, game-database parsing, economy and presence rules.
+- **Firestore Security Rules** – Admin actions are enforced by the **database**, not by the app: only an admin can publish firmware, repoint the update URL, edit the shop, approve game requests or change anybody's admin rights. The rules live in [`firestore.rules`](firestore.rules) and are tested against the Firestore emulator on every push — **45 tests** that check both halves: the app still works, and the admin boundary is still shut. See [docs/ADMIN.md](docs/ADMIN.md).
 
 ---
 
@@ -198,7 +197,8 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 | Image Sharing        | Firestore blobs (thumbnail + full image)     |
 | Authentication       | Firebase Auth (Email/Password)               |
 | Push Notifications   | Firebase Cloud Messaging (FCM)               |
-| Testing              | JUnit (economy, presence, handles, themes)   |
+| Testing              | JUnit (economy, presence, handles, themes) + Firestore rules tests (emulator) |
+| Security             | Firestore security rules, enforced by the database, not the app |
 | Build System         | Gradle (Kotlin DSL), R8                      |
 
 ---
@@ -226,3 +226,20 @@ Want to run Dead-Fest for **your own** group? The app has **no server of its own
 ```bash
 git clone https://github.com/CyberLifeYT/Dead-Fest.git
 cd Dead-Fest
+```
+
+### 3. Firestore Security Rules
+
+The admin actions are enforced by Firestore itself, not by the app — only an admin can publish
+firmware, repoint the update URL, edit the shop or approve game requests. Deploy the rules that
+ship with the project before you let anybody in:
+
+```bash
+npm install -g firebase-tools
+firebase login
+firebase deploy --only firestore:rules
+```
+
+The project is already selected in `.firebaserc`, so no project id is needed. See
+[docs/ADMIN.md](docs/ADMIN.md) for what the rules protect, and for how to test a change to them
+before deploying it.

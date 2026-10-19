@@ -49,6 +49,35 @@ class FirebaseRepository(
     fun getUser(uid: String): Flow<User?> =
         usersRef.document(uid).snapshots().map { it.toUserModel() }
 
+    /**
+     * Makes sure the signed-in survivor has a profile document.
+     *
+     * The security rules decide whether a write is allowed by reading the admin flag off this
+     * document, so a survivor without one cannot write anything - not even their own record.
+     * The app creates the document at sign-up, but a sign-up that lost its connection half way
+     * through leaves an account with no profile, and that account would be locked out of the
+     * whole game. Repairing it here means the one document everything depends on always exists.
+     */
+    suspend fun ensureProfile(uid: String) {
+        val ref = usersRef.document(uid)
+        if (ref.get().await().exists()) return
+        ref.set(
+            mapOf(
+                "uid" to uid,
+                "displayName" to "",
+                "email" to "",
+                "admin" to false,
+                "username" to "",
+                "playerData" to mapOf(
+                    "coins" to STARTING_COINS,
+                    "level" to 1,
+                    "xp" to 0,
+                    "games" to emptyMap<String, Any>()
+                )
+            )
+        ).await()
+    }
+
     fun getUsers(): Flow<List<User>> =
         usersRef.orderBy("playerData.coins", Query.Direction.DESCENDING).snapshots().map { snapshot ->
             snapshot.documents.mapNotNull { it.toUserModel() }

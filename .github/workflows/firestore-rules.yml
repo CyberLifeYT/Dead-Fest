@@ -1,0 +1,39 @@
+name: Firestore rules
+
+# The security rules are the boundary between "a survivor" and "an admin", so they are tested on
+# every change rather than only when somebody remembers. The Firestore emulator decides the
+# cases against the real rules file, which means a rule that breaks the app fails the build
+# instead of failing in someone's hands.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      # The Firestore emulator is a Java program.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install the rules test harness
+        working-directory: tools/rules-tests
+        run: npm install --no-audit --no-fund
+
+      - name: Test the Firestore security rules
+        run: >
+          tools/rules-tests/node_modules/.bin/firebase emulators:exec
+          --only firestore --config firebase.json
+          "node --test tools/rules-tests/firestore.rules.test.js"

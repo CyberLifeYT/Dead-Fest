@@ -58,6 +58,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             // A missing or not-yet-cached profile keeps a placeholder instead of
             // bouncing a signed-in survivor back to the login screen.
             else repository.getUser(uid)
+                // A profile that was never written (a sign-up that lost its connection
+                // half way) would be locked out of every write by the security rules, so
+                // it is repaired as soon as it is noticed.
+                .onEach { if (it == null) runCatching { repository.ensureProfile(uid) } }
                 .map { it ?: User(uid = uid) }
                 .catch { logError("user", it); emit(User(uid = uid)) }
         }

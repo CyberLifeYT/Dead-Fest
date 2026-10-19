@@ -78,9 +78,33 @@ DF.Data = (function () {
     ));
   }
 
+  /**
+   * Makes sure the signed-in survivor has a profile document.
+   *
+   * The security rules decide whether a write is allowed by reading the admin flag off this
+   * document, so a survivor without one cannot write anything - not even their own record. A
+   * sign-up that lost its connection half way through leaves an account with no profile, and
+   * that account would be locked out of the whole game. Repairing it here means the one
+   * document everything depends on always exists.
+   */
+  function ensureProfile(uid) {
+    return userRef(uid).get().then((snap) => {
+      if (snap.exists) return null;
+      return userRef(uid).set({
+        uid,
+        displayName: "",
+        email: (auth.currentUser && auth.currentUser.email) || "",
+        admin: false,
+        username: "",
+        playerData: { coins: DF.STARTING_COINS, level: 1, xp: 0, games: {} }
+      });
+    }).catch(() => null);
+  }
+
   /* ---- subscriptions ------------------------------------------------------ */
   function subscribeAll(uid) {
     teardown();
+    ensureProfile(uid);
     sub(db.collection(DF.PATHS.users).orderBy("playerData.coins", "desc"), "users", mapUsers);
     sub(db.doc(DF.PATHS.global), "global", mapGlobal);
     sub(db.collection(DF.PATHS.eventLog).orderBy("timestamp", "desc").limit(50), "events");

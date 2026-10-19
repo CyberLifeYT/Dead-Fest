@@ -1,0 +1,285 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==================================================================== helpers
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * True when the caller owns the `admin` flag on their own player document.
+     *
+     * **How the engine evaluates this.** The rules engine evaluates every operand of `&&` - it
+     * only folds away a literal `false` on the left. So the `exists()` guard below does NOT stop
+     * the `get()` from being evaluated, and a `get()` on a document that does not exist is an
+     * evaluation error rather than a clean "no".
+     *
+     * The practical effect is deliberate: a survivor whose profile document is missing cannot
+     * write anything, because the engine cannot tell whether they are an admin. That is the safe
+     * way round. The app creates the profile at sign-up and repairs it on the next launch if it
+     * is ever missing, so this only ever affects a genuinely broken account - and an admin can
+     * fix it from the console.
+     */
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.admin == true;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    /** A number, or zero when the field has never been written. */
+    function numberOrZero(value) {
+      return value is int ? value : 0;
+    }
+
+    /**
+     * The keys a write changes, or an empty list when there is no existing document.
+     *
+     * Every caller has to cope with the document not existing yet, because the rules engine
+     * evaluates the update rules even for a write that turns out to be a create. Diffing
+     * against a missing document is an evaluation error, not an empty diff.
+     */
+    function changedKeys() {
+      return resource != null && resource.data != null
+        ? request.resource.data.diff(resource.data).affectedKeys()
+        : [];
+    }
+
+    /** True when the write changes only the given keys. */
+    function onlyChanged(keys) {
+      return resource != null && resource.data != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    /**
+     * Fields nobody may change on their own document.
+     *
+     * The admin flag is the whole point: if a player could write it, they could promote
+     * themselves and the entire admin boundary would be a suggestion.
+     */
+    function touchesAdminFlag() {
+      return resource != null && resource.data != null &&
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['admin']);
+    }
+
+    /**
+     * The global death counter is the one value every client may move, because every death
+     * bumps it. It is restricted to a single step in either direction (or two for a double
+     * curse) so nobody can inflate it, zero it, or reset the whole document.
+     */
+    function isGrandTotalBump() {
+      return onlyChanged(['grandTotal']) &&
+        request.resource.data.grandTotal is int &&
+        (request.resource.data.grandTotal - numberOrZero(resource.data.grandTotal) <= 2) &&
+        (numberOrZero(resource.data.grandTotal) - request.resource.data.grandTotal <= 1);
+    }
+
+    /**
+     * Fields a player may write on somebody ELSE's document.
+     *
+     * Three things cross player boundaries, and all three are the app writing on the client's
+     * behalf: the mutual survival reward pays every other survivor, and a curse adds a death
+     * and disarms a shield on its target. Nothing else crosses.
+     *
+     * The comparison is made on the `playerData` map rather than the document, because a diff
+     * of the whole document reports `playerData` as a single changed key - the leaf names only
+     * show up when the inner map is diffed.
+     */
+    function isCrossPlayerWrite() {
+      return signedIn() &&
+        onlyChanged(['playerData']) &&
+        request.resource.data.playerData != null &&
+        resource.data.playerData != null &&
+        request.resource.data.playerData.diff(resource.data.playerData).affectedKeys()
+          .hasOnly(['coins', 'bankruptcyLevel', 'shield', 'games']);
+    }
+
+    /**
+     * True when the document being deleted belongs to [uid].
+     *
+     * The `resource != null` guard matters: deleting a document that does not exist leaves
+     * `resource` null, and reading a field off a null resource is an evaluation error rather
+     * than a clean refusal.
+     */
+    function ownedBy(uid) {
+      return resource != null && resource.data != null && resource.data.uid == uid;
+    }
+
+    /**
+     * True when the image being deleted was uploaded by [uid].
+     *
+     * `resource.data` is null for a document that does not exist, and reading a field off it is
+     * an evaluation error rather than a refusal.
+     */
+    function uploadedBy(uid) {
+      return resource != null && resource.data != null && resource.data.uploaderUid == uid;
+    }
+
+    // ==================================================================== players
+
+    match /users/{uid} {
+      // The whole community is visible to any signed-in survivor.
+      allow read: if signedIn();
+
+      /**
+       * Creating your own profile.
+       *
+       * The admin flag is pinned to false: nobody may arrive with rights already granted, so
+       * promotion is always a deliberate act by somebody who already has them.
+       */
+      allow create: if isSelf(uid) &&
+        (!('admin' in request.resource.data) || request.resource.data.admin == false) &&
+        request.resource.data.keys().hasOnly([
+          'uid', 'displayName', 'email', 'admin', 'playerData', 'username'
+        ]);
+
+      /**
+       * Updating a document.
+       *
+       * - An admin may change anything.
+       * - A player may change anything on their OWN document except the admin flag.
+       * - A player may change only the four cross-player fields on somebody else's.
+       */
+      allow update: if isAdmin() ||
+        (isSelf(uid) && !touchesAdminFlag()) ||
+        isCrossPlayerWrite();
+
+      allow delete: if isAdmin();
+    }
+
+    // ==================================================================== handle registry
+
+    /**
+     * One document per claimed handle, so two survivors can never hold the same one.
+     *
+     * The registry doubles as the uniqueness lock: a handle is claimed by CREATING its
+     * document, and updating an existing one is admin-only. That means a handle already taken
+     * cannot be overwritten by a second player - the attempt is an update, and updates are
+     * refused.
+     */
+    match /usernames/{name} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(['uid', 'display']) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.display is string &&
+        request.resource.data.display.size() >= 3 &&
+        request.resource.data.display.size() <= 20;
+
+      // Releasing your own handle when you rename. Nobody else's.
+      allow delete: if isAdmin() ||
+        (signedIn() && ownedBy(request.auth.uid));
+
+      allow update: if isAdmin();
+    }
+
+    // ==================================================================== global state
+
+    match /gameState/{doc} {
+      allow read: if signedIn();
+
+      /**
+       * The global document holds the update URL every survivor is told to download, the
+       * economy settings, the sector list and the system switches. Only an admin may write it.
+       *
+       * The one exception is the global death counter, which every client bumps when somebody
+       * dies, and even that is restricted to a single step.
+       */
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isGrandTotalBump();
+      allow delete: if isAdmin();
+    }
+
+    // ==================================================================== community
+
+    match /eventLog/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly([
+          'id', 'category', 'message', 'userUid', 'targetUid', 'timestamp'
+        ]);
+      allow update, delete: if isAdmin();
+    }
+
+    match /messages/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    /**
+     * Votes are opened by an admin and cast by everyone, so a player may update the tally -
+     * but only the tally. A player must not be able to rewrite the options or the question.
+     */
+    match /votes/{id} {
+      allow read: if signedIn();
+      allow create, delete: if isAdmin();
+      allow update: if signedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['results', 'userVotes']);
+    }
+
+    match /archives/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /scratchPrizes/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /levelRewards/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ==================================================================== shared images
+
+    match /images/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.uploaderUid == request.auth.uid &&
+        request.resource.data.thumb.size() < 100 * 1024;
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && uploadedBy(request.auth.uid));
+    }
+
+    match /imageBlobs/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.uploaderUid == request.auth.uid &&
+        request.resource.data.data.size() < 900 * 1024;
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (signedIn() && uploadedBy(request.auth.uid));
+    }
+
+    // ==================================================================== game requests
+
+    /**
+     * The community game queue.
+     *
+     * A survivor may ask for a game; only an admin may decide. The creator is recorded so a
+     * request cannot be filed in somebody else's name, and a request always enters the queue as
+     * pending - a player cannot pre-approve their own suggestion.
+     */
+    match /gameRequests/{id} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+        request.resource.data.requestedBy == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() >= 2 &&
+        request.resource.data.name.size() <= 80;
+
+      allow update, delete: if isAdmin();
+    }
+  }
+}

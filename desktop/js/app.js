@@ -624,21 +624,44 @@ DF.App = (function () {
     openPlayerDetail(user) {
       const pd = user.playerData || {};
       const coinInput = h("input", { value: String(pd.coins || 0) });
+      const me = DF.Data.state.user;
+      const isMe = me && me.uid === user.uid;
+
+      const adminSwitch = h("div", { class: "switch" + (user.admin ? " on" : ""), onclick: () => ctx.adminToggleAdmin(user.uid, !user.admin) });
+
       const body = h("div", { class: "stack" },
         h("div", { class: "row" },
           avatar(user, "lg"),
           h("div", { style: { flex: "1" } },
             h("div", { class: "t-card-title", text: handleOf(user) }),
             h("div", { class: "t-body", text: (pd.title || "Survivor") + " · Level " + (pd.level || 1) })
-          )
+          ),
+          user.admin ? statusPill("ADMIN", "ember") : null
         ),
         h("div", { class: "divider" }),
         keyValue("Coins", fmt(pd.coins || 0)),
         keyValue("Deaths", fmt(totalDeaths(user))),
+        keyValue("Level", String(pd.level || 1)),
         keyValue("Pending spins", String(pd.pendingSpins || 0)),
         keyValue("Bankruptcy", ["Solvent", "Level 1", "Level 2"][pd.bankruptcyLevel || 0]),
+        h("div", { class: "divider" }),
+        sectionLabel("Admin rights"),
+        h("div", { class: "row" },
+          h("div", { style: { flex: "1" } },
+            h("div", { class: "t-body", text: isMe ? "You cannot revoke your own access" : "Grants full access to the admin panel" })
+          ),
+          adminSwitch
+        ),
+        h("div", { class: "divider" }),
+        sectionLabel("Death record"),
+        h("div", { class: "t-body", text: "Injecting a death runs the full pipeline: casualty tax, penalty spin, bankruptcy and XP." }),
+        h("div", { class: "row", style: { marginTop: "10px" } },
+          h("button", { class: "btn btn--sm", text: "Inject death", onclick: () => ctx.pickSectorFor(user.uid, (sector) => ctx.adminInjectDeath(user.uid, sector)) }),
+          h("button", { class: "btn btn--ghost btn--sm", text: "Remove death", onclick: () => ctx.pickSectorFor(user.uid, (sector) => ctx.adminRemoveDeath(user.uid, sector)) })
+        ),
+        h("div", { class: "divider" }),
         h("div", { class: "field" }, h("label", { text: "Set exact coins" }), coinInput),
-        h("div", { class: "row row--wrap" },
+        h("div", { class: "row row--wrap", style: { marginTop: "10px" } },
           [-100, -10, 10, 100].map((d) => h("button", { class: "btn btn--ghost btn--sm", text: (d > 0 ? "+" : "") + d, onclick: () => ctx.adminAdjustCoins(user.uid, d) }))
         )
       );
@@ -658,6 +681,52 @@ DF.App = (function () {
           })
         ]
       });
+    },
+
+    /** Sector picker, shared by the admin death controls. */
+    pickSectorFor(uid, onPick) {
+      const global = DF.Data.state.global;
+      const sectors = global ? global.games : [];
+      if (!sectors.length) { toast("No sectors configured.", true); return; }
+      const body = h("div", { class: "stack stack--tight" });
+      sectors.forEach((sector) => {
+        body.append(h("div", { class: "list-row", onclick: () => { closeModal(); onPick(sector); } },
+          h("div", { style: { flex: "1" } },
+            h("div", { class: "t-card-title", text: sector.toUpperCase() }),
+            h("div", { class: "t-body", text: "Where did they fall?" })
+          ),
+          h("span", { text: "→", style: { color: "var(--ember)" } })
+        ));
+      });
+      openModal({ title: "SELECT SECTOR", body });
+    },
+
+    /** Injects a death through the full pipeline, exactly as the phone app's admin does. */
+    adminInjectDeath(uid, game) {
+      const global = DF.Data.state.global;
+      const target = (DF.Data.state.users || []).find((u) => u.uid === uid);
+      if (!global) return;
+      DF.Data.recordDeath(uid, game, global.economy, Date.now(), global.forceSpinProtocol).then((r) => {
+        const o = r.outcome;
+        const spinNote = o.spinsAdded > 0 ? ` · +${o.spinsAdded} penalty spin(s)` : "";
+        toast(`Death injected in ${game} — ${fmt(o.tax.finalTax)} tax${spinNote}`);
+        DF.Data.logEvent("DEATH", `Admin injected a death for ${target ? handleOf(target) : uid} in ${game}. Casualty tax: ${fmt(o.tax.finalTax)} coins.`, uid);
+        DF.Data.payMutualReward(uid, global.economy);
+      }).catch((e) => toast(e && e.message ? e.message : "Couldn't inject the death.", true));
+    },
+
+    /** Removes a death without a refund, matching the phone app. */
+    adminRemoveDeath(uid, game) {
+      DF.Data.updatePlayerDeaths(uid, -1, game).then(() => toast(`Death removed from ${game}.`)).catch(() => toast("Couldn't remove the death.", true));
+    },
+
+    /** Grants or revokes admin rights. You cannot revoke your own. */
+    adminToggleAdmin(uid, isAdmin) {
+      const me = DF.Data.state.user;
+      if (me && uid === me.uid && !isAdmin) { toast("You can't revoke your own admin rights."); return; }
+      DF.Data.toggleAdminStatus(uid, isAdmin)
+        .then(() => toast(isAdmin ? "Admin rights granted." : "Admin rights revoked."))
+        .catch(() => toast("Couldn't change admin rights.", true));
     },
     adminAdjustCoins(uid, delta) {
       DF.Data.adjustCoins(uid, delta).then(() => toast(`Coins ${delta > 0 ? "+" : ""}${delta}.`)).catch(() => toast("Adjust failed.", true));

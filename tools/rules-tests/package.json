@@ -1,0 +1,18 @@
+{
+  "name": "deadfest-firestore-rules-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Proves the Firestore security rules let the app work and keep the admin boundary closed.",
+  "scripts": {
+    "test": "node --test firestore.rules.test.js"
+  },
+  "allowScripts": {
+    "protobufjs@7.6.6": true,
+    "re2@1.27.0": true
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.12.5",
+    "firebase-tools": "^13.29.1"
+  }
+}

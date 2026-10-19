@@ -1,0 +1,11 @@
+{
+  "name": "deadfest-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tooling for the Dead-Fest project: the Firestore rules tests and the desktop client.",
+  "scripts": {
+    "test:rules": "cd tools/rules-tests && npm install --no-audit --no-fund && firebase emulators:exec --only firestore --config ../../firebase.json \"node --test firestore.rules.test.js\"",
+    "desktop": "cd desktop && npm install --no-audit --no-fund && npm start",
+    "desktop:dist": "cd desktop && npm install --no-audit --no-fund && npm run dist"
+  }
+}

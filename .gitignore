@@ -11,3 +11,8 @@ app/google-services.json
 *.jks
 *.keystore
 *.apk
+# Node (the desktop client and the rules test harness)
+node_modules/
+# Firebase emulator log
+firestore-debug.log
+firestore-debug.*.log

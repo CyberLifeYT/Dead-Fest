@@ -25,6 +25,15 @@ DF.Screens.admin = {
   subtitle: "ROOT ACCESS // HANDLE WITH CARE",
   needs: ["user", "global", "users", "events", "gameRequests", "archives", "scratchPrizes"],
   render(ctx) {
+    const user = ctx.state.user;
+    // Defence in depth: the navigation hides this screen from non-admins, and the Firestore
+    // rules refuse the writes, but the screen itself should also refuse to render.
+    if (!user || user.admin !== true) {
+      return h("div", { class: "stack" },
+        emptyState("🔒", "ACCESS DENIED", "Administrator privileges are needed to access this sector.")
+      );
+    }
+
     const module = ctx.local("adminModule", "LIVE");
     const wrap = h("div", { class: "stack" });
 
