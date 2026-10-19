@@ -21,6 +21,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -43,6 +44,7 @@ private enum class AdminModule(val label: String, val icon: androidx.compose.ui.
     SHOP("Shop", Icons.Default.Storefront),
     SCRATCH("Scratch", Icons.Default.ConfirmationNumber),
     SECTORS("Sectors", Icons.Default.Map),
+    EVENT("Event", Icons.Default.Celebration),
     OVERLOAD("Overload", Icons.Default.Bolt),
     WHEEL("Wheel", Icons.Default.Casino),
     GLOBAL("Global", Icons.Default.Tune),
@@ -101,6 +103,7 @@ fun AdminScreen(navController: NavController, viewModel: MainViewModel) {
                 AdminModule.SHOP -> ShopAdmin(viewModel)
                 AdminModule.SCRATCH -> ScratchAdmin(viewModel)
                 AdminModule.SECTORS -> SectorAdmin(viewModel)
+                AdminModule.EVENT -> EventAdmin(viewModel)
                 AdminModule.OVERLOAD -> OverloadAdmin(viewModel)
                 AdminModule.WHEEL -> WheelAdmin(viewModel)
                 AdminModule.GLOBAL -> GlobalAdmin(viewModel)
@@ -1019,6 +1022,7 @@ private fun PublishFirmwareDialog(
 @Composable
 private fun BackupAdmin(viewModel: MainViewModel) {
     val archives by viewModel.archives.collectAsStateWithLifecycle()
+    val globalState by viewModel.globalState.collectAsStateWithLifecycle()
     var showWarningAlert by remember { mutableStateOf(false) }
     var archiveNameToCreate by remember { mutableStateOf("Season Final Archive") }
     var archiveToRestore by remember { mutableStateOf<Archive?>(null) }
@@ -1050,7 +1054,11 @@ private fun BackupAdmin(viewModel: MainViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.createArchive(archiveNameToCreate.trim().ifEmpty { "Season Archive" })
+                        viewModel.createArchive(
+                            archiveName = archiveNameToCreate.trim().ifEmpty { "Season Archive" },
+                            notes = globalState.currentSeasonName,
+                            roster = globalState.games
+                        )
                         showWarningAlert = false
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
@@ -1101,6 +1109,241 @@ private fun BackupAdmin(viewModel: MainViewModel) {
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------- event (v2.0.7)
+
+@Composable
+private fun EventAdmin(viewModel: MainViewModel) {
+    val globalState by viewModel.globalState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    var seasonName by remember(globalState.currentSeasonName) { mutableStateOf(globalState.currentSeasonName) }
+    var enabled by remember(globalState.nextEventEnabled) { mutableStateOf(globalState.nextEventEnabled) }
+    var eventName by remember(globalState.nextEventName) { mutableStateOf(globalState.nextEventName) }
+    var startsAt by remember(globalState.nextEventStartsAt) { mutableLongStateOf(globalState.nextEventStartsAt) }
+    var notes by remember(globalState.nextEventNotes) { mutableStateOf(globalState.nextEventNotes) }
+    var games by remember(globalState.nextEventGames) { mutableStateOf(globalState.nextEventGames) }
+    var newGame by remember { mutableStateOf("") }
+
+    fun addGame(name: String) {
+        val clean = name.trim()
+        if (clean.isEmpty()) return
+        if (games.any { it.equals(clean, ignoreCase = true) }) return
+        games = games + clean
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AdminActionCard("CURRENT SEASON") {
+            Text(
+                "Shown on Team Progress as the season everyone is playing right now.",
+                color = TextSecondary,
+                fontSize = 12.sp
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = seasonName,
+                onValueChange = { seasonName = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Season name") },
+                placeholder = { Text("Dead-Fest Season 1", color = TextMuted) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = deadFestFieldColors()
+            )
+            Spacer(Modifier.height(10.dp))
+            Button(
+                onClick = {
+                    viewModel.updateGlobalState(
+                        mapOf("currentSeasonName" to seasonName.trim().ifEmpty { "Dead-Fest Season 1" }),
+                        success = "Current season renamed"
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("SAVE SEASON NAME", fontWeight = FontWeight.Black, fontSize = 13.sp) }
+        }
+
+        AdminActionCard("NEXT DEAD-FEST") {
+            AdminSwitch(
+                title = "Show on the More tab",
+                subtitle = "Displays the countdown and game line-up to every survivor",
+                checked = enabled,
+                onChange = { enabled = it }
+            )
+            HorizontalDivider(color = Outline)
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedTextField(
+                value = eventName,
+                onValueChange = { eventName = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Next season name") },
+                placeholder = { Text("Dead-Fest Season 2", color = TextMuted) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = deadFestFieldColors()
+            )
+
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = {
+                    showDateTimePicker(context, startsAt) { picked -> startsAt = picked }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, if (startsAt > 0) RedAccent else Outline)
+            ) {
+                Icon(Icons.Default.Event, contentDescription = null, tint = if (startsAt > 0) RedAccent else TextSecondary)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("START DATE & TIME", color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                    Text(
+                        formatEventTime(startsAt),
+                        color = if (startsAt > 0) TextPrimary else TextMuted,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Icon(Icons.Default.Schedule, contentDescription = null, tint = TextMuted, modifier = Modifier.size(18.dp))
+            }
+            if (startsAt > 0) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusPill(formatCountdown(startsAt - System.currentTimeMillis()), Gold)
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = { startsAt = 0L }) { Text("CLEAR DATE", color = TextSecondary, fontSize = 12.sp) }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 90.dp),
+                label = { Text("Blurb (optional)") },
+                placeholder = { Text("Rules, theme, prizes...", color = TextMuted) },
+                shape = RoundedCornerShape(14.dp),
+                colors = deadFestFieldColors()
+            )
+        }
+
+        AdminActionCard("GAME LINE-UP") {
+            Text(
+                "The games queued for the next Dead-Fest, in play order.",
+                color = TextSecondary,
+                fontSize = 12.sp
+            )
+            Spacer(Modifier.height(10.dp))
+
+            if (games.isEmpty()) {
+                Text("Nothing queued yet.", color = TextMuted, fontSize = 12.sp)
+            } else {
+                games.forEachIndexed { index, game ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                        color = CardBgRaised,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("${index + 1}.", color = RedAccent, fontWeight = FontWeight.Black, fontSize = 13.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                game,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            IconButton(onClick = {
+                                val list = games.toMutableList()
+                                list.add(index - 1, list.removeAt(index))
+                                games = list
+                            }, enabled = index > 0) {
+                                Icon(Icons.Default.ArrowUpward, "Move up", tint = if (index > 0) RedAccent else Outline)
+                            }
+                            IconButton(onClick = {
+                                val list = games.toMutableList()
+                                list.add(index + 1, list.removeAt(index))
+                                games = list
+                            }, enabled = index < games.lastIndex) {
+                                Icon(Icons.Default.ArrowDownward, "Move down", tint = if (index < games.lastIndex) RedAccent else Outline)
+                            }
+                            IconButton(onClick = { games = games.filterIndexed { i, _ -> i != index } }) {
+                                Icon(Icons.Default.Delete, "Remove", tint = TextMuted)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = newGame,
+                onValueChange = { newGame = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Add a game") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = deadFestFieldColors(),
+                trailingIcon = {
+                    IconButton(
+                        onClick = { addGame(newGame); newGame = "" },
+                        enabled = newGame.isNotBlank()
+                    ) {
+                        Icon(
+                            Icons.Default.AddCircle,
+                            contentDescription = "Add game",
+                            tint = if (newGame.isNotBlank()) RedAccent else TextMuted
+                        )
+                    }
+                }
+            )
+
+            val suggestions = globalState.games.filter { candidate -> games.none { it.equals(candidate, ignoreCase = true) } }
+            if (suggestions.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                SectionLabel("ADD FROM SECTORS")
+                Spacer(Modifier.height(6.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(suggestions) { sector ->
+                        FilterChip(
+                            selected = false,
+                            onClick = { addGame(sector) },
+                            label = { Text(sector, fontSize = 12.sp) },
+                            shape = RoundedCornerShape(50)
+                        )
+                    }
+                }
+            }
+        }
+
+        Button(
+            onClick = {
+                viewModel.updateGlobalState(
+                    mapOf(
+                        "nextEventEnabled" to enabled,
+                        "nextEventName" to eventName.trim(),
+                        "nextEventStartsAt" to startsAt,
+                        "nextEventGames" to games,
+                        "nextEventNotes" to notes.trim()
+                    ),
+                    success = "Next Dead-Fest saved"
+                )
+            },
+            modifier = Modifier.fillMaxWidth().height(54.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
+            shape = RoundedCornerShape(14.dp)
+        ) { Text("SAVE NEXT DEAD-FEST", fontWeight = FontWeight.Black) }
+
+        Spacer(Modifier.height(16.dp))
     }
 }
 

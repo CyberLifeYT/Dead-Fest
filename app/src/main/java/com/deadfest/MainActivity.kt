@@ -262,6 +262,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
             composable("shop") { ShopScreen(navController, viewModel) }
             composable("wheel") { WheelScreen(navController, viewModel) }
             composable("more") { MoreScreen(navController, viewModel) }
+            composable("team_progress") { TeamProgressScreen(navController, viewModel) }
             composable("archives") { ArchivesScreen(navController, viewModel) }
             composable("survival_intel") { SurvivalIntelScreen(navController) }
             composable("scratch") { ScratchScreen(navController, viewModel) }
@@ -289,6 +290,9 @@ private fun BottomBar(
     isSelected: (String) -> Boolean,
     onSelect: (String) -> Unit
 ) {
+    // With more than five tabs (admins get seven) there isn't room for every label on a
+    // small phone, so unselected tabs collapse to their icon only.
+    val compact = items.size > 5
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -309,6 +313,7 @@ private fun BottomBar(
                     BottomBarItem(
                         item = item,
                         selected = isSelected(item.route),
+                        compact = compact,
                         onClick = { onSelect(item.route) },
                         modifier = Modifier.weight(1f)
                     )
@@ -323,7 +328,8 @@ private fun BottomBarItem(
     item: NavigationItem,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
     val animMs = if (LocalPerformanceMode.current) 0 else 150
     val tint by animateColorAsState(if (selected) RedAccent else TextMuted, tween(animMs), label = "navTint")
@@ -332,6 +338,7 @@ private fun BottomBarItem(
         tween(animMs),
         label = "navPill"
     )
+    val showLabel = !compact || selected
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -348,19 +355,26 @@ private fun BottomBarItem(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
                 .background(pill)
-                .padding(horizontal = 10.dp, vertical = 4.dp),
+                .padding(horizontal = if (showLabel) 10.dp else 8.dp, vertical = 4.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(item.icon, contentDescription = item.label, tint = tint, modifier = Modifier.size(22.dp))
+            Icon(
+                item.icon,
+                contentDescription = item.label,
+                tint = tint,
+                modifier = Modifier.size(if (showLabel) 22.dp else 24.dp)
+            )
         }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text = item.label,
-            color = tint,
-            fontSize = 10.sp,
-            fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Clip
-        )
+        if (showLabel) {
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = item.label,
+                color = tint,
+                fontSize = 10.sp,
+                fontWeight = if (selected) FontWeight.Black else FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Clip
+            )
+        }
     }
 }

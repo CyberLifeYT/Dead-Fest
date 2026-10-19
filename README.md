@@ -9,8 +9,8 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.6-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
-[![APK](https://img.shields.io/badge/APK-3.8%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.0.7-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![APK](https://img.shields.io/badge/APK-3.9%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
 Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
@@ -31,6 +31,14 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 ---
 
 ## 🔄 What’s New
+
+### v2.0.7 – Seasons & Team Progress
+- **📅 Next Dead-Fest** (More → top of the tab) – The upcoming season by name (e.g. **"Dead-Fest Season 2"**), a live **countdown** in DAYS / HRS / MIN / SEC, the **games lined up** in play order, the exact start time and an optional blurb.
+- **📊 Team Progress** (More → Team Progress) – The season running right now in numbers: survivors, total deaths, coins in play, average and top level, prestiges, bankruptcies, pending spins and insulated survivors, plus eliminations by sector and the current deadliest/richest.
+- **🕰️ Every Past Dead-Fest** – Browse every archived season ("Dead-Fest Season X"), each with its summary, eliminations by sector and full final standings. Tap back through your history.
+- **🛠️ Admin → Event** – Rename the current season, switch the Next Dead-Fest panel on/off, set its name, start date & time and blurb, and build the game line-up (add from your sectors, reorder, remove).
+- **🗂️ Richer Archives** – Season snapshots now also store level, XP, prestige, title, avatar, frame, colour, insulation, bankruptcy and pending spins, plus the sector roster and global eliminations at close. Old archives still load and simply say the extra stats weren't recorded.
+- **🎨 Layout Pass** – The More tab is now grouped into clear sections with larger, described tiles; the bottom bar no longer clips labels on small phones (unselected tabs collapse to their icon); admins get a one-tap "Set up Next Dead-Fest" prompt until it's configured.
 
 ### v2.0.6 – Presence, Images & Battery
 - **🟢 Live Online/Offline Status** – You're **online** while the app is open and **offline** the moment you leave. Crashed or lost signal? You drop offline within ~2.5 minutes. Shown on Players ("last seen 5m ago"), the Dashboard, the Admin Live Dashboard and the home‑screen widget.
@@ -97,7 +105,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **Black Market** – Shield, Curse, Double Curse, Revive, Lucky Coin, Insurance, Ration Upgrade, Wealth Insulation tiers and Titles.
 - **Daily Rations** – Free daily coins with a live countdown.
 - **Sector Overloads** – Admin‑triggered events with multipliers and optional timers.
-- **Runs (Seasons)** – Archive a season and reset coins, deaths and penalties; levels and permanent upgrades carry over.
+- **Runs (Seasons)** – Archive a season and reset coins, deaths and penalties; levels and permanent upgrades carry over. Track every season afterwards in **Team Progress**.
 
 ### 👥 Player & Social Features
 
@@ -112,7 +120,9 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 - **Leaderboards** – **Wealth** (most coins) and **Survival Prowess** (fewest deaths).
 - **Wasteland Archives** – Past seasons with champions and full standings.
-- **Live Ticker** – Deaths, purchases, spins, scratches, level‑ups and image shares as they happen.
+- **Team Progress** – Live season aggregate (survivors, deaths, coins, levels, prestiges, bankruptcies, spins, insulation) plus eliminations by sector and every past Dead-Fest, browsable in full.
+- **Next Dead-Fest Countdown** – The upcoming season by name, with a live countdown, the game line-up in play order and the exact start time.
+- **Live Ticker** – Deaths, purchases, spins, scratches, level‐ups and image shares as they happen.
 
 ### 🛡️ Admin Override Suite
 
@@ -121,6 +131,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **Scratch & Wheel Editors** – Prize pools with decimal weights and live odds.
 - **XP & Levels** – Configure every XP source and the level curve.
 - **Player Control** – Coins, death injection (full tax pipeline), admin rights, clear penalties.
+- **Season & Event Control** – Rename the running season, schedule the next Dead-Fest (name, start time, blurb) and queue its games.
 - **System Switches** – Market, Wheel, Revives, Lockdown, firmware publishing (with forced updates) and broadcasts.
 
 ### 📡 Infrastructure
@@ -128,7 +139,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **Firebase Core** – Firestore (database + image storage), Auth (Email/Password) and Cloud Messaging (FCM).
 - **Real‑time Everything** – Live dashboard, leaderboards, shop, wheel, presence and gallery – no manual refreshes.
 - **Transaction‑Safe Economy** – Every coin, death and XP change runs in a Firestore transaction on live data.
-- **Low‑End Friendly** – R8‑shrunk 3.8 MB APK, Performance Mode, lifecycle‑aware listeners, no background service.
+- **Low‐End Friendly** – R8‐shrunk 3.9 MB APK, Performance Mode, lifecycle‐aware listeners, no background service.
 - **In‑App OTA Updates** – Progress dialog and automatic installer handoff.
 - **Home Screen Widget** – Global eliminations, online survivors and overload status.
 
@@ -340,7 +351,10 @@ Dead-Fest updates itself; players never need to re-download manually.
 |-----------------|---------|
 | Colours / theme | `app/src/main/java/com/deadfest/ui/theme/` |
 | Shared UI pieces (cards, badges, dialogs) | `ui/components/Common.kt`, `ResultDialogs.kt` |
-| Screens | `ui/screens/` (Home, Players, Shop, Wheel, Scratch, Images, Progression, Admin, Settings…) |
+| Screens | `ui/screens/` (Home, Players, Shop, Wheel, Scratch, Images, Progression, Team Progress, Admin, Settings…) |
+| Season stats & history | `ui/screens/TeamProgressScreen.kt` (live aggregates + past Dead-Fests) |
+| Next Dead-Fest panel | `ui/components/Common.kt` (`NextEventHero`) + fields in `data/model/GlobalState.kt` |
+| Season archives (snapshot fields) | `data/model/Archive.kt` |
 | Game rules: tax, bankruptcy, XP, odds, daily reset | `domain/Economy.kt` (unit-tested in `app/src/test/`) |
 | Online/offline rules | `domain/Presence.kt` |
 | Shop items, prices, level rewards | `data/model/ShopItem.kt` (prices can also be changed live in Admin → Shop) |

@@ -684,8 +684,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             repository.seedScratchPrizes(ScratchPrize.DEFAULT_POOL)
         }
 
-    fun createArchive(archiveName: String) =
-        launchSafe("Archive failed", success = "Season archived and reset") { repository.createArchive(archiveName) }
+    fun createArchive(
+        archiveName: String,
+        notes: String = "",
+        startedAt: Long = 0L,
+        roster: List<String> = emptyList()
+    ) = launchSafe("Archive failed", success = "Season archived and reset") {
+        repository.createArchive(archiveName, notes, startedAt, roster)
+    }
 
     fun restoreArchive(archiveId: String) =
         launchSafe("Restore failed", success = "Archive restored") { repository.restoreArchive(archiveId) }

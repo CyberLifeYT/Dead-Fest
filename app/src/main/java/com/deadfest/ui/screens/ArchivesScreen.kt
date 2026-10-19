@@ -61,7 +61,7 @@ fun ArchivesScreen(navController: NavController, viewModel: MainViewModel) {
                 modifier = Modifier.fillMaxSize()
             ) {
                 items(archives, key = { it.id }) { archive ->
-                    val champion = remember(archive) { archive.playerSnapshots.maxByOrNull { it.coins } }
+                    val champion = remember(archive) { archive.champion }
                     Surface(
                         modifier = Modifier.fillMaxWidth().pressClick(RoundedCornerShape(18.dp)) { selectedId = archive.id },
                         color = CardBg,
@@ -124,15 +124,34 @@ private fun ArchiveDetail(archive: Archive, dateFormat: SimpleDateFormat, onBack
                 Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("#${index + 1}", color = medal ?: TextMuted, fontWeight = FontWeight.Black, modifier = Modifier.width(36.dp))
-                        Text(
-                            snapshot.displayName ?: "Unknown Survivor",
-                            color = TextPrimary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Text(snapshot.avatar?.takeIf { it.isNotBlank() } ?: "💀", fontSize = 18.sp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                snapshot.displayName ?: "Unknown Survivor",
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (snapshot.hasDetailedStats) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    LevelBadge(snapshot.level, snapshot.prestigeCount)
+                                    snapshot.title?.takeIf { it.isNotBlank() }?.let {
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(
+                                            it.uppercase(),
+                                            color = RedAccent,
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Black,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         PriceTag(snapshot.coins)
                     }
                     Spacer(Modifier.height(6.dp))

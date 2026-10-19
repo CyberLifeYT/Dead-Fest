@@ -66,6 +66,13 @@ class FirebaseRepository(
                 lockedGames = (snapshot.get("lockedGames") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
                 overloadedSector = snapshot.getString("overloadedSector") ?: "",
                 overloadEndsAt = (snapshot.get("overloadEndsAt") as? Number)?.toLong() ?: 0L,
+                currentSeasonName = snapshot.getString("currentSeasonName")?.takeIf { it.isNotBlank() }
+                    ?: "Dead-Fest Season 1",
+                nextEventEnabled = snapshot.getBoolean("nextEventEnabled") ?: false,
+                nextEventName = snapshot.getString("nextEventName") ?: "",
+                nextEventStartsAt = (snapshot.get("nextEventStartsAt") as? Number)?.toLong() ?: 0L,
+                nextEventGames = (snapshot.get("nextEventGames") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                nextEventNotes = snapshot.getString("nextEventNotes") ?: "",
                 economy = parseEconomy(snapshot)
             )
 
@@ -730,23 +737,47 @@ class FirebaseRepository(
 
     // ================================================================ archives
 
-    suspend fun createArchive(archiveName: String) {
+    suspend fun createArchive(archiveName: String, notes: String = "", startedAt: Long = 0L, roster: List<String> = emptyList()) {
         val docs = usersRef.get().await().documents
         val snapshotUsers = docs.mapNotNull { it.toUserModel() }
         val snapshots = snapshotUsers.map { user ->
+            val d = user.playerData
             PlayerSnapshot(
                 uid = user.uid,
                 displayName = user.displayName,
-                coins = user.playerData.coins,
-                totalDeaths = user.playerData.games.values.sumOf { it.deaths },
-                gameDeaths = user.playerData.games.mapValues { it.value.deaths }
+                coins = d.coins,
+                totalDeaths = d.games.values.sumOf { it.deaths },
+                gameDeaths = d.games.mapValues { it.value.deaths },
+                // v2.0.7: keep the rest of the survivor card so a past season can be
+                // explored in full from Team Progress.
+                level = d.level,
+                xp = d.xp,
+                prestigeCount = d.prestigeCount,
+                title = d.title,
+                insulationTier = d.insulationTier,
+                bankruptcyLevel = d.bankruptcyLevel,
+                pendingSpins = d.pendingSpins,
+                avatar = d.avatar,
+                avatarFrame = d.avatarFrame,
+                color = d.color
             )
+        }
+        // Best-effort: a missing gameState doc must not block archiving the season.
+        val grandTotal = try {
+            (globalRef.get().await().get("grandTotal") as? Number)?.toLong() ?: 0L
+        } catch (e: Exception) {
+            0L
         }
         val archive = Archive(
             id = System.currentTimeMillis().toString(),
             name = archiveName,
             timestamp = System.currentTimeMillis(),
-            playerSnapshots = snapshots
+            playerSnapshots = snapshots,
+            schemaVersion = 2,
+            startedAt = startedAt,
+            sectorRoster = roster,
+            grandTotalAtEnd = grandTotal,
+            notes = notes
         )
         firestore.collection("archives").document(archive.id).set(archive).await()
 

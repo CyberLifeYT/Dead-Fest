@@ -12,12 +12,18 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.MoneyOff
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,8 +40,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import com.deadfest.ui.theme.*
+import kotlinx.coroutines.delay
 import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 /** Performance mode: fewer/shorter animations for low-end phones. */
 val LocalPerformanceMode = staticCompositionLocalOf { false }
@@ -542,6 +555,258 @@ fun DashboardPanel(title: String, modifier: Modifier = Modifier, content: @Compo
             SectionLabel(title)
             Spacer(Modifier.height(8.dp))
             content()
+        }
+    }
+}
+
+// ================================================================== v2.0.7 shared pieces
+
+private val countdownFormat = SimpleDateFormat("EEE d MMM yyyy · HH:mm", Locale.getDefault())
+
+/** "3D 04H 12M" style label for anything that is not a full countdown tile row. */
+fun formatCountdown(ms: Long): String {
+    if (ms <= 0L) return "LIVE NOW"
+    val s = ms / 1000
+    val d = s / 86_400
+    val h = (s % 86_400) / 3_600
+    val m = (s % 3_600) / 60
+    val sec = s % 60
+    return when {
+        d > 0 -> "${d}D ${h}H ${m}M"
+        h > 0 -> "${h}H ${m}M ${sec}S"
+        m > 0 -> "${m}M ${sec}S"
+        else -> "${sec}S"
+    }
+}
+
+/** Friendly date/time for a scheduled event. Returns [fallback] when no time is set. */
+fun formatEventTime(millis: Long, fallback: String = "Date to be announced"): String =
+    if (millis > 0L) countdownFormat.format(Date(millis)) else fallback
+
+/**
+ * Native date -> time picker chain. Uses the platform dialogs (available since API 1),
+ * so it works on Android 7 without pulling in the Material 3 date picker or core library
+ * desugaring. [onPicked] receives epoch millis at minute precision.
+ */
+fun showDateTimePicker(context: android.content.Context, initialMillis: Long, onPicked: (Long) -> Unit) {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = initialMillis.takeIf { it > 0L } ?: System.currentTimeMillis()
+    }
+    DatePickerDialog(
+        context,
+        { _, year, month, day ->
+            cal.set(Calendar.YEAR, year)
+            cal.set(Calendar.MONTH, month)
+            cal.set(Calendar.DAY_OF_MONTH, day)
+            TimePickerDialog(
+                context,
+                { _, hour, minute ->
+                    cal.set(Calendar.HOUR_OF_DAY, hour)
+                    cal.set(Calendar.MINUTE, minute)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.set(Calendar.MILLISECOND, 0)
+                    onPicked(cal.timeInMillis)
+                },
+                cal.get(Calendar.HOUR_OF_DAY),
+                cal.get(Calendar.MINUTE),
+                false
+            ).show()
+        },
+        cal.get(Calendar.YEAR),
+        cal.get(Calendar.MONTH),
+        cal.get(Calendar.DAY_OF_MONTH)
+    ).show()
+}
+
+/** DAYS / HRS / MIN / SEC tiles. Plain text so it stays cheap on low-end phones. */
+@Composable
+fun CountdownTiles(remainingMs: Long, modifier: Modifier = Modifier) {
+    val total = (remainingMs / 1000).coerceAtLeast(0)
+    val parts = listOf(
+        "DAYS" to total / 86_400,
+        "HRS" to (total % 86_400) / 3_600,
+        "MIN" to (total % 3_600) / 60,
+        "SEC" to total % 60
+    )
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        parts.forEach { (label, value) ->
+            Surface(
+                modifier = Modifier.weight(1f),
+                color = CardBgRaised,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Outline)
+            ) {
+                Column(
+                    modifier = Modifier.padding(vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        value.toString().padStart(2, '0'),
+                        color = TextPrimary,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                    Text(label, color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * "Next Dead-Fest" hero panel: season name, a live countdown, the games lined up for it and
+ * an admin blurb. The ticking lives in its own composable so only this panel recomposes.
+ * Long countdowns tick every 15s; only the final day counts down every second.
+ */
+@Composable
+fun NextEventHero(
+    seasonName: String,
+    games: List<String>,
+    notes: String,
+    startsAt: Long?,
+    modifier: Modifier = Modifier
+) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(startsAt) {
+        val target = startsAt ?: return@LaunchedEffect
+        while (true) {
+            now = System.currentTimeMillis()
+            if (now >= target) break
+            delay(if (target - now > 86_400_000L) 15_000L else 1_000L)
+        }
+    }
+    val remaining = startsAt?.let { it - now }
+    val started = remaining != null && remaining <= 0L
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(22.dp),
+        border = BorderStroke(1.dp, Gold.copy(alpha = 0.55f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Gold.copy(alpha = 0.12f), Color.Transparent)))
+                .padding(18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Celebration, contentDescription = null, tint = Gold, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("NEXT DEAD-FEST", color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+                Spacer(Modifier.weight(1f))
+                if (started) StatusPill("STARTED", OnlineGreen) else if (startsAt == null) StatusPill("TBA", TextMuted)
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                seasonName.uppercase(),
+                color = TextPrimary,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(Modifier.height(14.dp))
+            when {
+                started -> Text("It's on. Good luck out there.", color = OnlineGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                remaining == null -> Text("Start time hasn't been locked in yet.", color = TextSecondary, fontSize = 13.sp)
+                else -> CountdownTiles(remaining)
+            }
+
+            if (startsAt != null) {
+                Spacer(Modifier.height(12.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Schedule, contentDescription = null, tint = TextMuted, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        if (started) "Started ${formatEventTime(startsAt)}" else "Starts ${formatEventTime(startsAt)}",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            if (games.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.SportsEsports, contentDescription = null, tint = RedAccent, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("IN THE LINE-UP", color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Black, letterSpacing = 1.5.sp)
+                }
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(games, key = { it }) { game ->
+                        Surface(
+                            color = CardBgRaised,
+                            shape = RoundedCornerShape(50),
+                            border = BorderStroke(1.dp, Outline)
+                        ) {
+                            Text(
+                                game.uppercase(),
+                                color = TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (notes.isNotBlank()) {
+                Spacer(Modifier.height(14.dp))
+                Text(notes, color = TextSecondary, fontSize = 12.sp, lineHeight = 17.sp)
+            }
+        }
+    }
+}
+
+/** Compact label/value tile used across the progress and season screens. */
+@Composable
+fun StatTile(
+    label: String,
+    value: String,
+    accent: Color = TextPrimary,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null
+) {
+    Surface(
+        modifier = modifier,
+        color = CardBgRaised,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Outline)
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 11.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(5.dp))
+                }
+                Text(label, color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp, maxLines = 1)
+            }
+            Spacer(Modifier.height(3.dp))
+            Text(value, color = accent, fontSize = 18.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+/** Horizontal proportion bar used for per-sector death breakdowns. */
+@Composable
+fun ProportionBar(fraction: Float, accent: Color = RedAccent, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .background(Outline, RoundedCornerShape(50))
+    ) {
+        if (fraction > 0f) {
+            Box(
+                Modifier
+                    .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .background(accent, RoundedCornerShape(50))
+            )
         }
     }
 }
