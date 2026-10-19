@@ -6,6 +6,14 @@ the desktop console can do everything the phone console can.
 Updating installs straight over what you already have. Nothing is reset, nobody is logged out, and
 your coins, level and history are untouched.
 
+## Also for Windows
+
+`Dead-Fest-Desktop-2.0.9.exe` on this page is the **desktop build**: one self-contained file, no
+installer and nothing to uninstall. It talks to the **same Firebase project**, so it is the same
+accounts and the same live game — and in this release it also gains the admin controls the phone
+app has always had. The desktop client is where the new rules are easiest to try, because a
+permission error shows up there as a message instead of a silent failure.
+
 ## The admin boundary lives in the database
 
 Firestore security rules are now part of the project, in [`firestore.rules`](../firestore.rules),
