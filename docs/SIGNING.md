@@ -74,17 +74,24 @@ reproducible byte-for-byte across machines, so never hard-code them in the commi
 
 ### Asset names
 
-GitHub **does not allow spaces in release asset file names and rewrites them to dots**: uploading
+GitHub **does not allow spaces in release asset file names and rewrites them**, so uploading
 `Dead-Fest R8.apk` stores `Dead-Fest.R8.apk`. That rename is GitHub's, not ours — sending the name
 percent-encoded as `%20` makes no difference, it still comes back with a dot. So the two assets are:
 
-| Local file the workflow uploads | Name stored on the release |
-|---|---|
-| `Dead-Fest.apk` | `Dead-Fest.apk` |
-| `Dead-Fest R8.apk` | `Dead-Fest.R8.apk` |
+| Local file the workflow uploads | Name stored on the release | Display label |
+|---|---|---|
+| `Dead-Fest.apk` | `Dead-Fest.apk` | — (unchanged) |
+| `Dead-Fest R8.apk` | `Dead-Fest.R8.apk` | `Dead-Fest R8.apk` |
 
-The download URLs must use the **stored** names, so the R8 link contains `Dead-Fest.R8.apk`. The
-in-app label is a display string and stays "Dead-Fest R8".
+`softprops/action-gh-release` notices the rewrite and PATCHes the asset's **label** back to the
+original name, and GitHub renders the label in place of the file name on the release page. The
+download URL still uses the stored name, so the R8 link contains `Dead-Fest.R8.apk` — copy the link
+from the page rather than typing the label. The in-app label is a display string and stays
+"Dead-Fest R8".
+
+An existing asset is deleted and re-uploaded when the workflow runs again for the same tag
+(`overwrite_files` defaults to true), so re-pointing a tag at a fix replaces the wrong artifact
+instead of failing with a 422.
 
 ### Repository secrets the workflow expects
 

@@ -16,9 +16,10 @@ is how the file was packaged, so either one installs over the other whenever you
 | **Dead-Fest.R8.apk** | 3.8 MB | You want the small one. R8 has stripped the code and resources that were never used. Quicker to download, quicker to start, kinder to a nearly-full phone. |
 | **Dead-Fest.apk** | 27 MB | Something is behaving oddly on your device and you want the unshrunk build to compare against, or you want a build you can attach a debugger to. |
 
-> GitHub does not allow spaces in release asset file names, so `Dead-Fest R8.apk` is stored here as
-> `Dead-Fest.R8.apk`. It is the same file — the dot is GitHub's doing, not a different build — and the
-> app calls it "Dead-Fest R8" everywhere you see it.
+> **About the R8 file name.** GitHub does not allow spaces in release asset file names and rewrites
+> them, so the R8 build is *downloaded* as `Dead-Fest.R8.apk`. The publishing action sets the asset's
+> display label back to `Dead-Fest R8.apk`, so it is *listed* on this page with a space. Same file,
+> two spellings — use the dotted one when you copy a download link.
 
 Both are version 2.0.7.2, build 12, `minSdk 24`, package `com.deadfest`, signed with certificate
 `SHA-256 876d1bfd47566e4c3530397ececebc562795059c7d984e65a4d8f85caf260bcc` — the same one every
