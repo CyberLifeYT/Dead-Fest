@@ -93,13 +93,17 @@ jobs:
       # keystore mistake can never reach users as an un-updatable release.
       - name: Check both APKs carry the expected certificate
         run: |
-          apksigner() { "$ANDROID_HOME"/build-tools/*/apksigner verify --print-certs "$1"; }
+          # Several build-tools versions are installed on the runner, so pick the newest apksigner
+          # rather than letting a glob expand into several arguments.
+          apksigner_bin=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          echo "using $apksigner_bin"
           for apk in "Dead-Fest.apk" "Dead-Fest R8.apk"; do
-            echo "--- $apk"
-            apksigner "$apk" | grep -i "Signer #1 certificate SHA-256 digest" || true
-            got=$(apksigner "$apk" | sed -n 's/.*Signer #1 certificate SHA-256 digest: //p' | tr -d '[:space:]')
+            certs=$("$apksigner_bin" verify --print-certs "$apk")
+            got=$(printf '%s\n' "$certs" | grep -oE 'certificate SHA-256 digest: [0-9a-f]+' | head -n 1 | awk '{print $NF}')
+            echo "$apk -> ${got:-<no certificate found>}"
             if [ "$got" != "$EXPECTED_CERT_SHA256" ]; then
-              echo "::error::$apk is signed with $got, expected $EXPECTED_CERT_SHA256"
+              printf '%s\n' "$certs"
+              echo "::error::$apk is signed with '${got}', expected $EXPECTED_CERT_SHA256"
               exit 1
             fi
           done
