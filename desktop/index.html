@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-theme="default">
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https: wss:;" />
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https: wss:;" />
   <title>Dead-Fest</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
@@ -15,7 +15,7 @@
   <div id="app">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">💀</div>
+        <div class="brand-mark">ðŸ’€</div>
         <div class="brand-text">
           <div class="brand-name">DEAD-FEST</div>
           <div class="brand-sub">SURVIVAL TERMINAL</div>
@@ -28,11 +28,13 @@
     <main class="main">
       <header class="screen-header">
         <div class="head-row">
-          <div>
+          <div class="head-titles">
             <div class="t-screen-title" id="screen-title">COMMAND CENTER</div>
             <div class="t-subtitle" id="screen-subtitle">Sector Net // Live Feed</div>
           </div>
+          <div class="head-pill" id="screen-trailing"></div>
         </div>
+        <hr class="rule" />
       </header>
       <div class="screen-body" id="screen-body"></div>
     </main>
@@ -51,6 +53,9 @@
   <script src="js/util.js"></script>
   <script src="js/economy.js"></script>
   <script src="js/gamesdb.js"></script>
+  <script src="js/media.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/dialogs.js"></script>
   <script src="js/data.js"></script>
   <script src="js/screens-core.js"></script>
   <script src="js/screens-more.js"></script>
@@ -58,3 +63,4 @@
   <script src="js/app.js"></script>
 </body>
 </html>
+

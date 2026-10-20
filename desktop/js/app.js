@@ -1,66 +1,150 @@
 /* =============================================================================
    Dead-Fest desktop — application shell
-   Router, navigation, and the actions the screens call into.
+   Router, navigation, local preferences and the actions the screens call into.
+
+   The shell mirrors MainActivity.kt: the same seven destinations, the same
+   global snackbar behaviour, the same presence heartbeat, and the same
+   one-at-a-time result dialogs after a death, a ration claim and a level-up.
    ========================================================================== */
 window.DF = window.DF || {};
 
-DF.APP_VERSION = { code: 13, name: "2.0.8" };
+DF.APP_VERSION = { code: 15, name: "2.1.0" };
+
+/* ---- local preferences (mirrors data/AppPrefs.kt) ------------------------- */
+DF.Prefs = (function () {
+  const KEY = "deadfest.prefs.v1";
+  let stored = {};
+  try { stored = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { stored = {}; }
+
+  const defaults = {
+    wheelAlerts: true,
+    marketAlerts: true,
+    wastelandAlerts: true,
+    performanceMode: false,
+    updateVariant: null,     // null = follow the build actually running
+    theme: "default"
+  };
+
+  const values = Object.assign({}, defaults, stored);
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(values)); } catch (e) { /* storage full or blocked */ }
+  }
+
+  return {
+    get(key) { return values[key]; },
+    set(key, value) { values[key] = value; save(); return value; },
+    all() { return Object.assign({}, values); }
+  };
+})();
 
 DF.App = (function () {
   const NAV = [
-    { key: "home",       label: "Dash",     icon: "▦" },
-    { key: "players",    label: "Players",  icon: "👥" },
-    { key: "shop",       label: "Shop",     icon: "🛒" },
-    { key: "wheel",      label: "Wheel",    icon: "🎡" },
-    { key: "more",       label: "More",     icon: "⊞" },
-    { key: "admin",      label: "Admin",    icon: "🛡", adminOnly: true },
-    { key: "settings",   label: "Settings", icon: "⚙" }
+    { key: "home",     label: "Dash",     icon: "▦" },
+    { key: "players",  label: "Players",  icon: "👥" },
+    { key: "shop",     label: "Shop",     icon: "🛒" },
+    { key: "wheel",    label: "Wheel",    icon: "🎡" },
+    { key: "more",     label: "More",     icon: "⊞" },
+    { key: "admin",    label: "Admin",    icon: "🛡", adminOnly: true },
+    { key: "settings", label: "Settings", icon: "⚙" }
   ];
 
   const local = {};
+
+  /** Reads or writes a per-session UI value. Two arguments write, one reads. */
+  function localState(key, value) {
+    if (arguments.length === 2) { local[key] = value; return value; }
+    return local[key];
+  }
   let current = "home";
   let lastFocusKey = null;
   let renderQueued = false;
+  let ticker = null;
+  let dailyWasClaimable = null;
 
-  /* ---- theme -------------------------------------------------------------- */
+  /* ---- theme + performance mode ------------------------------------------ */
   function applyTheme(id) {
     const theme = DF.THEMES.find((t) => t.id === id) || DF.THEMES[0];
     document.documentElement.setAttribute("data-theme", theme.id);
-    try { localStorage.setItem("deadfest.theme", theme.id); } catch (e) { /* ignore */ }
+    DF.Prefs.set("theme", theme.id);
+    local.theme = theme.id;
   }
 
-  function storedTheme() {
-    try { return localStorage.getItem("deadfest.theme") || "default"; } catch (e) { return "default"; }
+  function applyPerformanceMode(on) {
+    DF.Prefs.set("performanceMode", !!on);
+    local.perfMode = !!on;
+    document.documentElement.classList.toggle("perf", !!on);
   }
 
-  /* ---- rendering ---------------------------------------------------------- */
+  const performanceMode = () => DF.Prefs.get("performanceMode") === true;
+
+  /* ---- login errors (mirrors friendlyAuthError in MainViewModel) ---------- */
+  function friendlyAuthError(e) {
+    const code = e && e.code ? e.code : "";
+    if (code === "auth/user-not-found") return "No survivor found with that email.";
+    if (code === "auth/wrong-password" || code === "auth/invalid-credential" || code === "auth/invalid-login-credentials") return "Wrong email or password.";
+    if (code === "auth/email-already-in-use") return "That email is already registered. Try logging in.";
+    if (code === "auth/weak-password") return "Password is too weak. Use at least 6 characters.";
+    if (code === "auth/network-request-failed") return "No connection. Check your internet and try again.";
+    if (code === "auth/too-many-requests") return "Too many attempts. Try again in a moment.";
+    return (e && e.message) || "Something went wrong.";
+  }
+
+  /** The same wording the mobile app uses when a wait runs out. */
+  function friendlyError(e) {
+    const code = (e && e.code) || "";
+    if (code === "permission-denied") return "access denied by server rules";
+    if (code === "unavailable") return "you're offline";
+    const msg = (e && e.message) || "";
+    if (msg.toLowerCase().indexOf("offline") >= 0) return "you're offline";
+    return msg || "unknown error";
+  }
+
+  /* ---- router ------------------------------------------------------------- */
   function screenDef(key) { return DF.Screens[key]; }
+
+  function ctxState() { return DF.Data.state; }
 
   function rerender() {
     if (renderQueued) return;
     renderQueued = true;
     requestAnimationFrame(() => {
       renderQueued = false;
-      paint();
+      paint(true);
     });
   }
 
-  function paint() {
+  function paint(keepScroll) {
     const def = screenDef(current);
+    if (!def) return;
     const body = $("#screen-body");
-    if (!body || !def) return;
+    if (!body) return;
+    const scrollTop = keepScroll ? body.scrollTop : 0;
 
-    // Preserve scroll and focus across a data-driven repaint.
-    const scrollTop = body.scrollTop;
     const active = document.activeElement;
-    const focusKey = active && active.getAttribute ? active.getAttribute("data-focus-key") : null;
-    const selStart = active && active.selectionStart;
-    const selEnd = active && active.selectionEnd;
+    let focusKey = null;
+    let selStart = null;
+    let selEnd = null;
+    if (active && active.hasAttribute && active.hasAttribute("data-focus-key")) {
+      focusKey = active.getAttribute("data-focus-key");
+      try { selStart = active.selectionStart; selEnd = active.selectionEnd; } catch (e) { /* not a text field */ }
+    }
 
-    const titleEl = $("#screen-title");
-    const subEl = $("#screen-subtitle");
-    if (titleEl) titleEl.textContent = def.title;
-    if (subEl) subEl.textContent = def.subtitle;
+    const header = $(".screen-header");
+    if (header) {
+      const titleEl = $("#screen-title");
+      const subEl = $("#screen-subtitle");
+      const slot = $("#screen-trailing");
+      if (titleEl) titleEl.textContent = def.title;
+      if (subEl) subEl.textContent = (def.subtitle || "").toUpperCase();
+      if (slot) {
+        slot.replaceChildren();
+        const pill = def.pill ? def.pill(ctx) : null;
+        if (pill) slot.append(pill);
+        const back = def.back && def.back(ctx);
+        if (back) slot.prepend(back);
+      }
+    }
 
     body.replaceChildren(def.render(ctx));
     body.scrollTop = scrollTop;
@@ -79,7 +163,7 @@ DF.App = (function () {
     current = key;
     local.__last = key;
     const body = $("#screen-body");
-    if (body) body.scrollTop = 0;
+    if (body) { body.scrollTop = 0; }
     paint();
     paintNav();
   }
@@ -113,18 +197,65 @@ DF.App = (function () {
     }
   }
 
+  /* ---- shared live-updating text -----------------------------------------
+     One second timer that rewrites any element carrying data-live, so a
+     countdown ticks without re-rendering (and therefore without stealing
+     focus from whatever the survivor is typing into). */
+  function liveTick() {
+    const now = Date.now();
+    $$("[data-live]").forEach((el) => {
+      const kind = el.getAttribute("data-live");
+      if (kind === "daily") {
+        el.textContent = "Next drop in " + DF.Economy.dailyCountdown(now);
+      } else if (kind === "ago") {
+        const v = Number(el.getAttribute("data-at")) || 0;
+        el.textContent = timeAgo(v);
+      } else if (kind === "since") {
+        const v = Number(el.getAttribute("data-at")) || 0;
+        el.textContent = DF.Presence.lastSeenLabel(v, now);
+      } else if (kind === "cd-days" || kind === "cd-hrs" || kind === "cd-min" || kind === "cd-sec") {
+        const target = Number(el.getAttribute("data-at")) || 0;
+        const left = Math.max(0, Math.floor((target - now) / 1000));
+        const days = Math.floor(left / 86400);
+        const hrs = Math.floor((left % 86400) / 3600);
+        const min = Math.floor((left % 3600) / 60);
+        const sec = left % 60;
+        const value = kind === "cd-days" ? days : kind === "cd-hrs" ? hrs : kind === "cd-min" ? min : sec;
+        el.textContent = String(value).padStart(2, "0");
+      } else if (kind === "live-line") {
+        const target = Number(el.getAttribute("data-at")) || 0;
+        if (target > 0) el.textContent = now >= target ? "It's on. Good luck out there." : "Locked in.";
+      }
+    });
+
+    // The daily card swaps between a countdown and a CLAIM button. Re-render once at the rollover
+    // instead of every tick, so nothing the survivor is doing is disturbed.
+    const user = DF.Data.state.user;
+    if (user && user.playerData) {
+      const cfg = DF.Data.state.global ? DF.Data.state.global.economy : DF.Economy.DEFAULT_CONFIG;
+      const claimable = DF.Economy.canClaimDaily(user.playerData.lastDailyClaim || 0, now);
+      if (dailyWasClaimable !== null && claimable !== dailyWasClaimable && (current === "home")) {
+        rerender();
+      }
+      dailyWasClaimable = claimable;
+    }
+  }
+
   /* ---- context handed to the screens -------------------------------------- */
   const ctx = {
-    state: DF.Data.state,
+    get state() { return DF.Data.state; },
     appVersion: DF.APP_VERSION.code,
     appVersionName: DF.APP_VERSION.name,
     go,
     rerender,
+    performanceMode,
+    prefs: DF.Prefs,
     local(key, value) {
       if (arguments.length === 2) { local[key] = value; return value; }
       return local[key];
     },
     applyTheme,
+    applyPerformanceMode,
 
     /* ---- home actions ---- */
     claimDaily() {
@@ -132,13 +263,14 @@ DF.App = (function () {
       const global = DF.Data.state.global;
       if (!user || !global) return;
       DF.Data.claimDaily(user.uid, global.economy, Date.now()).then((r) => {
-        if (r.claimed) {
-          toast(`Claimed ${fmt(r.amount)} coins.`);
-          DF.Data.logEvent("DAILY", `${handleOf(user)} claimed ${fmt(r.amount)} daily rations.`, user.uid);
-        } else {
-          toast("Already claimed today.");
+        if (!r.claimed) {
+          toast("Today's rations are already claimed.");
+          return;
         }
-      }).catch(() => toast("Couldn't claim rations.", true));
+        DF.Data.logEvent("DAILY", `${handleOf(user)} claimed ${fmt(r.amount)} daily rations.`, user.uid);
+        DF.Dialogs.dailyClaim(r);
+        DF.Dialogs.maybeLevelUp(r.xp, global.economy);
+      }).catch((e) => toast("Couldn't claim rations: " + friendlyError(e), true));
     },
 
     recordDeath(sector) {
@@ -147,191 +279,245 @@ DF.App = (function () {
       if (!user || !global) return;
       DF.Data.recordDeath(user.uid, sector, global.economy, Date.now(), global.forceSpinProtocol).then((r) => {
         const o = r.outcome;
-        const spinNote = o.spinsAdded > 0 ? ` · +${o.spinsAdded} penalty spin(s)` : "";
-        toast(`Death recorded in ${sector} — ${fmt(o.tax.finalTax)} tax${spinNote}`);
         DF.Data.logEvent("DEATH", `${handleOf(user)} died in ${sector}. Casualty tax: ${fmt(o.tax.finalTax)} coins.`, user.uid);
-        DF.Data.payMutualReward(user.uid, global.economy).then((paid) => {
-          if (paid > 0) toast(`${paid} survivor(s) paid ${fmt(global.economy.survivalReward)} each.`);
-        });
-      }).catch((e) => toast(e && e.message ? e.message : "Couldn't record death.", true));
+        const reward = DF.Data.payMutualReward(user.uid, global.economy);
+        DF.Dialogs.deathReport(r, reward, global.economy);
+        DF.Dialogs.maybeLevelUp(r.xp, global.economy);
+      }).catch((e) => toast("Couldn't record death: " + friendlyError(e), true));
     },
 
+    /** The sector picker (the phone app's ModalBottomSheet, with the same wording). */
     pickSector(sectors, overloadLive, global) {
-      const body = h("div", { class: "stack stack--tight" });
+      const body = h("div", { class: "stack" },
+        h("div", { class: "row" },
+          h("div", { class: "tile", style: { "--tint": "var(--ember)" }, text: "💀" }),
+          h("div", { style: { flex: "1" } },
+            h("div", { class: "t-card-title", text: "SELECT SECTOR" }),
+            h("div", { class: "t-body", text: "Where did you fall, survivor?" })
+          )
+        ),
+        h("hr", { class: "rule" })
+      );
+      const list = h("div", { class: "stack stack--tight scroll-420" });
       sectors.forEach((sector) => {
         const overloaded = overloadLive && sector === global.overloadedSector;
-        body.append(h("div", {
+        list.append(h("div", {
           class: "list-row",
-          style: overloaded ? { borderColor: "var(--amber)" } : null,
+          style: overloaded ? { background: "color-mix(in srgb, var(--amber) 12%, var(--ink3))", borderColor: "rgba(255,213,79,0.45)" } : { background: "var(--ink3)" },
           onclick: () => { closeModal(); ctx.recordDeath(sector); }
         },
-          h("div", { style: { flex: "1" } },
-            h("div", { class: "t-card-title", text: sector.toUpperCase() }),
-            h("div", { class: "t-body", text: overloaded ? `Overloaded · x${global.multiplier}` : "Where did you fall, survivor?" })
+          h("span", { text: "🎮", style: { color: overloaded ? "var(--amber)" : "var(--text-low)" } }),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-body hi", style: { fontWeight: "700" }, text: sector.toUpperCase() })
           ),
-          h("span", { text: "→", style: { color: "var(--ember)" } })
+          overloaded ? statusPill("OVERLOAD", "amber") : h("span", { class: "muted", text: "→" })
         ));
       });
-      openModal({ title: "SELECT SECTOR", body, wide: false });
+      body.append(list);
+      body.append(h("button", { class: "btn btn--ghost btn--full", style: { marginTop: "var(--sm)" }, text: "CANCEL", onclick: () => closeModal() }));
+      openModal({ title: null, body, wide: true });
     },
 
     /* ---- players ---- */
     openDossier(user) {
       const pd = user.playerData || {};
       const games = pd.games || {};
+      const cfg = DF.Data.state.global ? DF.Data.state.global.economy : DF.Economy.DEFAULT_CONFIG;
+      const deaths = totalDeaths(user);
       const body = h("div", { class: "stack" },
         h("div", { class: "row" },
           avatar(user, "lg"),
-          h("div", { style: { flex: "1" } },
-            h("div", { class: "t-card-title", text: handleOf(user) }),
-            h("div", { class: "t-body", text: (pd.title || "Survivor") + " · Level " + (pd.level || 1) })
-          ),
-          pd.isOnline ? statusPill("ONLINE", "toxic") : null
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-micro ember", text: "SURVIVOR DOSSIER" }),
+            h("div", { class: "t-card-title", text: displayNameOf(user) }),
+            h("div", { class: "row", style: { gap: "6px" } },
+              levelBadge(pd.level || 1, pd.prestigeCount || 0),
+              h("span", { class: "t-micro ember", text: (pd.title || "SURVIVOR").toUpperCase() })
+            )
+          )
         ),
-        h("div", { class: "divider" }),
-        keyValue("Coins", fmt(pd.coins || 0)),
-        keyValue("Deaths", fmt(totalDeaths(user))),
-        keyValue("Level", String(pd.level || 1)),
-        keyValue("XP", fmt(pd.xp || 0)),
-        keyValue("Prestige", String(pd.prestigeCount || 0)),
-        keyValue("Insurance tier", pd.insulationTier ? DF.Economy.roman(pd.insulationTier) : "None"),
-        keyValue("Pending spins", String(pd.pendingSpins || 0)),
-        keyValue("Status", ["Solvent", "Bankruptcy L1", "Bankruptcy L2"][pd.bankruptcyLevel || 0], (pd.bankruptcyLevel || 0) > 0 ? "var(--ember)" : null),
-        keyValue("Last seen", timeAgo(pd.lastSeen))
+        xpBar(pd.xp || 0, pd.level || 1, cfg.xp),
+        sectionLabel("Survival Stats"),
+        keyValue("Total deaths", fmt(deaths), "var(--ember)")
       );
-      const gamesBody = h("div", { class: "stack stack--tight" });
-      Object.keys(games).forEach((g) => gamesBody.append(keyValue(g, fmt((games[g] || {}).deaths || 0))));
-      if (Object.keys(games).length) {
-        body.append(h("div", { class: "divider" }), sectionLabel("Deaths by sector"), gamesBody);
+      Object.keys(games).sort().forEach((g) => {
+        body.append(keyValue(g, `${fmt((games[g] || {}).deaths || 0)} deaths`));
+      });
+      body.append(h("hr", { class: "rule" }));
+      body.append(sectionLabel("Standing"));
+      body.append(keyValue("Bank coins", fmt(pd.coins || 0), "var(--amber)"));
+      body.append(keyValue("Shield", pd.shield ? "ACTIVE" : "NONE", pd.shield ? "var(--plasma)" : "var(--text-low)"));
+      body.append(keyValue("Insurance", pd.insurance ? "ARMED" : "NONE", pd.insurance ? "var(--plasma)" : "var(--text-low)"));
+      body.append(keyValue("Insulation", pd.insulationTier ? `TIER ${DF.Economy.roman(pd.insulationTier)}` : "NONE", pd.insulationTier ? "var(--amber)" : "var(--text-low)"));
+      body.append(keyValue("Bankruptcy", (pd.bankruptcyLevel || 0) > 0 ? `LEVEL ${pd.bankruptcyLevel}` : "SOLVENT", (pd.bankruptcyLevel || 0) > 0 ? "var(--ember)" : "var(--toxic)"));
+      body.append(keyValue("Pending spins", String(pd.pendingSpins || 0), (pd.pendingSpins || 0) > 0 ? "var(--ember)" : "var(--text-low)"));
+      body.append(keyValue("Prestige", (pd.prestigeCount || 0) > 0 ? `★ ${pd.prestigeCount}` : "NONE", (pd.prestigeCount || 0) > 0 ? "var(--prestige)" : "var(--text-low)"));
+      body.append(keyValue("Status", isOnlineNow(user) ? "ONLINE" : `OFFLINE · ${lastSeenLabel(user)}`, isOnlineNow(user) ? "var(--toxic)" : "var(--text-low)"));
+      if (user.bio && String(user.bio).trim()) {
+        body.append(sectionLabel("Bio"));
+        body.append(h("div", { class: "t-body", text: user.bio }));
       }
-      openModal({ title: "SURVIVOR DOSSIER", body, actions: [h("button", { class: "btn btn--ghost", text: "CLOSE", onclick: () => closeModal() })] });
+      openModal({
+        title: null,
+        body,
+        wide: true,
+        actions: [h("button", { class: "btn", text: "CLOSE", onclick: () => closeModal() })]
+      });
     },
 
-    /* ---- shop ---- */
-    ownedState(item, pd) {
-      if (item.id === "shield" && pd.shield) return true;
-      if (item.id === "lucky_coin" && pd.luckyCoin) return true;
-      if (item.id === "insurance" && pd.insurance) return true;
-      if (item.id === "ration_upgrade" && pd.dailyUpgradeOwned) return true;
-      if (item.tier > 0) {
-        if ((pd.insulationTier || 0) === item.tier) return true;
-        if ((pd.insulationTier || 0) !== item.requiresTier) return "TIER_LOCKED";
-      }
-      return false;
+    /* ---- shop -------------------------------------------------------------
+       The phone answers every purchase with a snackbar, not a dialog, so the
+       same nine outcome strings are reused here. The confirmations live in the
+       shop screen because they are made of the live item descriptions. */
+
+    openCurse(item) {
+      const g = DF.Data.state.global;
+      if (!g) return;
+      openCurseDialog(item, g);
     },
 
-    buy(item, categoryKey) {
+    applyPurchase(item, targetUser, sector) {
       const user = DF.Data.state.user;
       const global = DF.Data.state.global;
       if (!user || !global) return;
-      const isCurse = item.curseDeaths > 0;
-      if (isCurse) {
-        openCurseDialog(item, global);
-        return;
-      }
-      DF.Data.applyShopItem(user.uid, item, global.economy).then((r) => {
+      const targetUid = targetUser ? targetUser.uid : null;
+      DF.Data.applyShopItem(user.uid, item, global.economy, targetUid, sector).then((r) => {
         if (r.outcome === "APPLIED") {
-          toast(`Bought ${item.name}.`);
-          DF.Data.logEvent("BLACK_MARKET", `${handleOf(user)} bought ${item.logName}.`, user.uid);
+          DF.Data.logEvent("BLACK_MARKET", `${handleOf(user)} bought ${item.logName}.`, user.uid, targetUid);
+          toast(purchaseMessage(item, r, targetUser));
+          DF.Dialogs.maybeLevelUp(r.xp);
         } else {
-          toast(shopOutcomeMessage(r.outcome), true);
+          toast(shopOutcomeMessage(item, r.outcome, targetUser), true);
         }
-      }).catch(() => toast("Purchase failed.", true));
+      }).catch((e) => toast("Purchase failed: " + friendlyError(e), true));
     },
 
-    /* ---- wheel ---- */
-    spinWheel(items, wheelEl) {
+    buyTitleNow(offer) {
+      const user = DF.Data.state.user;
+      const global = DF.Data.state.global;
+      if (!user || !global) return;
+      DF.Data.buyTitle(user.uid, offer.title, offer.price, global.economy).then((r) => {
+        if (r.outcome === "APPLIED") {
+          DF.Data.logEvent("BLACK_MARKET", `${handleOf(user)} bought the title ${offer.title}.`, user.uid);
+          toast(`Title unlocked and equipped: ${offer.title}.`);
+          DF.Dialogs.maybeLevelUp(r.xp);
+        } else {
+          toast(shopOutcomeMessage({ name: offer.title }, r.outcome), true);
+        }
+      }).catch((e) => toast("Purchase failed: " + friendlyError(e), true));
+    },
+
+    equipTitleNow(title) {
+      const user = DF.Data.state.user;
+      if (!user) return;
+      DF.Data.equipTitle(user.uid, title).then(() => toast(`Equipped ${title}.`))
+        .catch((e) => toast("Couldn't equip title: " + friendlyError(e), true));
+    },
+
+    /* ---- wheel ------------------------------------------------------------
+       3.6 s and six turns, or 1.6 s and three turns in performance mode — the
+       exact figures from WheelScreen.kt. The result is read off the hero rather
+       than through a dialog. */
+    spinWheel(items) {
       const user = DF.Data.state.user;
       const global = DF.Data.state.global;
       if (!user || !global || !items.length) return;
+      if (localState("spinning", false)) return;
+
       const index = DF.Economy.weightedPick(items.map((i) => i.weight));
       if (index < 0) return;
       const item = items[index];
-      local("spinning", true);
-      local("wheelResult", null);
-      rerender();
 
-      // Land the pointer on the middle of the winning slice.
-      const totalWeight = items.reduce((a, i) => a + (i.weight > 0 ? i.weight : 0), 0);
-      const before = items.slice(0, index).reduce((a, i) => a + (i.weight > 0 ? i.weight : 0), 0);
-      const slicePct = totalWeight > 0 ? ((item.weight > 0 ? item.weight : 0) / totalWeight) * 360 : 360 / items.length;
-      const offset = before + slicePct / 2;
-      const spin = 5 * 360 + (360 - offset);
-      if (wheelEl) {
-        wheelEl.style.transition = "transform 2.6s cubic-bezier(0.15,0.85,0.25,1)";
-        wheelEl.style.transform = `rotate(${spin}deg)`;
+      localState("spinning", true);
+      localState("wheelResult", null);
+
+      const btn = document.getElementById("wheel-btn");
+      const state = document.getElementById("wheel-state");
+      if (btn) { btn.disabled = true; btn.textContent = "FATE IS DECIDING..."; }
+      if (state) { state.textContent = "SPIN IN PROGRESS"; state.className = "t-micro amber"; }
+
+      // Land somewhere in the middle 40% of the winning slice, like the phone.
+      const per = 360 / items.length;
+      const jitter = (Math.random() - 0.5) * per * 0.6;
+      const landing = index * per + per / 2 + jitter;
+      const turns = performanceMode() ? 3 : 6;
+      const ms = performanceMode() ? 1600 : 3600;
+      const start = localState("wheelAngle", 0) || 0;
+      const target = start + turns * 360 + ((360 - (landing % 360)) - (start % 360) + 360) % 360;
+      localState("wheelAngle", target);
+
+      const disc = document.getElementById("wheel-disc");
+      if (disc) {
+        disc.style.transition = performanceMode() ? "none" : `transform ${ms}ms cubic-bezier(0.15,0,0.1,1)`;
+        void disc.offsetWidth;
+        disc.style.transform = `rotate(${target}deg)`;
       }
 
       setTimeout(() => {
-        DF.Data.applyWheelResult(user.uid, item, global.economy).then((payout) => {
-          local("spinning", false);
-          let title, detail;
-          if (payout.delta > 0) {
-            title = `+${fmt(payout.delta)} COINS`;
-            detail = (payout.luckyCoinUsed ? "LUCKY x2! " : "") + "The Wheel of Fate was kind.";
-          } else if (payout.delta < 0) {
-            title = `-${fmt(-payout.delta)} COINS`;
-            detail = "The Wheel of Fate took its cut.";
-          } else {
-            title = item.label.toUpperCase();
-            detail = payout.penaltyCleared
-              ? (payout.pendingLeft > 0 ? `Penalty cleared · ${payout.pendingLeft} left` : "All penalty spins cleared")
-              : "An event, not coins.";
-          }
-          local("wheelResult", { title, detail });
+        DF.Data.applyWheelResult(user.uid, item, global.economy).then((r) => {
+          localState("spinning", false);
+          localState("wheelResult", { item, result: r });
+          DF.Data.logEvent("WHEEL_SPIN",
+            `${handleOf(user)} spun the Wheel of Fate and ${r.delta >= 0 ? "won" : "lost"} ${fmt(Math.abs(r.delta))} coins.`,
+            user.uid);
           rerender();
-          DF.Data.logEvent("WHEEL_SPIN", `${handleOf(user)} spun the Wheel of Fate and ${payout.delta >= 0 ? "won" : "lost"} ${fmt(Math.abs(payout.delta))} coins.`, user.uid);
-        }).catch(() => {
-          local("spinning", false);
-          toast("The spin failed.", true);
+          DF.Dialogs.maybeLevelUp(r.xp);
+        }).catch((e) => {
+          localState("spinning", false);
+          toast("The spin failed: " + friendlyError(e), true);
           rerender();
         });
-      }, 2650);
+      }, ms + 60);
     },
 
-    /* ---- scratch ---- */
+    /* ---- scratch ----------------------------------------------------------
+       One card at a time, 25 coins, foil wipes away over 1.2 s. The prize is
+       already committed when the wipe starts; no dialog follows. */
     buyScratch(pool) {
       const user = DF.Data.state.user;
       const global = DF.Data.state.global;
-      if (!user || !global) return;
+      if (!user || !global || localState("scratchBusy", false)) return;
       const index = DF.Economy.weightedPick(pool.map((p) => p.weight));
+      if (index < 0) return;
       const prize = pool[index];
-      DF.Data.scratchCard(user.uid, prize, global.economy).then((r) => {
-        local("scratchBought", true);
-        local("scratchRevealed", []);
-        local("scratchPrize", r);
-        rerender();
-        DF.Data.logEvent("SCRATCH", `${handleOf(user)} scratched a card.`, user.uid);
-      }).catch((e) => toast(e && e.message ? e.message : "Couldn't buy a card.", true));
-    },
-
-    revealScratch(index, pool) {
-      const revealed = (local("scratchRevealed", []) || []).slice();
-      if (revealed.indexOf(index) >= 0) return;
-      revealed.push(index);
-      local("scratchRevealed", revealed);
-      const result = local("scratchPrize", null);
-      if (revealed.length >= 9) {
-        toast(result ? `You won: ${result.label}` : "Card revealed.");
-        local("scratchBought", false);
-      }
+      localState("scratchBusy", true);
+      localState("scratchPrize", null);
       rerender();
+      DF.Data.scratchCard(user.uid, prize, global.economy).then((r) => {
+        localState("scratchBusy", false);
+        localState("scratchPrize", Object.assign({ at: Date.now() }, r));
+        rerender();
+        DF.Data.logEvent("SCRATCH", `${handleOf(user)} scratched a card and won ${r.prize.label}.`, user.uid);
+        DF.Dialogs.maybeLevelUp(r.xp);
+      }).catch((e) => {
+        localState("scratchBusy", false);
+        rerender();
+        toast("Couldn't buy a card: " + friendlyError(e), true);
+      });
     },
 
-    /* ---- progression ---- */
+    /* ---- progression ------------------------------------------------------ */
     prestige() {
       const user = DF.Data.state.user;
       const global = DF.Data.state.global;
       if (!user || !global) return;
+      if (!DF.Economy.canPrestige((user.playerData || {}).level || 1, global.economy)) {
+        toast("Reach level 50 to prestige.");
+        return;
+      }
       confirmDialog({
         title: "PRESTIGE?",
         message: "You go back to level 1 with 0 XP and keep everything you unlocked. This cannot be undone.",
         confirmText: "PRESTIGE",
         onConfirm: () => {
           DF.Data.prestige(user.uid, global.economy).then((count) => {
-            if (count) { toast(`Prestige ${count}.`); DF.Data.logEvent("PRESTIGE", `${handleOf(user)} reached prestige ${count}.`, user.uid); }
-            else toast("You are not at max level yet.", true);
-          }).catch(() => toast("Prestige failed.", true));
+            if (count) {
+              DF.Data.logEvent("PRESTIGE", `${handleOf(user)} reached prestige ${count}.`, user.uid);
+              toast(`PRESTIGE ${count} UNLOCKED. Back to level 1, legend.`);
+            } else {
+              toast("Reach level 50 to prestige.");
+            }
+          }).catch((e) => toast("Prestige failed: " + friendlyError(e), true));
         }
       });
     },
@@ -340,10 +526,77 @@ DF.App = (function () {
       const user = DF.Data.state.user;
       if (!user) return;
       if (reward.type === "title") {
-        DF.Data.equipTitle(user.uid, reward.value).then(() => toast("Title equipped.")).catch(() => toast("Couldn't equip.", true));
+        DF.Data.equipTitle(user.uid, reward.value)
+          .then(() => toast(`Equipped ${reward.label}.`))
+          .catch((e) => toast("Couldn't equip title: " + friendlyError(e), true));
       } else {
-        DF.Data.equipCosmetic(user.uid, reward.type, reward.value).then(() => toast("Equipped.")).catch(() => toast("Couldn't equip.", true));
+        DF.Data.equipCosmetic(user.uid, reward.type, reward.value)
+          .then(() => toast(reward.type === "color" ? "Badge colour equipped." : "Avatar frame equipped."))
+          .catch((e) => toast("Couldn't equip cosmetic: " + friendlyError(e), true));
       }
+    },
+
+    /* ---- images ---- */
+    pickImage() {
+      const input = h("input", { type: "file", accept: "image/*", style: { display: "none" } });
+      document.body.append(input);
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        input.remove();
+        if (file) ctx.prepareImage(file);
+      });
+      input.click();
+    },
+
+    prepareImage(file) {
+      localState("imagePending", null);
+      localState("imageProcessing", true);
+      localState("imageError", null);
+      rerender();
+      DF.Media.process(file).then((processed) => {
+        localState("imageProcessing", false);
+        localState("imagePending", processed);
+        rerender();
+        openPostImageDialog();
+      }).catch((e) => {
+        localState("imageProcessing", false);
+        rerender();
+        toast("Couldn't load that image: " + ((e && e.message) || "unsupported file"), true);
+      });
+    },
+
+    postImage(caption) {
+      const user = DF.Data.state.user;
+      const pending = localState("imagePending", null);
+      if (!user || !pending) return Promise.resolve();
+      const clean = String(caption || "").slice(0, 140);
+      localState("imageUploading", true);
+      rerender();
+      return DF.Data.uploadImage(user.uid, handleOf(user), clean, pending.full, pending.thumb, pending.width, pending.height)
+        .then(() => {
+          localState("imageUploading", false);
+          localState("imagePending", null);
+          closeModal();
+          rerender();
+          toast("Image shared with every survivor.");
+          DF.Data.logEvent("IMAGES", clean ? `${handleOf(user)} shared an image: "${clean}"` : `${handleOf(user)} shared an image.`, user.uid);
+        })
+        .catch((e) => {
+          localState("imageUploading", false);
+          rerender();
+          toast("Upload failed: " + friendlyError(e), true);
+        });
+    },
+
+    cancelImage() {
+      if (localState("imageUploading", false)) return;
+      localState("imagePending", null);
+      closeModal();
+      rerender();
+    },
+
+    openViewer(image) {
+      DF.Viewer.open(image, ctx);
     },
 
     /* ---- identity ---- */
@@ -351,10 +604,10 @@ DF.App = (function () {
       const user = DF.Data.state.user;
       if (!user) return;
       DF.Data.changeUsername(user.uid, name).then((r) => {
-        if (r.outcome === "OK") { toast(`Handle updated to ${String(name).trim()}.`); }
-        else if (r.outcome === "SAME") { toast("That's already your handle."); }
-        else if (r.outcome === "TAKEN") { toast(`"${String(name).trim()}" is already taken by another survivor.`, true); }
-        else { toast(r.reason || "Couldn't update handle.", true); }
+        if (r.outcome === "OK") toast(`Handle updated to ${String(name).trim()}.`);
+        else if (r.outcome === "SAME") toast("That's already your handle.");
+        else if (r.outcome === "TAKEN") toast(`"${String(name).trim()}" is already taken by another survivor.`, true);
+        else toast(r.reason || "Couldn't update handle.", true);
         rerender();
       });
     },
@@ -366,35 +619,40 @@ DF.App = (function () {
       const coverInput = h("input", { placeholder: "Cover image URL (optional)" });
       const results = h("div", { class: "stack stack--tight" });
       const manual = h("div", { class: "stack stack--tight" });
+      const progress = h("div", { class: "bar", style: { display: "none" } }, h("i", { style: { width: "40%" } }));
       let offline = false;
 
       const renderManual = () => {
+        const show = offline || (!results.children.length);
         manual.replaceChildren(
           h("div", { class: "t-body", text: offline ? "The game database is unreachable right now — enter the game by hand." : "No match found — enter the game by hand." }),
-          nameInput, coverInput
+          h("div", { class: "field" }, h("label", { text: "Game name" }), nameInput),
+          h("div", { class: "field" }, h("label", { text: "Cover image URL (optional)" }), coverInput)
         );
-        manual.style.display = (offline || results.children.length === 0) ? "flex" : "none";
+        manual.style.display = show ? "flex" : "none";
       };
 
       const doSearch = () => {
         const q = query.value.trim();
         if (q.length < 2) return;
-        results.replaceChildren(h("div", { class: "row" }, h("span", { class: "spinner" }), h("span", { class: "t-body", text: "Searching…" })));
+        progress.style.display = "block";
         DF.TheGamesDb.search(q).then((games) => {
+          progress.style.display = "none";
           offline = games.offline;
           results.replaceChildren();
-          if (!games.items.length) {
-            results.append(h("div", { class: "t-body", text: "No matches." }));
-          } else {
-            games.items.forEach((g) => {
-              results.append(h("div", { class: "list-row", onclick: () => { nameInput.value = g.title; if (g.coverUrl) coverInput.value = g.coverUrl; renderManual(); } },
-                h("div", { style: { flex: "1" } },
-                  h("div", { class: "t-card-title", text: g.title }),
-                  h("div", { class: "t-body", text: [g.platform, g.releaseDate].filter(Boolean).join(" · ") })
-                )
-              ));
-            });
-          }
+          games.items.forEach((g) => {
+            results.append(h("div", { class: "list-row", onclick: () => {
+              nameInput.value = g.title;
+              if (g.coverUrl) coverInput.value = g.coverUrl;
+            } },
+              h("div", { style: { flex: "1", minWidth: "0" } },
+                h("div", { class: "t-card-title", text: g.title }),
+                [g.platform, g.releaseDate].filter(Boolean).length
+                  ? h("div", { class: "t-body", text: [g.platform, g.releaseDate].filter(Boolean).join(" · ") })
+                  : null
+              )
+            ));
+          });
           renderManual();
         });
       };
@@ -405,7 +663,12 @@ DF.App = (function () {
         timer = setTimeout(doSearch, 400);
       });
 
-      const body = h("div", { class: "stack" }, query, results, manual);
+      const body = h("div", { class: "stack" },
+        h("div", { class: "field" }, h("label", { text: "Search the game database" }), query),
+        progress,
+        results,
+        manual
+      );
       renderManual();
 
       openModal({
@@ -413,16 +676,14 @@ DF.App = (function () {
         body,
         wide: true,
         actions: [
-          h("button", { class: "btn btn--ghost", text: "CANCEL", onclick: () => closeModal() }),
+          h("button", { class: "btn btn--ghost", text: "CANCEL", onclick: () => { ctx.clearGameSearch(); closeModal(); } }),
           h("button", {
             class: "btn", text: "SEND REQUEST",
             onclick: () => {
               const name = nameInput.value.trim();
-              if (!name) { toast("Give the game a name first.", true); return; }
               const user = DF.Data.state.user;
               DF.Data.submitGameRequest(name, coverInput.value.trim(), user.uid, handleOf(user)).then((r) => {
-                closeModal();
-                if (r.outcome === "OK") { toast("Request sent."); rerender(); }
+                if (r.outcome === "OK") toast(`Request sent: ${name}`);
                 else toast(r.reason || "Couldn't send the request.", true);
               });
             }
@@ -431,22 +692,41 @@ DF.App = (function () {
       });
     },
 
+    clearGameSearch() { /* nothing cached on the desktop; kept for parity with the phone's VM */ },
+
     /* ---- update + session ---- */
+    updateVariant() {
+      const stored = DF.Prefs.get("updateVariant");
+      return stored || "Standard";
+    },
+
+    /** The URL to offer, resolved the same way GlobalState.updateUrlFor does. */
+    updateUrlFor(variant, global) {
+      const standard = (global && global.updateUrl) || "";
+      const r8 = (global && global.updateUrlR8) || "";
+      return variant === "R8" ? (r8 || standard) : (standard || r8);
+    },
+
     checkUpdate() {
       const global = DF.Data.state.global;
       if (!global) return;
-      if (global.latestVersionCode > DF.APP_VERSION.code) {
-        const url = global.updateUrlR8 || global.updateUrl;
-        if (url) {
-          confirmDialog({
-            title: `v${global.latestVersionName} AVAILABLE`,
-            message: global.updateNotes || "A new build is available. On the phone app this downloads and installs automatically; on desktop, grab it from the releases page.",
-            confirmText: "OPEN LINK",
-            onConfirm: () => { window.open(url, "_blank"); }
-          });
-        } else {
-          toast("You are up to date.");
-        }
+      const url = ctx.updateUrlFor(ctx.updateVariant(), global);
+      if (global.latestVersionCode > DF.APP_VERSION.code && url) {
+        DF.Dialogs.enqueue({
+          body: h("div", { class: "result", style: { "--accent": "var(--ember)" } },
+            h("div", { class: "result-head", text: "UPDATE AVAILABLE" }),
+            h("div", { class: "stack" },
+              h("div", { class: "result-hero" },
+                h("div", { class: "result-big ember", text: "v" + global.latestVersionName }),
+                h("div", { class: "t-body", text: `Build ${global.latestVersionCode} is published for the phone app.` })
+              ),
+              global.updateNotes ? h("div", { class: "t-body", text: global.updateNotes }) : null,
+              h("div", { class: "t-body", text: "This terminal is a Windows build: open the release page to download the current desktop build." })
+            )
+          ),
+          button: "OPEN RELEASE PAGE",
+          onClose: () => window.open(url, "_blank")
+        });
       } else {
         toast("Terminal is up to date (v" + DF.APP_VERSION.name + ").");
       }
@@ -464,26 +744,28 @@ DF.App = (function () {
 
     /* ---- admin actions ---- */
     setGlobal(map) {
-      DF.Data.updateGlobalState(map).then(() => toast("Saved.")).catch(() => toast("Save failed.", true));
+      DF.Data.updateGlobalState(map).then(() => toast("Saved.")).catch((e) => toast("Save failed: " + friendlyError(e), true));
     },
     setShopOverride(id, patch) {
-      const global = DF.Data.state.global;
-      if (!global) return;
-      const shop = Object.assign({}, global.economy.shop);
-      shop[id] = Object.assign({}, shop[id] || {}, patch);
       const map = {};
-      map["shopConfig." + id] = shop[id];
-      DF.Data.updateGlobalState(map).then(() => toast("Shop updated.")).catch(() => toast("Update failed.", true));
+      map["shopConfig." + id] = patch;
+      DF.Data.updateGlobalState(map).then(() => toast("Shop updated.")).catch((e) => toast("Update failed: " + friendlyError(e), true));
     },
-    setScratchPrize(prize, patch) {
-      const pool = (DF.Data.state.scratchPrizes && DF.Data.state.scratchPrizes.length) ? DF.Data.state.scratchPrizes : DF.Economy.SCRATCH_POOL;
-      const next = pool.map((p) => (p.id === prize.id || p.label === prize.label) ? Object.assign({}, p, patch) : p);
-      DF.Data.seedScratchPrizes(next).then(() => toast("Prize pool updated.")).catch(() => toast("Update failed.", true));
+    setScratchPrize(prize) {
+      DF.Data.saveScratchPrize(prize)
+        .then(() => toast(prize.id ? "Prize updated." : "Prize added."))
+        .catch((e) => toast("Update failed: " + friendlyError(e), true));
     },
     deleteScratchPrize(prize) {
-      const pool = (DF.Data.state.scratchPrizes && DF.Data.state.scratchPrizes.length) ? DF.Data.state.scratchPrizes : DF.Economy.SCRATCH_POOL;
-      const next = pool.filter((p) => !(p.id === prize.id && prize.id) && p.label !== prize.label);
-      DF.Data.seedScratchPrizes(next).then(() => toast("Prize removed.")).catch(() => toast("Remove failed.", true));
+      if (!prize || !prize.id) { toast("That prize isn't saved yet.", true); return; }
+      DF.Data.deleteScratchPrize(prize.id)
+        .then(() => toast("Prize removed."))
+        .catch((e) => toast("Remove failed: " + friendlyError(e), true));
+    },
+    loadDefaultPrizes() {
+      DF.Data.seedScratchPrizes(DF.Economy.SCRATCH_POOL)
+        .then(() => toast("Default prize pool loaded."))
+        .catch((e) => toast("Couldn't load defaults: " + friendlyError(e), true));
     },
     toggleSectorLock(sector) {
       const global = DF.Data.state.global;
@@ -507,11 +789,11 @@ DF.App = (function () {
       });
     },
     addSector() {
-      const name = (local("newSector", "") || "").trim();
+      const name = (localState("newSector", "") || "").trim();
       const global = DF.Data.state.global;
       if (!name) { toast("Type a sector name first.", true); return; }
       if (global && global.games.some((g) => g.toLowerCase() === name.toLowerCase())) { toast("That sector already exists.", true); return; }
-      local("newSector", "");
+      localState("newSector", "");
       ctx.setGlobal({ games: (global ? global.games : []).concat([name]) });
     },
     queueEventGame(game) {
@@ -534,21 +816,79 @@ DF.App = (function () {
     },
     addWheelSlice() {
       const global = DF.Data.state.global;
-      const label = (local("newWheelLabel", "") || "").trim();
+      const label = (localState("newWheelLabel", "") || "").trim();
       if (!label) { toast("Give the slice a label.", true); return; }
-      const value = (local("newWheelValue", "") || "").trim();
-      const weight = parseFloat(local("newWheelWeight", "1")) || 1;
+      const value = (localState("newWheelValue", "") || "").trim();
+      const weight = parseFloat(localState("newWheelWeight", "1")) || 1;
       const items = (global ? global.wheelItems : []).slice();
       items.push({ id: String(Date.now()), label, value, actionType: "give", color: "#FF4B4B", enabled: true, weight });
-      local("newWheelLabel", "");
+      localState("newWheelLabel", "");
       ctx.setGlobal({ wheelItems: items });
+    },
+
+    /** Upserts one wheel slice from the editor. */
+    saveWheelSlice(slice) {
+      const global = DF.Data.state.global;
+      if (!global) return;
+      const items = (global.wheelItems || []).slice();
+      const copy = Object.assign({}, slice);
+      if (!copy.id) copy.id = String(Date.now());
+      const at = items.findIndex((i) => i.id === copy.id);
+      if (at >= 0) items[at] = Object.assign({}, items[at], copy);
+      else items.push(copy);
+      ctx.setGlobal({ wheelItems: items });
+    },
+
+    deleteWheelSlice(id) {
+      const global = DF.Data.state.global;
+      if (!global) return;
+      ctx.setGlobal({ wheelItems: (global.wheelItems || []).filter((i) => i.id !== id) });
+    },
+
+    renameSector(oldName, newName) {
+      const global = DF.Data.state.global;
+      const name = String(newName || "").trim();
+      if (!global) return;
+      if (!name) { toast("Sector names can't be empty.", true); return; }
+      if (name === oldName) return;
+      if (global.games.some((g) => g.toLowerCase() === name.toLowerCase())) { toast("That sector already exists.", true); return; }
+      ctx.setGlobal({
+        games: global.games.map((g) => (g === oldName ? name : g)),
+        lockedGames: global.lockedGames.map((g) => (g === oldName ? name : g)),
+        nextEventGames: (global.nextEventGames || []).map((g) => (g === oldName ? name : g))
+      });
+      toast(`Renamed to ${name}.`);
+    },
+
+    moveSector(name, delta) {
+      const global = DF.Data.state.global;
+      if (!global) return;
+      const games = global.games.slice();
+      const at = games.indexOf(name);
+      const to = at + delta;
+      if (at < 0 || to < 0 || to >= games.length) return;
+      games.splice(at, 1);
+      games.splice(to, 0, name);
+      ctx.setGlobal({ games });
+    },
+
+    setXpConfig(key, value) {
+      const map = {};
+      map["xpConfig." + key] = value;
+      ctx.setGlobal(map);
+    },
+
+    setEconomyValue(key, value) {
+      const map = {};
+      map[key] = value;
+      ctx.setGlobal(map);
     },
     approveRequest(id) {
       const user = DF.Data.state.user;
-      DF.Data.setGameRequestStatus(id, true, handleOf(user)).then(() => toast("Request approved.")).catch(() => toast("Approve failed.", true));
+      DF.Data.setGameRequestStatus(id, true, handleOf(user)).then(() => toast("Request approved.")).catch((e) => toast("Approve failed: " + friendlyError(e), true));
     },
     removeRequest(id) {
-      DF.Data.removeGameRequest(id).then(() => toast("Request removed.")).catch(() => toast("Remove failed.", true));
+      DF.Data.removeGameRequest(id).then(() => toast("Request removed.")).catch((e) => toast("Remove failed: " + friendlyError(e), true));
     },
     openFirmwareDialog() {
       const global = DF.Data.state.global || {};
@@ -597,10 +937,10 @@ DF.App = (function () {
       });
     },
     createArchive() {
-      const name = (local("archiveName", "") || "").trim();
+      const name = (localState("archiveName", "") || "").trim();
       if (!name) { toast("Name the season first.", true); return; }
-      local("archiveName", "");
-      DF.Data.createArchive(name).then(() => toast("Season archived and reset.")).catch(() => toast("Archive failed.", true));
+      localState("archiveName", "");
+      DF.Data.createArchive(name).then(() => toast("Season archived and reset.")).catch((e) => toast("Archive failed: " + friendlyError(e), true));
     },
     restoreArchive(archive) {
       confirmDialog({
@@ -609,14 +949,14 @@ DF.App = (function () {
         confirmText: "RESTORE",
         destructive: true,
         onConfirm: () => {
-          DF.Data.restoreArchive(archive.id).then(() => toast("Season restored.")).catch(() => toast("Restore failed.", true));
+          DF.Data.restoreArchive(archive.id).then(() => toast("Season restored.")).catch((e) => toast("Restore failed: " + friendlyError(e), true));
         }
       });
     },
     sendBroadcast() {
-      const text = (local("broadcastText", "") || "").trim();
+      const text = (localState("broadcastText", "") || "").trim();
       if (!text) { toast("Write something first.", true); return; }
-      local("broadcastText", "");
+      localState("broadcastText", "");
       const user = DF.Data.state.user;
       DF.Data.logEvent("WASTELAND_ALERT", text, user ? user.uid : null);
       toast("Broadcast sent to the feed.");
@@ -632,7 +972,7 @@ DF.App = (function () {
       const body = h("div", { class: "stack" },
         h("div", { class: "row" },
           avatar(user, "lg"),
-          h("div", { style: { flex: "1" } },
+          h("div", { style: { flex: "1", minWidth: "0" } },
             h("div", { class: "t-card-title", text: handleOf(user) }),
             h("div", { class: "t-body", text: (pd.title || "Survivor") + " · Level " + (pd.level || 1) })
           ),
@@ -709,15 +1049,15 @@ DF.App = (function () {
       DF.Data.recordDeath(uid, game, global.economy, Date.now(), global.forceSpinProtocol).then((r) => {
         const o = r.outcome;
         const spinNote = o.spinsAdded > 0 ? ` · +${o.spinsAdded} penalty spin(s)` : "";
-        toast(`Death injected in ${game} — ${fmt(o.tax.finalTax)} tax${spinNote}`);
+        toast(`Death injected into ${target ? handleOf(target) : uid} — ${game}: ${fmt(o.tax.finalTax)} tax${spinNote}`);
         DF.Data.logEvent("DEATH", `Admin injected a death for ${target ? handleOf(target) : uid} in ${game}. Casualty tax: ${fmt(o.tax.finalTax)} coins.`, uid);
         DF.Data.payMutualReward(uid, global.economy);
-      }).catch((e) => toast(e && e.message ? e.message : "Couldn't inject the death.", true));
+      }).catch((e) => toast("Couldn't inject the death: " + friendlyError(e), true));
     },
 
     /** Removes a death without a refund, matching the phone app. */
     adminRemoveDeath(uid, game) {
-      DF.Data.updatePlayerDeaths(uid, -1, game).then(() => toast(`Death removed from ${game}.`)).catch(() => toast("Couldn't remove the death.", true));
+      DF.Data.updatePlayerDeaths(uid, -1, game).then(() => toast(`Death removed from ${game}.`)).catch((e) => toast("Couldn't remove the death: " + friendlyError(e), true));
     },
 
     /** Grants or revokes admin rights. You cannot revoke your own. */
@@ -726,72 +1066,215 @@ DF.App = (function () {
       if (me && uid === me.uid && !isAdmin) { toast("You can't revoke your own admin rights."); return; }
       DF.Data.toggleAdminStatus(uid, isAdmin)
         .then(() => toast(isAdmin ? "Admin rights granted." : "Admin rights revoked."))
-        .catch(() => toast("Couldn't change admin rights.", true));
+        .catch((e) => toast("Couldn't change admin rights: " + friendlyError(e), true));
     },
     adminAdjustCoins(uid, delta) {
-      DF.Data.adjustCoins(uid, delta).then(() => toast(`Coins ${delta > 0 ? "+" : ""}${delta}.`)).catch(() => toast("Adjust failed.", true));
+      DF.Data.adjustCoins(uid, delta).then(() => toast(`Coins ${delta > 0 ? "+" : ""}${delta}.`)).catch((e) => toast("Adjust failed: " + friendlyError(e), true));
     }
   };
 
-  /* ---- login -------------------------------------------------------------- */
+  /* ---- curse target picker (mirrors the phone's CurseTargetDialog) --------- */
+  function openCurseDialog(item, global) {
+    const me = DF.Data.state.user;
+    const cfg = global.economy || DF.Economy.DEFAULT_CONFIG;
+    const price = DF.Economy.priceIn(item, cfg);
+    const others = (DF.Data.state.users || []).filter((u) => u.uid !== me.uid);
+    const sectors = (global.games || []).filter((g) => global.lockedGames.indexOf(g) < 0);
+    let target = null;
+    let sector = sectors[0] || DF.DEFAULT_GAME;
+
+    const targetList = h("div", { class: "stack stack--tight scroll-260" });
+    others.forEach((u) => {
+      const row = h("div", {
+        class: "list-row card--click",
+        style: { cursor: "pointer" },
+        onclick: () => { target = u; paintTargets(); }
+      },
+        avatar(u, 38),
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-body hi", text: displayNameOf(u) }),
+          h("div", { class: "t-micro", text: `${fmt((u.playerData || {}).coins || 0)} COINS · ${totalDeaths(u)} DEATHS` })
+        ),
+        (u.playerData || {}).shield ? statusPill("SHIELDED", "plasma") : null
+      );
+      row.dataset.uid = u.uid;
+      targetList.append(row);
+    });
+
+    const warning = h("div");
+    const sectorRow = h("div", { class: "row row--wrap" });
+
+    function paintTargets() {
+      Array.from(targetList.children).forEach((row) => {
+        const on = target && row.dataset.uid === target.uid;
+        row.style.borderColor = on ? "var(--ember)" : "var(--ink-line)";
+        row.style.background = on ? "color-mix(in srgb, var(--ember) 10%, var(--ink2))" : "";
+      });
+      sectorRow.replaceChildren(...sectors.map((s) => pillChip(s, s === sector, () => { sector = s; paintTargets(); })));
+      warning.replaceChildren();
+      if (target && (target.playerData || {}).shield) {
+        warning.append(alertBanner("🛡", "SHIELD DETECTED",
+          `${displayNameOf(target)}'s Shield will absorb this curse and break.`, "var(--plasma)"));
+      }
+    }
+
+    const body = h("div", { class: "stack" },
+      h("div", { class: "t-body", text: `Adds ${item.curseDeaths} death${item.curseDeaths === 1 ? "" : "s"} to another survivor.` }),
+      sectionLabel("Where did they fall?"),
+      sectors.length ? sectorRow : h("div", { class: "t-body", text: "Every sector is locked right now." }),
+      sectionLabel("Target"),
+      others.length ? targetList : emptyStateCard("👥", "NO SURVIVORS", "You're the last one standing."),
+      warning,
+      h("div", { class: "row row--between" },
+        priceTag(price, (me.playerData || {}).coins >= price),
+        h("div", { class: "t-micro", text: `BALANCE ${fmt((me.playerData || {}).coins || 0)}` })
+      )
+    );
+
+    openModal({
+      title: `CAST ${item.name}`,
+      body,
+      wide: true,
+      onClose: paintTargets,
+      actions: [
+        h("button", { class: "btn btn--ghost", text: "CANCEL", onclick: () => closeModal() }),
+        h("button", {
+          class: "btn",
+          text: "CAST CURSE",
+          onclick: () => {
+            if (!target) { toast("Pick a target first.", true); return; }
+            closeModal();
+            ctx.applyPurchase(item, target, sector);
+          }
+        })
+      ]
+    });
+    paintTargets();
+  }
+
+  /* ---- post image dialog --------------------------------------------------- */
+  function openPostImageDialog() {
+    const pending = localState("imagePending", null);
+    if (!pending) return;
+    const caption = h("textarea", { placeholder: "Caption (optional)", maxLength: "140", style: { minHeight: "62px" } });
+    const counter = h("div", { class: "hint", text: "0/140" });
+    caption.addEventListener("input", () => { counter.textContent = `${caption.value.length}/140`; });
+    const uploadPreview = DF.Media.objectUrl("pending-thumb", pending.thumb, "image/jpeg");
+
+    const body = h("div", { class: "stack" },
+      h("div", { class: "gallery-thumb", style: { aspectRatio: "1.4", maxHeight: "240px" } },
+        h("img", { src: uploadPreview, alt: "Preview" })
+      ),
+      h("div", { class: "t-micro", text: `Compressed to ${Math.round(pending.sizeBytes / 1024)} KB · visible to every survivor` }),
+      h("div", { class: "field" }, h("label", { text: "Caption (optional)" }), caption, counter)
+    );
+
+    openModal({
+      title: "SHARE IMAGE",
+      body,
+      wide: true,
+      actions: [
+        h("button", { class: "btn btn--ghost", text: "CANCEL", onclick: () => ctx.cancelImage() }),
+        h("button", { class: "btn", text: "POST", onclick: () => ctx.postImage(caption.value) })
+      ]
+    });
+  }
+
+  /* ---- login (mirrors LoginScreen.kt) -------------------------------------- */
+  let loginMode = "login";
+  let loginBusy = false;
+
   function paintLogin() {
     const root = $("#login");
     const app = $("#app");
     root.classList.add("show");
     app.style.display = "none";
+
+    const email = h("input", { type: "email", placeholder: "survivor@deadfest", autocomplete: "username" });
+    const pass = h("input", { type: "password", placeholder: "••••••••", autocomplete: "current-password" });
+    let passVisible = false;
+    const name = h("input", { placeholder: "Display name" });
+    const err = h("div", { class: "login-err" });
+
+    const nameField = h("div", { class: "field" }, h("label", { text: "Display Name" }), name);
+    const submit = h("button", { class: "btn btn--full login-submit", text: "ENTER THE WASTELAND" });
+    const eye = h("button", { class: "btn btn--ghost btn--sm", text: "SHOW", type: "button" });
+
+    function showError(message) { err.textContent = message || ""; }
+
+    function setMode(mode) {
+      loginMode = mode;
+      paintMode();
+      showError("");
+    }
+
+    function paintMode() {
+      const isLogin = loginMode === "login";
+      loginPill.className = "chip" + (isLogin ? " on" : "");
+      signupPill.className = "chip" + (isLogin ? "" : " on");
+      nameField.style.display = isLogin ? "none" : "flex";
+      submit.textContent = isLogin ? "ENTER THE WASTELAND" : "JOIN SURVIVORS";
+    }
+
+    const loginPill = h("button", { class: "chip on", text: "LOG IN", type: "button", onclick: () => setMode("login") });
+    const signupPill = h("button", { class: "chip", text: "SIGN UP", type: "button", onclick: () => setMode("signup") });
+
+    eye.addEventListener("click", () => {
+      passVisible = !passVisible;
+      pass.type = passVisible ? "text" : "password";
+      eye.textContent = passVisible ? "HIDE" : "SHOW";
+      eye.setAttribute("aria-label", passVisible ? "Hide password" : "Show password");
+    });
+
+    function guard() {
+      if (loginBusy) return true;
+      return false;
+    }
+
+    function submitForm() {
+      if (guard()) return;
+      const address = email.value.trim();
+      const password = pass.value;
+      if (loginMode === "Sign up".toLowerCase() && !name.value.trim()) { showError("Pick a display name."); return; }
+      if (!address) { showError("Enter your email."); return; }
+      if (!password) { showError(loginMode === "login" ? "Enter your email and password." : "Password needs at least 6 characters."); return; }
+      if (loginMode !== "login" && password.length < 6) { showError("Password needs at least 6 characters."); return; }
+
+      loginBusy = true;
+      submit.disabled = true;
+      submit.textContent = "CONNECTING…";
+      showError("");
+      const call = loginMode === "login"
+        ? DF.Data.login(address, password)
+        : DF.Data.signup(name.value.trim(), address, password);
+      call.catch((e) => {
+        showError(friendlyAuthError(e));
+      }).then(() => {
+        loginBusy = false;
+        submit.disabled = false;
+        paintMode();
+      });
+    }
+
+    submit.addEventListener("click", submitForm);
+    [email, pass, name].forEach((el) => el.addEventListener("keydown", (e) => { if (e.key === "Enter") submitForm(); }));
+
     root.replaceChildren(h("div", { class: "login-card" },
       h("div", { class: "login-mark", text: "💀" }),
       h("div", { class: "login-title", text: "DEAD-FEST" }),
-      h("div", { class: "t-subtitle login-sub", text: "SURVIVAL TERMINAL" }),
-      h("div", { class: "stack" },
-        h("div", { class: "field" }, h("label", { text: "Email" }), h("input", { id: "login-email", type: "email", placeholder: "survivor@deadfest" })),
-        h("div", { class: "field" }, h("label", { text: "Password" }), h("input", { id: "login-pass", type: "password", placeholder: "••••••••" })),
-        h("div", { class: "field" }, h("label", { text: "Callsign (new accounts)" }), h("input", { id: "login-name", placeholder: "Your name" })),
-        h("div", { class: "login-err", id: "login-err" })
+      h("div", { class: "t-micro", style: { textAlign: "center", marginTop: "4px" }, text: `VERSION ${DF.APP_VERSION.name} // SECURE TERMINAL` }),
+      h("div", { class: "stack", style: { marginTop: "var(--lg)" } },
+        h("div", { class: "row" }, loginPill, signupPill),
+        nameField,
+        h("div", { class: "field" }, h("label", { text: "Email" }), email),
+        h("div", { class: "field" }, h("label", { text: "Password" }), h("div", { class: "row" }, pass, eye)),
+        err
       ),
-      h("button", { class: "btn btn--full", style: { marginTop: "8px" }, text: "SIGN IN", onclick: doLogin }),
-      h("button", { class: "btn btn--ghost btn--full", style: { marginTop: "8px" }, text: "CREATE ACCOUNT", onclick: doSignup }),
-      h("div", { class: "t-body", style: { marginTop: "14px", textAlign: "center" }, text: "Same accounts as the phone app." })
+      submit,
+      h("div", { class: "t-micro", style: { marginTop: "14px", textAlign: "center" }, text: "Friends & family only. Unauthorised access is logged." })
     ));
-    setTimeout(() => { const e = $("#login-email"); if (e) e.focus(); }, 50);
-  }
-
-  function showLoginError(message) {
-    const el = $("#login-err");
-    if (el) el.textContent = message;
-  }
-
-  function doLogin() {
-    const email = $("#login-email").value.trim();
-    const pass = $("#login-pass").value;
-    if (!email || !pass) { showLoginError("Email and password are required."); return; }
-    showLoginError("Signing in…");
-    DF.Data.login(email, pass).then(() => showLoginError("")).catch((e) => {
-      showLoginError(friendlyAuthError(e));
-    });
-  }
-
-  function doSignup() {
-    const name = $("#login-name").value.trim();
-    const email = $("#login-email").value.trim();
-    const pass = $("#login-pass").value;
-    if (!name) { showLoginError("Pick a callsign first."); return; }
-    if (!email || !pass) { showLoginError("Email and password are required."); return; }
-    if (pass.length < 6) { showLoginError("Use at least 6 characters."); return; }
-    showLoginError("Creating account…");
-    DF.Data.signup(name, email, pass).then(() => showLoginError("")).catch((e) => {
-      showLoginError(friendlyAuthError(e));
-    });
-  }
-
-  function friendlyAuthError(e) {
-    const code = e && e.code ? e.code : "";
-    if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") return "Wrong email or password.";
-    if (code === "auth/email-already-in-use") return "That email already has an account.";
-    if (code === "auth/weak-password") return "Use at least 6 characters.";
-    if (code === "auth/too-many-requests") return "Too many attempts. Try again in a moment.";
-    if (code === "auth/network-request-failed") return "Network problem. Check your connection.";
-    return e && e.message ? e.message : "Something went wrong.";
+    paintMode();
+    setTimeout(() => email.focus(), 50);
   }
 
   /* ---- boot --------------------------------------------------------------- */
@@ -801,14 +1284,16 @@ DF.App = (function () {
     $("#app").style.display = "grid";
     paintNav();
     paint();
+    if (!ticker) ticker = setInterval(liveTick, 1000);
   }
 
   function boot() {
-    applyTheme(storedTheme());
+    applyTheme(DF.Prefs.get("theme"));
+    applyPerformanceMode(DF.Prefs.get("performanceMode"));
     DF.Data.init();
     DF.Data.onAuthStateChanged((user) => {
       if (user) enterApp();
-      else paintLogin();
+      else { paintLogin(); dailyWasClaimable = null; }
     });
 
     // Repaint whenever live data changes and the current screen cares about it.
@@ -816,7 +1301,7 @@ DF.App = (function () {
       DF.Data.on(key, () => {
         const def = screenDef(current);
         if (!def) return;
-        if (def.needs.indexOf(key) < 0) return;
+        if (def.needs && def.needs.indexOf(key) < 0) return;
         rerender();
         if (key === "user") paintNav();
       });
@@ -828,11 +1313,16 @@ DF.App = (function () {
       return u ? u.uid : null;
     };
     window.addEventListener("beforeunload", () => { if (uid()) DF.Data.goOffline(uid()); });
-    setInterval(() => { if (uid()) DF.Data.heartbeat(uid()); }, 60000);
+    setInterval(() => { if (uid()) DF.Data.heartbeat(uid()); }, DF.Presence.HEARTBEAT_MS);
     setInterval(() => { if (uid()) DF.Data.setOnline(uid(), true); }, 20000);
+    document.addEventListener("visibilitychange", () => {
+      if (!uid()) return;
+      if (document.hidden) DF.Data.goOffline(uid());
+      else DF.Data.setOnline(uid(), true);
+    });
   }
 
-  return { boot, go, rerender, ctx, applyTheme, local };
+  return { boot, go, rerender, ctx, applyTheme, applyPerformanceMode, local, friendlyError };
 })();
 
 document.addEventListener("DOMContentLoaded", () => {

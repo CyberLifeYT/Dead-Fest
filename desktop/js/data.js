@@ -30,7 +30,7 @@ DF.Data = (function () {
     gameRequests: []
   };
 
-  const listeners = { user: [], users: [], global: [], events: [], messages: [], votes: [], archives: [], scratch: [], rewards: [], images: [], requests: [] };
+  const listeners = { user: [], users: [], global: [], events: [], messages: [], votes: [], archives: [], scratchPrizes: [], levelRewards: [], images: [], gameRequests: [] };
 
   function emit(key) { listeners[key].forEach((fn) => { try { fn(state[key]); } catch (e) { console.error(e); } }); }
 
@@ -42,7 +42,9 @@ DF.Data = (function () {
     db = firebase.firestore();
     // The web SDK's long-polling is not needed for a desktop client with a real socket, but
     // leaving it on keeps behaviour identical to the browser SDK defaults.
-    try { db.settings({ ignoreUndefinedProperties: true }, { merge: true }); } catch (e) { /* already set */ }
+    // `merge` belongs inside the settings object in the compat build; passing it as a
+    // second argument makes the SDK think the default host is being overridden.
+    try { db.settings({ ignoreUndefinedProperties: true, merge: true }); } catch (e) { /* already set */ }
   }
 
   function onAuthStateChanged(cb) {
@@ -107,14 +109,14 @@ DF.Data = (function () {
     ensureProfile(uid);
     sub(db.collection(DF.PATHS.users).orderBy("playerData.coins", "desc"), "users", mapUsers);
     sub(db.doc(DF.PATHS.global), "global", mapGlobal);
-    sub(db.collection(DF.PATHS.eventLog).orderBy("timestamp", "desc").limit(50), "events");
-    sub(db.collection(DF.PATHS.messages).orderBy("timestamp", "desc").limit(100), "messages");
-    sub(db.collection(DF.PATHS.votes), "votes");
-    sub(db.collection(DF.PATHS.archives).orderBy("timestamp", "desc"), "archives");
-    sub(db.collection(DF.PATHS.scratchPrizes), "scratchPrizes");
-    sub(db.collection(DF.PATHS.levelRewards), "levelRewards");
-    sub(db.collection(DF.PATHS.images).orderBy("createdAt", "desc").limit(DF.MAX_GALLERY), "images");
-    sub(db.collection(DF.PATHS.gameRequests).orderBy("createdAt", "desc"), "gameRequests");
+    sub(db.collection(DF.PATHS.eventLog).orderBy("timestamp", "desc").limit(50), "events", mapWithId);
+    sub(db.collection(DF.PATHS.messages).orderBy("timestamp", "desc").limit(100), "messages", mapWithId);
+    sub(db.collection(DF.PATHS.votes), "votes", mapWithId);
+    sub(db.collection(DF.PATHS.archives).orderBy("timestamp", "desc"), "archives", mapArchives);
+    sub(db.collection(DF.PATHS.scratchPrizes), "scratchPrizes", mapWithId);
+    sub(db.collection(DF.PATHS.levelRewards).orderBy("level", "asc"), "levelRewards", mapWithId);
+    sub(db.collection(DF.PATHS.images).orderBy("createdAt", "desc").limit(DF.MAX_GALLERY), "images", mapImages);
+    sub(db.collection(DF.PATHS.gameRequests).orderBy("createdAt", "desc"), "gameRequests", mapWithId);
     sub(db.collection(DF.PATHS.users).doc(uid), "user", (snap) => {
       const d = snap.exists ? snap.data() : null;
       if (!d) return null;
@@ -213,6 +215,87 @@ DF.Data = (function () {
 
   function num(v, fallback) { return typeof v === "number" && isFinite(v) ? v : fallback; }
 
+  /**
+   * Collections whose document id is part of the model (prizes, requests, rewards).
+   * Firestore data does not include the id, so it is folded in here.
+   */
+  function mapWithId(snap) {
+    const out = [];
+    if (!snap) return out;
+    snap.forEach((doc) => {
+      const d = doc.data() || {};
+      d.id = doc.id;
+      out.push(d);
+    });
+    return out;
+  }
+
+  /** Season snapshots. The id is required for restore; the defaults are the legacy ones. */
+  function mapArchives(snap) {
+    return mapWithId(snap).map((a) => ({
+      id: a.id,
+      name: a.name || "Season Archive",
+      timestamp: num(a.timestamp, 0),
+      totalDeaths: num(a.totalDeaths, 0),
+      totalCoins: num(a.totalCoins, 0),
+      grandTotalAtEnd: num(a.grandTotalAtEnd, 0),
+      survivorCount: num(a.survivorCount, Array.isArray(a.playerSnapshots) ? a.playerSnapshots.length : 0),
+      champion: a.champion || null,
+      notes: a.notes || "",
+      schemaVersion: num(a.schemaVersion, 1),
+      playerSnapshots: Array.isArray(a.playerSnapshots) ? a.playerSnapshots.map((p) => ({
+        uid: (p && p.uid) || "",
+        displayName: (p && p.displayName) || "",
+        avatar: (p && p.avatar) || "💀",
+        avatarFrame: (p && p.avatarFrame) || "none",
+        color: (p && p.color) || "#536DFE",
+        coins: num(p && p.coins, 0),
+        totalDeaths: num(p && p.totalDeaths, 0),
+        gameDeaths: p && p.gameDeaths && typeof p.gameDeaths === "object" ? p.gameDeaths : {},
+        level: num(p && p.level, 0),
+        prestigeCount: num(p && p.prestigeCount, 0),
+        title: (p && p.title) || ""
+      })) : []
+    }));
+  }
+
+  /**
+   * Gallery entries: metadata plus the small thumbnail.
+   *
+   * Firestore hands a binary field back as its own Blob class, not a browser Blob, so the bytes
+   * are unwrapped here and the UI can turn them into an object URL. A document without a usable
+   * thumbnail is dropped, exactly as the mobile mapper does.
+   */
+  function bytesOf(field) {
+    if (!field) return null;
+    if (typeof field.toUint8Array === "function") return field.toUint8Array();
+    if (field instanceof Uint8Array) return field;
+    if (field instanceof ArrayBuffer) return new Uint8Array(field);
+    return null;
+  }
+
+  function mapImages(snap) {
+    const out = [];
+    if (!snap) return out;
+    snap.forEach((doc) => {
+      const d = doc.data() || {};
+      const thumb = bytesOf(d.thumb);
+      if (!thumb) return;
+      out.push({
+        id: doc.id,
+        uploaderUid: d.uploaderUid || "",
+        uploaderName: d.uploaderName || "Survivor",
+        caption: d.caption || "",
+        createdAt: num(d.createdAt, 0),
+        width: num(d.width, 0),
+        height: num(d.height, 0),
+        sizeBytes: num(d.sizeBytes, 0),
+        thumb
+      });
+    });
+    return out;
+  }
+
   /* ---- auth --------------------------------------------------------------- */
   function login(email, password) {
     init();
@@ -257,8 +340,30 @@ DF.Data = (function () {
     }).catch(() => { /* the feed is not worth failing an action over */ });
   }
 
+  /**
+   * Expands dotted keys into nested objects.
+   *
+   * `set(..., {merge:true})` treats its keys literally, so `{"shopConfig.shield": ...}`
+   * would create a field with a dot in its name instead of a nested override. Every
+   * admin editor writes dotted paths, so they are folded here before the write.
+   */
+  function expandPaths(map) {
+    const out = {};
+    Object.keys(map).forEach((key) => {
+      if (key.indexOf(".") < 0) { out[key] = map[key]; return; }
+      const parts = key.split(".");
+      let node = out;
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!node[parts[i]] || typeof node[parts[i]] !== "object") node[parts[i]] = {};
+        node = node[parts[i]];
+      }
+      node[parts[parts.length - 1]] = map[key];
+    });
+    return out;
+  }
+
   function updateGlobalState(map) {
-    return db.doc(DF.PATHS.global).set(map, { merge: true });
+    return db.doc(DF.PATHS.global).set(expandPaths(map), { merge: true });
   }
 
   function setOnline(uid, isOnline) {
@@ -443,12 +548,12 @@ DF.Data = (function () {
           tx.update(targetRef, { "playerData.shield": false });
           return { outcome: "BLOCKED_BY_SHIELD" };
         }
-        const sector = sectorName || (Object.keys(victim.games || {})[0]) || DF.DEFAULT_GAME;
-        const stat = (victim.games || {})[sector] || { deaths: 0 };
+        const sectorUsed = sector || (Object.keys(victim.games || {})[0]) || DF.DEFAULT_GAME;
+        const stat = (victim.games || {})[sectorUsed] || { deaths: 0 };
         const deaths = (stat.deaths || 0) + item.curseDeaths;
-        tx.update(targetRef, { [`playerData.games.${sector}.deaths`]: deaths });
+        tx.update(targetRef, { [`playerData.games.${sectorUsed}.deaths`]: deaths });
         deathDelta = item.curseDeaths;
-        sectorName = sector;
+        sectorName = sectorUsed;
       }
       tx.update(buyerRef, update);
       return { outcome: "APPLIED", sector: sectorName, deathDelta, xp };
@@ -676,6 +781,25 @@ DF.Data = (function () {
   }
 
   /* ---- admin content ------------------------------------------------------ */
+  /** Upsert one scratch prize (blank id = new), mirroring saveScratchPrize. */
+  function saveScratchPrize(prize) {
+    const data = {
+      label: prize.label || "",
+      type: prize.type || "coins",
+      value: prize.value || "",
+      weight: typeof prize.weight === "number" ? prize.weight : 1,
+      color: prize.color || "#4CE07F",
+      enabled: prize.enabled !== false
+    };
+    const col = db.collection(DF.PATHS.scratchPrizes);
+    if (prize.id) return col.doc(prize.id).set(data, { merge: true });
+    return col.add(data);
+  }
+
+  function deleteScratchPrize(id) {
+    return db.collection(DF.PATHS.scratchPrizes).doc(id).delete();
+  }
+
   function seedScratchPrizes(prizes) {
     const batch = db.batch();
     prizes.forEach((p) => batch.set(db.collection(DF.PATHS.scratchPrizes).doc(), p));
@@ -683,10 +807,83 @@ DF.Data = (function () {
   }
 
   function equipTitle(uid, title) {
-    return userRef(uid).update({
-      "playerData.title": title,
-      "playerData.ownedTitles": firebase.firestore.FieldValue.arrayUnion(title)
+    return userRef(uid).update({ "playerData.title": title });
+  }
+
+  function updateAvatar(uid, avatar) {
+    return userRef(uid).update({ "playerData.avatar": avatar });
+  }
+
+  /** Buys a title and equips it in one transaction (mirrors buyTitle). */
+  function buyTitle(uid, title, cost, cfg) {
+    const price = Math.max(0, cost || 0);
+    const ref = userRef(uid);
+    return db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const d = snap.data();
+      if (!d) return { outcome: "TARGET_MISSING" };
+      const pd = d.playerData || {};
+      const owned = Array.isArray(pd.ownedTitles) ? pd.ownedTitles : [];
+      if (owned.indexOf(title) >= 0) return { outcome: "ALREADY_ACTIVE" };
+      if ((pd.coins || 0) < price) return { outcome: "INSUFFICIENT_FUNDS" };
+      const xp = DF.Economy.addXp(pd.xp || 0, pd.level || 1, cfg.xp.purchase, cfg.xp);
+      const coins = (pd.coins || 0) - price;
+      tx.update(ref, {
+        "playerData.coins": coins,
+        "playerData.bankruptcyLevel": DF.Economy.afterBalanceChange(pd.bankruptcyLevel || 0, coins, pd.pendingSpins || 0),
+        "playerData.ownedTitles": firebase.firestore.FieldValue.arrayUnion(title),
+        "playerData.title": title,
+        "playerData.xp": xp.xp,
+        "playerData.level": xp.level
+      });
+      return { outcome: "APPLIED", xp };
     });
+  }
+
+  /* ---- shared images (mirrors uploadImage / getImageData / deleteImage) ---- */
+  function bytesToField(bytes) {
+    return firebase.firestore.Blob.fromUint8Array(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  }
+
+  /**
+   * Writes the full image and its gallery entry together, exactly like the mobile app: a small
+   * thumbnail in `images/{id}` streams to everyone, the full JPEG waits in `imageBlobs/{id}`
+   * until somebody opens it. Both writes go in one batch so a half-posted image cannot exist.
+   */
+  function uploadImage(uid, uploaderName, caption, full, thumb, width, height) {
+    const id = db.collection(DF.PATHS.images).doc().id;
+    const batch = db.batch();
+    batch.set(db.collection(DF.PATHS.imageBlobs).doc(id), {
+      data: bytesToField(full),
+      uploaderUid: uid
+    });
+    batch.set(db.collection(DF.PATHS.images).doc(id), {
+      uploaderUid: uid,
+      uploaderName,
+      caption,
+      createdAt: Date.now(),
+      width,
+      height,
+      sizeBytes: full.length,
+      thumb: bytesToField(thumb)
+    });
+    return batch.commit().then(() => id);
+  }
+
+  /** Full-size image bytes, read only when a survivor opens one. */
+  function getImageData(id) {
+    return db.collection(DF.PATHS.imageBlobs).doc(id).get().then((doc) => {
+      if (!doc.exists) return null;
+      const field = (doc.data() || {}).data;
+      return bytesOf(field);
+    });
+  }
+
+  function deleteImage(id) {
+    const batch = db.batch();
+    batch.delete(db.collection(DF.PATHS.images).doc(id));
+    batch.delete(db.collection(DF.PATHS.imageBlobs).doc(id));
+    return batch.commit();
   }
 
   /** Archives the season: snapshots every survivor, then resets coins, deaths and penalties. */
@@ -724,6 +921,10 @@ DF.Data = (function () {
           startedAt: 0,
           sectorRoster: data.games || [],
           grandTotalAtEnd: data.grandTotal || 0,
+          totalDeaths: snapshots.reduce((a, s) => a + (s.totalDeaths || 0), 0),
+          totalCoins: snapshots.reduce((a, s) => a + (s.coins || 0), 0),
+          survivorCount: snapshots.length,
+          champion: snapshots.slice().sort((a, b) => (b.coins || 0) - (a.coins || 0))[0] || null,
           notes: ""
         };
         return db.collection(DF.PATHS.archives).doc(archive.id).set(archive).then(() => {
@@ -767,11 +968,12 @@ DF.Data = (function () {
     init, onAuthStateChanged, login, signup, logout, currentUser,
     state, listeners,
     on(key, fn) { listeners[key].push(fn); fn(state[key]); },
-    mapGlobal, mapUsers,
+    mapGlobal, mapUsers, mapImages,
     logEvent, updateGlobalState, setOnline, heartbeat, goOffline,
     recordDeath, payMutualReward, applyWheelResult, applyShopItem, claimDaily, prestige,
     setPlayerCoins, adjustCoins, updatePlayerDeaths, clearPenalties, toggleAdminStatus, equipCosmetic,
     changeUsername, submitGameRequest, setGameRequestStatus, removeGameRequest,
-    scratchCard, seedScratchPrizes, equipTitle, createArchive, restoreArchive
+    scratchCard, seedScratchPrizes, saveScratchPrize, deleteScratchPrize, equipTitle, updateAvatar, buyTitle,
+    uploadImage, getImageData, deleteImage, createArchive, restoreArchive
   };
 })();

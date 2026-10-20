@@ -78,8 +78,8 @@ function stamp(target) {
       '--set-version-string', 'ProductName', 'Dead-Fest',
       '--set-version-string', 'CompanyName', 'CyberLifeYT',
       '--set-version-string', 'InternalName', 'Dead-Fest',
-      '--set-file-version', '2.0.9.0',
-      '--set-product-version', '2.0.9.0'
+      '--set-file-version', '2.1.0.0',
+      '--set-product-version', '2.1.0.0'
     ], { stdio: 'pipe' });
   } catch (e) {
     console.warn('  rcedit failed on ' + path.basename(target) + ': ' + (e.message || e));

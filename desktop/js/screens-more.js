@@ -1,495 +1,769 @@
 /* =============================================================================
-   Dead-Fest desktop — utility screens
-   More hub, Team Progress, Archives, Images, Survival Intel, Request Game,
-   Settings (identity + themes).
+   Dead-Fest desktop — secondary screens
+   -----------------------------------------------------------------------------
+   Utility Hub, Team Progress, Season Archives, Image Board, Intel, Game
+   Requests and Settings. Where the phone shows a pushed screen with a back
+   arrow, the desktop keeps the same header slot and puts the same button there.
    ========================================================================== */
 window.DF = window.DF || {};
 DF.Screens = DF.Screens || {};
 
-function hubButton(label, description, icon, accent, onClick, badge) {
-  return h("div", {
-    class: "hub",
-    style: { "--wash": "transparent", "--accent": accent },
-    onclick: onClick
-  },
-    h("div", { class: "hub-top" },
-      h("div", { class: "icon-tile", style: { "--tint": accent + "22", "--edge": accent + "66", "--fg": accent }, text: icon }),
-      badge ? statusPill(badge, "ember") : null
-    ),
-    h("div", {},
-      h("div", { class: "hub-label", text: label }),
-      h("div", { class: "hub-desc", text: description })
-    )
-  );
-}
+(function () {
+  const cfg = () => (DF.Data.state.global && DF.Data.state.global.economy) || DF.Economy.DEFAULT_CONFIG;
+  const world = () => DF.Data.state.global || {};
+  const user = () => DF.Data.state.user;
+  const pd = () => (user() && user().playerData) || {};
+  const myCoins = () => pd().coins || 0;
+  const users = () => DF.Data.state.users || [];
+  const L = (ctx, key, fallback) => {
+    const v = ctx.local(key);
+    return v === undefined || v === null ? fallback : v;
+  };
 
-/* =============================================================================
-   MORE
-   ========================================================================== */
-DF.Screens.more = {
-  title: "UTILITY HUB",
-  subtitle: "Advanced terminal systems",
-  needs: ["global", "user"],
-  render(ctx) {
-    const { state, go } = ctx;
-    const global = state.global;
-    const isAdmin = state.user && state.user.admin === true;
-    const wrap = h("div", { class: "stack" });
+  function savedLabel(ms) {
+    if (!ms) return "UNKNOWN DATE";
+    const d = new Date(ms);
+    const two = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())} ${two(d.getHours())}:${two(d.getMinutes())}`;
+  }
 
-    if (global && global.nextEventEnabled) {
-      wrap.append(h("div", { class: "hero hero--amber" },
-        h("div", { class: "hero-mark", text: "🌙" }),
-        h("div", { class: "hero-eyebrow", text: (global.currentSeasonName || "NEXT DEAD-FEST").toUpperCase() }),
-        h("div", { class: "hero-title", text: global.nextEventName || "Next Dead-Fest" }),
-        h("div", { class: "t-body", style: { marginTop: "6px" }, text: global.nextEventGames.length ? global.nextEventGames.join(" · ") : (global.nextEventNotes || "Details to be announced.") })
-      ));
-    } else if (isAdmin) {
-      wrap.append(h("div", { class: "card card--click card--amber", onclick: () => go("admin") },
-        h("div", { class: "row" },
-          h("div", { class: "icon-tile", style: { "--tint": "rgba(255,213,79,0.18)", "--edge": "rgba(255,213,79,0.45)", "--fg": "var(--amber)" }, text: "➕" }),
-          h("div", { style: { flex: "1" } },
-            h("div", { class: "t-card-title", text: "SET UP NEXT DEAD-FEST" }),
-            h("div", { class: "t-body", text: "Admin → Event: name the season, set the start time and queue the games." })
+  function navRow(icon, title, subtitle, onclick, badge, tint) {
+    return h("div", { class: "list-row card--click", onclick },
+      itemEmblem(icon, tint || "var(--ember)", 40),
+      h("div", { style: { flex: "1", minWidth: "0" } },
+        h("div", { class: "t-card-title", style: { fontSize: "14px" }, text: title }),
+        h("div", { class: "t-body", text: subtitle })
+      ),
+      badge || h("span", { class: "t-micro", text: "→" })
+    );
+  }
+
+  function backRow(ctx, label, to) {
+    return h("div", null, ghostAction(label || "BACK", () => {
+      ctx.local("teamDetailUid", null);
+      ctx.local("archiveId", null);
+      if (to) ctx.go(to); else ctx.rerender();
+    }));
+  }
+
+  /* ---- utility hub -------------------------------------------------------- */
+  DF.Screens.more = {
+    title: "UTILITY HUB",
+    subtitle: "Advanced Terminal Systems",
+    pill() { return coinBadge(myCoins()); },
+    render(ctx) {
+      const me = user();
+      const g = world();
+      const p = pd();
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+      if (me) {
+        root.append(h("div", { class: "card", style: { padding: "var(--md)" } },
+          h("div", { class: "row" },
+            avatar(me, 54),
+            h("div", { style: { flex: "1", minWidth: "0" } },
+              h("div", { class: "t-card-title", text: displayNameOf(me) }),
+              h("div", { class: "t-micro", text: "@" + handleOf(me) }),
+              h("div", { class: "row", style: { gap: "6px", marginTop: "3px" } },
+                levelBadge(p.level || 1, p.prestigeCount || 0),
+                h("span", { class: "t-micro ember", text: String(p.title || "SURVIVOR").toUpperCase() })
+              )
+            ),
+            h("div", { class: "right" },
+              coinBadge(p.coins || 0),
+              h("div", { class: "t-micro", style: { marginTop: "4px" }, text: `${totalDeaths(me)} DEATHS` })
+            )
+          )
+        ));
+      }
+
+      root.append(sectionLabel("Network"));
+      root.append(navRow("🏆", "TEAM PROGRESS", "Squad deaths, sector by sector", () => ctx.go("team"), null, "var(--amber)"));
+      root.append(navRow("🖼", "IMAGE BOARD", "Transmissions from the wasteland", () => ctx.go("images"),
+        (DF.Data.state.images || []).length ? statusPill(String((DF.Data.state.images || []).length), "plasma") : null, "var(--plasma)"));
+      root.append(navRow("🎉", "INTEL", g.nextEventEnabled ? "Next Dead-Fest briefing" : "Event intel", () => ctx.go("intel"),
+        g.nextEventEnabled ? statusPill("EVENT", "amber") : null, "var(--amber)"));
+
+      root.append(sectionLabel("Career"));
+      root.append(navRow("★", "PROGRESSION", `Level ${p.level || 1} · rewards and prestige`, () => ctx.go("progression"),
+        statusPill(`LV ${p.level || 1}`, "ember"), "var(--ember)"));
+      root.append(navRow("🗄", "SEASON ARCHIVES", "Every season that came before", () => ctx.go("archives"),
+        (DF.Data.state.archives || []).length ? statusPill(String((DF.Data.state.archives || []).length), "prestige") : null, "var(--prestige)"));
+      root.append(navRow("🎮", "REQUEST A GAME", "Put a game on the squad wishlist", () => ctx.openRequestDialog(), null, "var(--toxic)"));
+
+      root.append(sectionLabel("System"));
+      root.append(navRow("⚙", "SETTINGS", "Identity, firmware, themes and alerts", () => ctx.go("settings"), null, "var(--text-mid)"));
+      root.append(navRow("🚪", "LOG OUT", "End this session on this terminal", () => ctx.logout(), null, "var(--ember)"));
+
+      root.append(h("div", { class: "t-micro", style: { textAlign: "center", marginTop: "var(--sm)" },
+        text: `DEAD-FEST DESKTOP v${ctx.appVersionName} · BUILD ${ctx.appVersion}` }));
+      return root;
+    }
+  };
+
+  /* ---- team progress ------------------------------------------------------ */
+  function teamSummary() {
+    const all = users();
+    const deaths = all.reduce((sum, u) => sum + totalDeaths(u), 0);
+    const coins = all.reduce((sum, u) => sum + ((u.playerData || {}).coins || 0), 0);
+    return { deaths, coins, survivors: all.length };
+  }
+
+  function teamDetail(ctx, target) {
+    const p = target.playerData || {};
+    const games = p.games || {};
+    const sectors = Object.keys(games)
+      .map((name) => ({ name, deaths: (games[name] || {}).deaths || 0 }))
+      .filter((s) => s.deaths > 0)
+      .sort((a, b) => b.deaths - a.deaths)
+      .slice(0, 8);
+    const total = totalDeaths(target);
+    const max = sectors.length ? sectors[0].deaths : 1;
+
+    const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+    root.append(backRow(ctx));
+
+    root.append(h("div", { class: "card" },
+      h("div", { class: "row" },
+        avatar(target, 52),
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-card-title", text: displayNameOf(target) }),
+          h("div", { class: "t-micro", text: "@" + handleOf(target) }),
+          h("div", { class: "row", style: { gap: "6px", marginTop: "3px" } },
+            levelBadge(p.level || 1, p.prestigeCount || 0),
+            h("span", { class: "t-micro ember", text: String(p.title || "SURVIVOR").toUpperCase() })
           )
         )
-      ));
+      ),
+      h("hr", { class: "rule" }),
+      h("div", { class: "row row--between", style: { alignItems: "flex-end" } },
+        h("div", null,
+          h("div", { class: "t-micro", text: "TOTAL DEATHS" }),
+          h("div", { class: "t-stat-hero ember", text: fmt(total) })
+        ),
+        h("div", { class: "right" },
+          h("div", { class: "t-micro", text: "BANK" }),
+          h("div", { class: "t-stat amber", text: fmt(p.coins || 0) })
+        )
+      )
+    ));
+
+    root.append(sectionLabel("Sector Breakdown"));
+    if (!sectors.length) {
+      root.append(emptyStateCard("🛡", "UNTOUCHED", "This survivor hasn't died in any sector yet."));
+    } else {
+      const card = h("div", { class: "card stack stack--tight" });
+      sectors.forEach((s) => {
+        card.append(h("div", null,
+          h("div", { class: "row row--between" },
+            h("div", { class: "t-body", text: String(s.name).toUpperCase() }),
+            h("div", { class: "t-body ember", style: { fontWeight: "900" }, text: `${s.deaths}` })
+          ),
+          proportionBar(s.deaths / max, "var(--ember)")
+        ));
+      });
+      if (Object.keys(games).length > 8) {
+        card.append(h("div", { class: "t-micro", text: "SHOWING TOP 8 SECTORS" }));
+      }
+      root.append(card);
     }
 
-    wrap.append(sectionLabel("Season & History"));
-    const g1 = h("div", { class: "grid-3" });
-    g1.append(hubButton("TEAM PROGRESS", "Live season stats & every past Dead-Fest", "👥", "var(--plasma)", () => go("team"), "NEW"));
-    g1.append(hubButton("ARCHIVES", "Season history & hall of fame", "📜", "var(--amber)", () => go("archives")));
-    wrap.append(g1);
-
-    wrap.append(sectionLabel("Profile & Rewards"));
-    const g2 = h("div", { class: "grid-3" });
-    g2.append(hubButton("PROGRESSION", "Levels, rewards & prestige", "🎖", "var(--prestige)", () => go("progression")));
-    g2.append(hubButton("SCRATCH CARDS", "Instant-win lottery", "🎟", "var(--toxic)", () => go("scratch")));
-    g2.append(hubButton("IMAGES", "Photos shared by every survivor", "🖼", "var(--ember-glow)", () => go("images")));
-    wrap.append(g2);
-
-    wrap.append(sectionLabel("Intel"));
-    const g3 = h("div", { class: "grid-3" });
-    g3.append(hubButton("SURVIVAL INTEL", "System mechanics & lore", "ℹ", "var(--ember)", () => go("intel")));
-    g3.append(hubButton("REQUEST GAME", "Ask for a game to become a sector", "🎮", "var(--prestige)", () => go("request"), "NEW"));
-    wrap.append(g3);
-    return wrap;
+    root.append(sectionLabel("Standing"));
+    root.append(keyValue("Shield", p.shield ? "ACTIVE" : "NONE", p.shield ? "var(--plasma)" : "var(--text-low)"));
+    root.append(keyValue("Insulation", p.insulationTier ? "TIER " + DF.Economy.roman(p.insulationTier) : "NONE", p.insulationTier ? "var(--amber)" : "var(--text-low)"));
+    root.append(keyValue("Prestige", p.prestigeCount ? `★ ${p.prestigeCount}` : "NONE", p.prestigeCount ? "var(--prestige)" : "var(--text-low)"));
+    root.append(keyValue("Status", isOnlineNow(target) ? "ONLINE" : `OFFLINE · ${lastSeenLabel(target)}`, isOnlineNow(target) ? "var(--toxic)" : "var(--text-low)"));
+    return root;
   }
-};
 
-/* =============================================================================
-   TEAM PROGRESS
-   ========================================================================== */
-DF.Screens.team = {
-  title: "TEAM PROGRESS",
-  subtitle: "The season in numbers",
-  needs: ["users", "global", "archives"],
-  render(ctx) {
-    const { state, go } = ctx;
-    const users = state.users || [];
-    const global = state.global;
-    const archives = state.archives || [];
+  DF.Screens.team = {
+    title: "TEAM PROGRESS",
+    subtitle: "LIVE SEASON & DEAD-FEST HISTORY",
+    pill() { return statusPill(`${users().length} SURVIVORS`, "toxic"); },
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const detailUid = ctx.local("teamDetailUid");
+      if (detailUid) {
+        const target = users().find((u) => u.uid === detailUid);
+        if (target) return teamDetail(ctx, target);
+        ctx.local("teamDetailUid", null);
+      }
 
-    const coins = users.reduce((a, u) => a + ((u.playerData && u.playerData.coins) || 0), 0);
-    const deaths = users.reduce((a, u) => a + Object.values((u.playerData && u.playerData.games) || {}).reduce((x, s) => x + ((s && s.deaths) || 0), 0), 0);
-    const spins = users.reduce((a, u) => a + ((u.playerData && u.playerData.pendingSpins) || 0), 0);
-    const levels = users.map((u) => (u.playerData && u.playerData.level) || 1);
-    const avgLevel = levels.length ? (levels.reduce((a, b) => a + b, 0) / levels.length) : 0;
-    const bankrupt = users.filter((u) => ((u.playerData && u.playerData.bankruptcyLevel) || 0) > 0).length;
-    const richest = users.slice().sort((a, b) => ((b.playerData && b.playerData.coins) || 0) - ((a.playerData && a.playerData.coins) || 0))[0];
-    const deadliest = users.slice().sort((a, b) => totalDeaths(b) - totalDeaths(a))[0];
+      const summary = teamSummary();
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+      root.append(h("div", { class: "card" },
+        h("div", { class: "row row--between" },
+          h("div", null,
+            h("div", { class: "t-micro", text: "SQUAD DEATHS" }),
+            h("div", { class: "t-stat-hero ember", text: fmt(summary.deaths) })
+          ),
+          h("div", { class: "right" },
+            h("div", { class: "t-micro", text: "SURVIVORS" }),
+            h("div", { class: "t-stat", text: fmt(summary.survivors) })
+          )
+        ),
+        h("hr", { class: "rule" }),
+        h("div", { class: "t-body", text: `${fmt(summary.coins)} coins are still circulating in the squad.` })
+      ));
 
-    const wrap = h("div", { class: "stack" });
-    wrap.append(h("div", { class: "hero hero--plasma" },
-      h("div", { class: "hero-mark", text: "📊" }),
-      h("div", { class: "hero-eyebrow", text: (global && global.currentSeasonName || "DEAD-FEST SEASON").toUpperCase() }),
-      h("div", { class: "t-stat-hero", text: String(users.length) }),
-      h("div", { class: "t-body", style: { marginTop: "4px" }, text: "survivors in the network" })
-    ));
+      const sorted = users().slice().sort((a, b) =>
+        totalDeaths(b) - totalDeaths(a) ||
+        (((b.playerData || {}).coins || 0) - ((a.playerData || {}).coins || 0)));
 
-    wrap.append(sectionLabel("Current standings"));
-    wrap.append(h("div", { class: "grid-4" },
-      statTile("TOTAL DEATHS", fmt(deaths), "var(--ember)"),
-      statTile("COINS IN PLAY", fmt(coins), "var(--amber)"),
-      statTile("AVG LEVEL", avgLevel.toFixed(1)),
-      statTile("SPINS DUE", fmt(spins), "var(--ember)")
-    ));
-    wrap.append(h("div", { class: "grid-4", style: { marginTop: "12px" } },
-      statTile("BANKRUPT", String(bankrupt), bankrupt ? "var(--ember)" : null),
-      statTile("TOP LEVEL", String(levels.length ? Math.max.apply(null, levels) : 0), "var(--prestige)"),
-      statTile("RICHEST", richest ? handleOf(richest) : "—", "var(--amber)"),
-      statTile("DEADLIEST", deadliest ? handleOf(deadliest) : "—", "var(--ember)")
-    ));
+      if (!sorted.length) {
+        root.append(emptyStateCard("🏆", "NO SURVIVORS", "The squad roster is empty."));
+        return root;
+      }
 
-    wrap.append(sectionLabel("Past Dead-Fests"));
-    if (!archives.length) {
-      wrap.append(emptyState("📜", "No past seasons yet", "An admin archives a season when it ends."));
-    } else {
-      const grid = h("div", { class: "grid-3" });
-      archives.forEach((a) => {
-        grid.append(h("div", { class: "card card--click", onclick: () => go("archives") },
-          h("div", { class: "t-card-title", text: a.name || "Season" }),
-          h("div", { class: "t-body", text: dateStr(a.timestamp) }),
-          h("div", { class: "row", style: { marginTop: "10px", gap: "16px" } },
-            h("div", {}, h("div", { class: "t-micro", text: "DEATHS" }), h("div", { class: "t-stat", text: fmt(a.grandTotalAtEnd || 0) })),
-            h("div", {}, h("div", { class: "t-micro", text: "SURVIVORS" }), h("div", { class: "t-stat", text: String((a.playerSnapshots || []).length) }))
+      root.append(sectionLabel("Survivors"));
+      const list = h("div", { class: "stack stack--tight" });
+      sorted.forEach((u, i) => {
+        const p = u.playerData || {};
+        list.append(h("div", { class: "list-row card--click", onclick: () => { ctx.local("teamDetailUid", u.uid); ctx.rerender(); } },
+          rankBadge(i + 1),
+          avatar(u, 40),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", style: { fontSize: "14px" }, text: displayNameOf(u) }),
+            h("div", { class: "row", style: { gap: "6px" } },
+              levelBadge(p.level || 1, p.prestigeCount || 0),
+              h("span", { class: "t-micro", text: `${fmt(p.coins || 0)} COINS` })
+            )
+          ),
+          h("div", { class: "right" },
+            h("div", { class: "t-stat ember", text: fmt(totalDeaths(u)) }),
+            h("div", { class: "t-micro", text: "DEATHS" })
           )
         ));
       });
-      wrap.append(grid);
+      root.append(list);
+      return root;
     }
-    return wrap;
-  }
-};
+  };
 
-function totalDeaths(u) {
-  const pd = (u && u.playerData) || {};
-  return Object.values(pd.games || {}).reduce((a, s) => a + ((s && s.deaths) || 0), 0);
-}
+  /* ---- season archives ---------------------------------------------------- */
+  function archiveDetail(ctx, archive) {
+    const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+    root.append(backRow(ctx, "BACK TO ARCHIVES"));
 
-/* =============================================================================
-   ARCHIVES
-   ========================================================================== */
-DF.Screens.archives = {
-  title: "WASTELAND ARCHIVES",
-  subtitle: "Every past Dead-Fest",
-  needs: ["archives"],
-  render(ctx) {
-    const { state } = ctx;
-    const archives = state.archives || [];
-    const selected = ctx.local("archiveId", archives.length ? archives[0].id : null);
-    const archive = archives.find((a) => a.id === selected) || archives[0];
-
-    const wrap = h("div", { class: "stack" });
-    if (!archive) {
-      wrap.append(emptyState("📜", "Nothing archived yet", "Past seasons will appear here once an admin closes one."));
-      return wrap;
-    }
-
-    const chips = h("div", { class: "row row--wrap" });
-    archives.forEach((a) => {
-      chips.append(h("button", {
-        class: "chip" + (a.id === archive.id ? " on" : ""),
-        text: a.name || "Season",
-        onclick: () => { ctx.local("archiveId", a.id); ctx.rerender(); }
-      }));
-    });
-    wrap.append(chips);
-
-    wrap.append(h("div", { class: "hero" },
-      h("div", { class: "hero-mark", text: "🏆" }),
-      h("div", { class: "hero-eyebrow", text: (archive.name || "SEASON").toUpperCase() }),
-      h("div", { class: "t-stat-hero", text: fmt(archive.grandTotalAtEnd || 0) }),
-      h("div", { class: "t-body", style: { marginTop: "4px" }, text: "total eliminations · " + dateStr(archive.timestamp) })
+    root.append(h("div", { class: "card card--prestige" },
+      h("div", { class: "t-micro prestige", text: "SEASON RECORD" }),
+      h("div", { class: "t-card-title", style: { fontSize: "20px" }, text: archive.name }),
+      h("div", { class: "t-micro", style: { marginTop: "2px" }, text: `SAVED ${savedLabel(archive.timestamp)}` }),
+      h("hr", { class: "rule" }),
+      h("div", { class: "row row--between" },
+        h("div", null,
+          h("div", { class: "t-micro", text: "LOSSES" }),
+          h("div", { class: "t-stat-hero ember", text: fmt(archive.totalCoins) })
+        ),
+        h("div", { class: "right" },
+          h("div", { class: "t-micro", text: "DEATHS" }),
+          h("div", { class: "t-stat", text: fmt(archive.totalDeaths) })
+        )
+      ),
+      archive.notes ? h("div", { class: "t-body", style: { marginTop: "var(--sm)" }, text: archive.notes }) : null
     ));
 
-    const table = h("table", { class: "tbl" },
-      h("thead", {}, h("tr", {},
-        h("th", { text: "#" }), h("th", { text: "SURVIVOR" }), h("th", { text: "COINS" }),
-        h("th", { text: "DEATHS" }), h("th", { text: "LEVEL" })
-      ))
-    );
-    const tbody = h("tbody");
-    const snaps = (archive.playerSnapshots || []).slice().sort((a, b) => (b.coins || 0) - (a.coins || 0));
-    snaps.forEach((p, i) => {
-      const deaths = Object.values(p.gameDeaths || {}).reduce((a, s) => a + (s || 0), 0);
-      tbody.append(h("tr", {},
-        h("td", { text: String(i + 1) }),
-        h("td", { class: "hi", text: p.displayName || "Survivor" }),
-        h("td", { text: fmt(p.coins || 0) }),
-        h("td", { text: fmt(deaths) }),
-        h("td", { text: String(p.level || 1) })
-      ));
+    // Sector totals come from the snapshots, because the archive stores one record per survivor.
+    const sectorTotals = {};
+    (archive.playerSnapshots || []).forEach((snap) => {
+      Object.keys(snap.gameDeaths || {}).forEach((sector) => {
+        sectorTotals[sector] = (sectorTotals[sector] || 0) + (snap.gameDeaths[sector] || 0);
+      });
     });
-    table.append(tbody);
-    wrap.append(sectionLabel("Final standings"));
-    wrap.append(h("div", { class: "card scroll-420" }, table));
-    return wrap;
-  }
-};
+    const sectors = Object.keys(sectorTotals)
+      .map((name) => ({ name, deaths: sectorTotals[name] }))
+      .filter((s) => s.deaths > 0)
+      .sort((a, b) => b.deaths - a.deaths);
+    const max = sectors.length ? sectors[0].deaths : 1;
 
-/* =============================================================================
-   IMAGES
-   ========================================================================== */
-DF.Screens.images = {
-  title: "SHARED IMAGES",
-  subtitle: "Every survivor's wall",
-  needs: ["images"],
-  render(ctx) {
-    const images = ctx.state.images || [];
-    const wrap = h("div", { class: "stack" });
-    if (!images.length) {
-      wrap.append(emptyState("🖼", "No images yet", "Photos shared by survivors show up here."));
-      return wrap;
+    if (sectors.length) {
+      root.append(sectionLabel("Sector Breakdown"));
+      const card = h("div", { class: "card stack stack--tight" });
+      sectors.forEach((s) => {
+        card.append(h("div", null,
+          h("div", { class: "row row--between" },
+            h("div", { class: "t-body", text: String(s.name).toUpperCase() }),
+            h("div", { class: "t-body ember", style: { fontWeight: "900" }, text: `${s.deaths}` })
+          ),
+          proportionBar(s.deaths / max, "var(--ember)")
+        ));
+      });
+      root.append(card);
     }
-    const grid = h("div", { class: "grid-4" });
-    images.forEach((img) => {
-      const cell = h("div", { class: "card", style: { padding: "8px" } });
-      const box = h("div", { style: { aspectRatio: "1", borderRadius: "10px", overflow: "hidden", background: "var(--ink3)" } });
-      if (img.thumb) {
-        const url = URL.createObjectURL(img.thumb);
-        box.append(h("img", { src: url, style: { width: "100%", height: "100%", objectFit: "cover" } }));
-      }
-      cell.append(box,
-        h("div", { class: "t-micro", style: { marginTop: "6px" }, text: img.uploaderName || "Survivor" }),
-        img.caption ? h("div", { class: "t-body", text: img.caption }) : null
-      );
-      grid.append(cell);
-    });
-    wrap.append(grid);
-    return wrap;
-  }
-};
 
-/* =============================================================================
-   SURVIVAL INTEL
-   ========================================================================== */
-DF.Screens.intel = {
-  title: "SURVIVAL INTEL",
-  subtitle: "System mechanics & lore",
-  needs: ["global"],
-  render(ctx) {
-    const global = ctx.state.global;
-    const cfg = global ? global.economy : DF.Economy.DEFAULT_CONFIG;
-    const sections = [
-      ["CASUALTY TAX", `Every death costs coins. Over ${fmt(5000)} the rate is 30% of your balance, over ${fmt(1000)} it is 20%, over ${fmt(500)} it is 15%, and below that it is a flat 25. Wealth Insulation cuts it; Insurance absorbs part of what is left.`],
-      ["FORCED SPIN PROTOCOL", `Every death normally adds a penalty spin to the Wheel of Fate, and a second death while bankrupt adds two more. An admin can switch the protocol off from the console.`],
-      ["BANKRUPTCY", "At zero coins you enter Level 1 and survival payouts are halved. Another death takes you to Level 2, where the only way out is a positive balance and every pending spin cleared."],
-      ["DAILY RATIONS", `Claim ${fmt(cfg.dailyBase)} coins once a day. The permanent Ration Upgrade doubles that to ${fmt(cfg.dailyUpgraded)}, and surviving a full day without a recorded death pays a survival bonus in XP.`],
-      ["MUTUAL SURVIVAL REWARD", `When a survivor dies, every other survivor is paid ${fmt(cfg.survivalReward)} coins — halved for anyone in bankruptcy.`],
-      ["WHEEL OF FATE", "Weighted slices that really give and really take. A Lucky Coin doubles the next win, and a penalty spin clears one spin of debt every time you spin."]
-    ];
-    const wrap = h("div", { class: "stack" });
-    sections.forEach(([title, body]) => {
-      wrap.append(h("div", { class: "card" },
-        h("div", { class: "t-card-title", text: title }),
-        h("div", { class: "t-body", style: { marginTop: "6px" }, text: body })
-      ));
-    });
-    return wrap;
-  }
-};
-
-/* =============================================================================
-   REQUEST GAME (v2.0.8)
-   ========================================================================== */
-DF.Screens.request = {
-  title: "REQUEST GAME",
-  subtitle: "Suggest a sector",
-  needs: ["gameRequests", "user"],
-  render(ctx) {
-    const requests = ctx.state.gameRequests || [];
-    const pending = requests.filter((r) => r.status !== "approved");
-    const approved = requests.filter((r) => r.status === "approved");
-    const showPending = ctx.local("showPending", false);
-
-    const wrap = h("div", { class: "stack" });
-    wrap.append(h("button", { class: "btn", style: { maxWidth: "280px" }, text: "Request Game", onclick: () => ctx.openRequestDialog() }));
-
-    wrap.append(sectionLabel("Approved games"));
-    if (!approved.length) {
-      wrap.append(emptyState("🎮", "No approved games yet", "Games the admin has approved will show up here."));
+    const survivors = (archive.playerSnapshots || []).slice().sort((a, b) => (b.coins || 0) - (a.coins || 0));
+    root.append(sectionLabel(`Survivors · ${survivors.length}`));
+    if (!survivors.length) {
+      root.append(emptyStateCard("🗄", "EMPTY RECORD", "This season was saved without survivor data."));
     } else {
-      const grid = h("div", { class: "grid-3" });
-      approved.forEach((r) => grid.append(gameRequestCard(r, false)));
-      wrap.append(grid);
+      const list = h("div", { class: "stack stack--tight" });
+      survivors.forEach((snap, i) => {
+        list.append(h("div", { class: "list-row static" },
+          rankBadge(i + 1),
+          avatar({ playerData: { avatar: snap.avatar, color: snap.color, avatarFrame: snap.avatarFrame } }, 36, false),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", style: { fontSize: "13px" }, text: snap.displayName || "Survivor" }),
+            h("div", { class: "t-micro", text: `${fmt(snap.totalDeaths || 0)} DEATHS · LV ${snap.level || 1}` })
+          ),
+          h("div", { class: "t-body amber", style: { fontWeight: "900" }, text: fmt(snap.coins || 0) })
+        ));
+      });
+      root.append(list);
     }
+    return root;
+  }
 
-    wrap.append(h("button", {
-      class: "btn btn--ghost btn--full",
-      text: showPending ? "Hide pending games" : `Pending games (${pending.length})`,
-      onclick: () => { ctx.local("showPending", !showPending); ctx.rerender(); }
-    }));
-    if (showPending) {
-      if (!pending.length) {
-        wrap.append(emptyState("✅", "Nothing waiting for approval", ""));
-      } else {
-        const grid = h("div", { class: "grid-3" });
-        pending.forEach((r) => grid.append(gameRequestCard(r, true)));
-        wrap.append(grid);
+  DF.Screens.archives = {
+    title: "ARCHIVES HUB",
+    subtitle: "WASTELAND HISTORICAL DATABASE",
+    pill() { return statusPill(`${(DF.Data.state.archives || []).length} SEASONS`, "prestige"); },
+    back(ctx) { return ghostAction("BACK", () => { ctx.local("archiveId", null); ctx.go("more"); }); },
+    render(ctx) {
+      const archiveId = ctx.local("archiveId");
+      if (archiveId) {
+        const archive = (DF.Data.state.archives || []).find((a) => a.id === archiveId);
+        if (archive) return archiveDetail(ctx, archive);
+        ctx.local("archiveId", null);
       }
+
+      const archives = DF.Data.state.archives || [];
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+      if (!archives.length) {
+        root.append(emptyStateCard("🗄", "NO ARCHIVES YET", "When a season ends, an admin can save the wasteland here."));
+        return root;
+      }
+
+      archives.forEach((a) => {
+        root.append(h("div", { class: "card card--click", onclick: () => { ctx.local("archiveId", a.id); ctx.rerender(); } },
+          h("div", { class: "row" },
+            itemEmblem("🗄", "var(--prestige)", 44),
+            h("div", { style: { flex: "1", minWidth: "0" } },
+              h("div", { class: "t-card-title", text: a.name }),
+              h("div", { class: "t-body", text: `${fmt(a.survivorCount || (a.playerSnapshots || []).length)} survivors · ${fmt(a.totalDeaths)} deaths` }),
+              h("div", { class: "t-micro", text: `SAVED ${savedLabel(a.timestamp)}` })
+            ),
+            h("div", { class: "right" },
+              h("div", { class: "t-stat ember", text: fmt(a.totalCoins) }),
+              h("div", { class: "t-micro", text: "LOSSES" })
+            )
+          )
+        ));
+      });
+      return root;
     }
-    return wrap;
-  }
-};
+  };
 
-function gameRequestCard(r, showRequester) {
-  return h("div", { class: "card" },
-    h("div", { class: "row" },
-      h("div", { class: "icon-tile", style: { "--tint": "rgba(179,136,255,0.18)", "--edge": "rgba(179,136,255,0.45)", "--fg": "var(--prestige)" }, text: "🎮" }),
-      h("div", { style: { flex: "1", minWidth: "0" } },
-        h("div", { class: "t-card-title", text: r.name }),
-        showRequester ? h("div", { class: "t-body", text: "Requested by " + (r.requestedByName || "Survivor") }) : null
-      ),
-      statusPill(r.status === "approved" ? "APPROVED" : "PENDING", r.status === "approved" ? "toxic" : "amber")
-    )
-  );
-}
+  /* ---- image board -------------------------------------------------------- */
+  DF.Screens.images = {
+    title: "IMAGES",
+    subtitle: "SHARED WITH EVERY SURVIVOR",
+    pill() { return statusPill(`${(DF.Data.state.images || []).length} POSTS`, "plasma"); },
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const images = DF.Data.state.images || [];
+      const processing = ctx.local("imageProcessing") === true;
+      const uploading = ctx.local("imageUploading") === true;
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
 
-/* =============================================================================
-   SETTINGS
-   ========================================================================== */
-DF.Screens.settings = {
-  title: "TERMINAL CONFIG",
-  subtitle: "System operations & personalization",
-  needs: ["user", "global"],
-  render(ctx) {
-    const tab = ctx.local("settingsTab", "General");
-    const tabs = ["General", "System", "Diagnostics", "Themes"];
-    const wrap = h("div", { class: "stack" });
+      root.append(h("div", { class: "card" },
+        h("div", { class: "row" },
+          itemEmblem("📷", "var(--plasma)"),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", text: "SHARE AN IMAGE" }),
+            h("div", { class: "t-body", text: "Compressed on this terminal. Visible to every survivor." })
+          ),
+          h("button", {
+            class: "btn btn--sm" + (processing || uploading ? " btn--off" : ""),
+            disabled: processing || uploading,
+            text: processing ? "COMPRESSING..." : uploading ? "POSTING..." : "PICK IMAGE",
+            onclick: () => ctx.pickImage()
+          })
+        )
+      ));
 
-    const chips = h("div", { class: "row row--wrap" });
-    tabs.forEach((t) => {
-      chips.append(h("button", {
-        class: "chip" + (t === tab ? " on" : ""),
-        text: t,
-        onclick: () => { ctx.local("settingsTab", t); ctx.rerender(); }
-      }));
-    });
-    wrap.append(chips);
+      if (!images.length) {
+        root.append(emptyStateCard("🖼", "NO IMAGES YET", "Be the first to post a transmission from the wasteland."));
+        return root;
+      }
 
-    const panel = h("div", { class: "stack" });
-    if (tab === "General") panel.append(settingsGeneral(ctx));
-    else if (tab === "System") panel.append(settingsSystem(ctx));
-    else if (tab === "Diagnostics") panel.append(settingsDiagnostics(ctx));
-    else panel.append(settingsThemes(ctx));
-    wrap.append(panel);
-    return wrap;
-  }
-};
-
-function settingsGeneral(ctx) {
-  const { state } = ctx;
-  const user = state.user;
-  const global = state.global;
-  const wrap = h("div", { class: "stack" });
-
-  // Firmware
-  const latest = global ? global.latestVersionCode : 1;
-  const myVersion = ctx.appVersion;
-  const updateAvailable = latest > myVersion;
-  wrap.append(h("div", { class: "hero" },
-    h("div", { class: "hero-eyebrow", text: updateAvailable ? "UPDATE AVAILABLE" : "FIRMWARE CURRENT" }),
-    h("div", { class: "hero-title", text: "v" + ctx.appVersionName }),
-    h("div", { class: "t-body", style: { marginTop: "4px" }, text: "Build " + myVersion }),
-    h("div", { style: { marginTop: "14px" } },
-      h("button", {
-        class: "btn", style: { maxWidth: "320px" },
-        text: updateAvailable ? "CHECK FOR UPDATES" : "CHECK FOR UPDATES",
-        onclick: () => ctx.checkUpdate()
-      })
-    )
-  ));
-
-  // Identity (v2.0.8)
-  const currentHandle = handleOf(user);
-  const input = h("input", {
-    value: ctx.local("handleDraft", currentHandle),
-    "data-focus-key": "handle",
-    oninput: (e) => { ctx.local("handleDraft", e.target.value); }
-  });
-  wrap.append(sectionLabel("Identity"));
-  wrap.append(h("div", { class: "card" },
-    h("div", { class: "t-body", text: "What the community sees on the player list, the death feed and game requests." }),
-    h("div", { class: "field", style: { marginTop: "12px" } },
-      h("label", { text: "Handle" }),
-      input,
-      h("div", { class: "hint", text: "3-20 characters. Letters, numbers and underscores." })
-    ),
-    h("div", { style: { marginTop: "12px" } },
-      h("button", {
-        class: "btn btn--sm",
-        text: "SAVE HANDLE",
-        onclick: () => ctx.saveHandle(ctx.local("handleDraft", currentHandle))
-      })
-    )
-  ));
-
-  // About
-  wrap.append(sectionLabel("About Dead-Fest"));
-  wrap.append(h("div", { class: "card" },
-    h("div", { class: "t-body", text: "The ultimate companion for your survival journey: your central hub for data tracking, surveillance, and economic warfare." })
-  ));
-
-  // Session
-  wrap.append(sectionLabel("Session"));
-  wrap.append(h("button", { class: "btn btn--ember btn--full", style: { maxWidth: "320px" }, text: "Terminate session (log out)", onclick: () => ctx.logout() }));
-  return wrap;
-}
-
-function settingsSystem(ctx) {
-  const wrap = h("div", { class: "stack" });
-  wrap.append(sectionLabel("Performance"));
-  wrap.append(h("div", { class: "card" },
-    settingRow("Performance mode", "Turns off animations, trims the background grid and drops the countdown to one update every 30 seconds.", ctx.local("perfMode", false), (v) => { ctx.local("perfMode", v); ctx.rerender(); })
-  ));
-  wrap.append(sectionLabel("Feed & alerts"));
-  wrap.append(h("div", { class: "card" },
-    settingRow("Wheel spins", "Show other survivors' spins in the live ticker", ctx.local("wheelAlerts", true), (v) => ctx.local("wheelAlerts", v)),
-    h("div", { class: "divider" }),
-    settingRow("Black Market", "Purchases and curses", ctx.local("marketAlerts", true), (v) => ctx.local("marketAlerts", v)),
-    h("div", { class: "divider" }),
-    settingRow("Wasteland alerts", "Admin broadcasts and firmware notices", ctx.local("wastelandAlerts", true), (v) => ctx.local("wastelandAlerts", v))
-  ));
-  return wrap;
-}
-
-function settingRow(title, subtitle, checked, onChange) {
-  const sw = h("div", { class: "switch" + (checked ? " on" : ""), onclick: () => onChange(!checked) });
-  return h("div", { class: "row" },
-    h("div", { style: { flex: "1" } },
-      h("div", { class: "t-card-title", text: title }),
-      h("div", { class: "t-body", text: subtitle })
-    ),
-    sw
-  );
-}
-
-function settingsDiagnostics(ctx) {
-  const user = ctx.state.user;
-  const wrap = h("div", { class: "stack" });
-  wrap.append(sectionLabel("Uplink"));
-  wrap.append(h("div", { class: "card" },
-    keyValue("Desktop version", ctx.appVersionName + " (" + ctx.appVersion + ")"),
-    keyValue("Survivor ID", user && user.uid ? String(user.uid).slice(0, 12) + "…" : "-"),
-    keyValue("Admin", user && user.admin ? "YES" : "NO", user && user.admin ? "var(--ember)" : null)
-  ));
-  wrap.append(sectionLabel("Firebase"));
-  wrap.append(h("div", { class: "card" },
-    keyValue("Project", DF.FIREBASE.projectId),
-    keyValue("Live listeners", "9 collections", "var(--toxic)")
-  ));
-  return wrap;
-}
-
-function settingsThemes(ctx) {
-  const wrap = h("div", { class: "stack" });
-  wrap.append(h("div", { class: "t-body", text: "Restyle the terminal. Semantic colours stay put in every theme — amber is always currency, green always success — so a warning never starts looking like a reward." }));
-  const current = ctx.local("theme", "default");
-  DF.THEMES.forEach((t) => {
-    const selected = t.id === current;
-    wrap.append(h("div", {
-      class: "card card--click" + (selected ? " card--accent" : ""),
-      onclick: () => { ctx.local("theme", t.id); ctx.applyTheme(t.id); ctx.rerender(); }
-    },
-      h("div", { class: "row" },
-        h("div", {
-          style: {
-            width: "46px", height: "46px", borderRadius: "14px", flex: "none",
-            background: `linear-gradient(160deg, ${t.ink4}, ${t.ink2})`,
-            border: `1px solid ${t.line}`, position: "relative"
-          }
+      const grid = h("div", { class: "gallery" });
+      images.forEach((image) => {
+        let thumb = null;
+        try { thumb = DF.Media.objectUrl("thumb-" + image.id, image.thumb, "image/jpeg"); } catch (e) { thumb = null; }
+        grid.append(h("div", {
+          class: "gallery-tile",
+          style: { padding: "4px", background: "var(--ink2)", border: "1px solid var(--ink-line)", borderRadius: "var(--r-lg)", cursor: "pointer" },
+          onclick: () => ctx.openViewer(image)
         },
-          h("span", { style: { position: "absolute", left: "6px", bottom: "6px", width: "10px", height: "10px", borderRadius: "50%", background: t.ember } }),
-          h("span", { style: { position: "absolute", right: "6px", top: "6px", width: "10px", height: "10px", borderRadius: "50%", background: "#FFD54F" } })
-        ),
-        h("div", { style: { flex: "1" } },
-          h("div", { class: "t-card-title", text: t.name }),
-          h("div", { class: "t-body", style: { color: selected ? t.ember : null }, text: selected ? "Active" : "Click to apply" })
-        ),
-        selected ? statusPill("ACTIVE", "ember") : null
+          h("div", { class: "gallery-thumb" }, thumb ? h("img", { src: thumb, alt: image.caption || "Survivor image", loading: "lazy" }) : h("span", { text: "💀" })),
+          h("div", { class: "t-micro", style: { marginTop: "5px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }, text: image.uploaderName }),
+          h("div", { class: "row row--between" },
+            h("div", { class: "t-micro", style: { fontSize: "8px" }, "data-live": "ago", "data-at": String(image.createdAt), text: timeAgo(image.createdAt) }),
+            image.caption ? h("div", { class: "t-micro", style: { fontSize: "8px" }, text: "💬" }) : null
+          )
+        ));
+      });
+      root.append(grid);
+      return root;
+    }
+  };
+
+  /* ---- intel -------------------------------------------------------------- */
+  DF.Screens.intel = {
+    title: "SURVIVAL INTEL",
+    get subtitle() { return `CLASSIFIED TERMINAL DATA // V${DF.APP_VERSION.name}`; },
+    pill() {
+      const g = world();
+      return g.nextEventEnabled ? statusPill("EVENT LIVE" , "amber") : statusPill("NO EVENT", "low");
+    },
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const g = world();
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+      if (!g.nextEventEnabled) {
+        root.append(noticeCard("📡", "NO ACTIVE EVENT",
+          "There's no Dead-Fest on the calendar right now. Check back after the next announcement."));
+      } else {
+        root.append(nextEventHero(g, Date.now()));
+      }
+
+      root.append(sectionLabel("House Rules"));
+      root.append(h("div", { class: "card stack stack--tight" },
+        h("div", { class: "t-body", text: "Every death is logged against the sector it happened in. Dying is the whole point — the scoreboard is a ledger of falls, not wins." }),
+        h("hr", { class: "rule" }),
+        h("div", { class: "t-body", text: "The casualty tax scales with your bank. The richer you are, the more a death costs." }),
+        h("hr", { class: "rule" }),
+        h("div", { class: "t-body", text: "Insulation shrinks the tax permanently. Insurance absorbs one hit. Shields block one curse." })
+      ));
+
+      const leaderboard = users().slice().sort((a, b) => totalDeaths(b) - totalDeaths(a)).slice(0, 5);
+      if (leaderboard.length) {
+        root.append(sectionLabel("Most Fallen"));
+        const list = h("div", { class: "stack stack--tight" });
+        leaderboard.forEach((u, i) => {
+          list.append(h("div", { class: "list-row static" },
+            rankBadge(i + 1),
+            avatar(u, 34),
+            h("div", { style: { flex: "1", minWidth: "0" }, class: "t-body hi", text: displayNameOf(u) }),
+            h("div", { class: "t-body ember", style: { fontWeight: "900" }, text: `${totalDeaths(u)}` })
+          ));
+        });
+        root.append(list);
+      }
+      return root;
+    }
+  };
+
+  /* ---- game requests ------------------------------------------------------ */
+  DF.Screens.requests = {
+    title: "REQUEST GAME",
+    subtitle: "SUGGEST A SECTOR",
+    pill() {
+      const pending = (DF.Data.state.gameRequests || []).filter((r) => r.isApproved !== true).length;
+      return statusPill(`${pending} PENDING`, pending ? "amber" : "low");
+    },
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const requests = DF.Data.state.gameRequests || [];
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+      root.append(h("div", { class: "card" },
+        h("div", { class: "row" },
+          itemEmblem("🎮", "var(--toxic)"),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", text: "WANT SOMETHING IN THE LINE-UP?" }),
+            h("div", { class: "t-body", text: "Send it to the admins. They decide what makes the next Dead-Fest." })
+          ),
+          h("button", { class: "btn btn--sm", text: "REQUEST", onclick: () => ctx.openRequestDialog() })
+        )
+      ));
+
+      if (!requests.length) {
+        root.append(emptyStateCard("📭", "NO REQUESTS YET", "The wishlist is empty. Be the first to ask."));
+        return root;
+      }
+
+      const list = h("div", { class: "stack stack--tight" });
+      requests.forEach((r) => {
+        const cover = (r.coverUrl || "").trim();
+        list.append(h("div", { class: "list-row static" },
+          cover
+            ? h("div", { class: "cover-thumb" }, h("img", { src: cover, alt: "", onerror: "this.style.display='none'" }))
+            : itemEmblem("🎮", "var(--text-low)", 40),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", style: { fontSize: "14px" }, text: r.name || "Untitled" }),
+            h("div", { class: "t-micro", text: `${(r.requestedByName || "SURVIVOR").toUpperCase()} · ${r.createdAt ? savedLabel(r.createdAt) : "—"}` })
+          ),
+          r.isApproved === true ? statusPill("APPROVED", "toxic") : statusPill("PENDING", "amber")
+        ));
+      });
+      root.append(list);
+      return root;
+    }
+  };
+
+  /* ---- settings ----------------------------------------------------------- */
+  function switchRow(label, description, on, onToggle, disabled) {
+    return h("div", { class: "row row--between setting-row" + (disabled ? " setting-row--off" : "") },
+      h("div", { style: { flex: "1", minWidth: "0" } },
+        h("div", { class: "t-card-title", style: { fontSize: "13px" }, text: label }),
+        h("div", { class: "t-body", text: description })
+      ),
+      h("button", {
+        class: "switch" + (on ? " on" : ""),
+        type: "button",
+        disabled: !!disabled,
+        "aria-label": label,
+        "aria-pressed": on ? "true" : "false",
+        onclick: disabled ? null : onToggle
+      })
+    );
+  }
+
+  function variantRow(label, value, selected, onClick) {
+    return h("div", { class: "radio-row" + (selected ? " on" : ""), onclick: onClick },
+      h("div", { class: "radio-dot" + (selected ? " on" : "") }),
+      h("div", { style: { flex: "1", minWidth: "0" } },
+        h("div", { class: "t-body hi", style: { fontWeight: "700" }, text: label })
+      )
+    );
+  }
+
+  function settingsGeneral(ctx) {
+    const g = world();
+    const u = user();
+    const p = pd();
+    const variant = ctx.updateVariant();
+    const latestName = g.latestVersionName || "";
+    const latestCode = g.latestVersionCode || 0;
+    const newer = latestCode > ctx.appVersion;
+    const url = ctx.updateUrlFor(variant, g);
+
+    const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+    /* firmware */
+    const firmware = heroPanel({
+      eyebrow: "Firmware",
+      title: `Dead-Fest v${ctx.appVersionName}`,
+      glyph: "📱",
+      accent: "var(--plasma)",
+      badge: statusPill(`BUILD ${ctx.appVersion}`, "plasma"),
+      children: h("div", { class: "stack", style: { marginTop: "var(--sm)" } },
+        h("div", { class: "t-micro", text: "UPDATE CHANNEL" }),
+        variantRow("R8 · Smaller download", "R8", variant === "R8", () => { ctx.prefs.set("updateVariant", "R8"); ctx.rerender(); }),
+        variantRow("Standard · Full build", "Standard", variant === "Standard", () => { ctx.prefs.set("updateVariant", "Standard"); ctx.rerender(); }),
+        newer && g.updateNotes ? h("div", { class: "t-body", text: g.updateNotes }) : null,
+        h("button", {
+          class: "btn btn--full btn--tall",
+          text: newer && latestName ? `INSTALL v${latestName} · ${variant}` : "CHECK FOR UPDATES",
+          onclick: () => ctx.checkUpdate()
+        }),
+        h("div", { class: "t-micro", text: `PHONE BUILD ${latestCode ? "v" + latestName + " (" + latestCode + ")" : "NOT PUBLISHED"}` })
+      )
+    });
+    root.append(firmware);
+
+    /* identity */
+    const handleInput = h("input", {
+      value: u ? (u.username || "") : "",
+      placeholder: "survivor_handle",
+      maxLength: "20",
+      "data-focus-key": "handle-input",
+      autocomplete: "off"
+    });
+    const error = h("div", { class: "t-micro ember" });
+    const hint = h("div", { class: "hint", text: "3-20 characters. Letters, numbers and underscores." });
+
+    function save() {
+      const value = handleInput.value.trim();
+      error.textContent = "";
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(value)) {
+        error.textContent = "Handles are 3-20 characters: letters, numbers and underscores only.";
+        return;
+      }
+      ctx.saveHandle(value);
+    }
+    handleInput.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
+
+    root.append(h("div", { class: "card stack" },
+      h("div", { class: "t-micro", text: "IDENTITY" }),
+      h("div", { class: "field" },
+        h("label", { text: "Unique handle" }),
+        handleInput,
+        hint,
+        error
+      ),
+      h("div", { class: "row row--between" },
+        h("div", { class: "t-micro", text: `DISPLAY NAME · ${displayNameOf(u).toUpperCase()}` }),
+        h("button", { class: "btn btn--sm", text: "SAVE HANDLE", onclick: save })
       )
     ));
-  });
-  return wrap;
-}
+
+    /* discord */
+    root.append(h("div", { class: "card" },
+      h("div", { class: "row" },
+        itemEmblem("💬", "var(--prestige)"),
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-card-title", text: "SURVIVOR DISCORD" }),
+          h("div", { class: "t-body", text: "Organise games, argue about curses, post clips." })
+        ),
+        h("button", { class: "btn btn--ghost btn--sm", text: "JOIN", onclick: () => window.open("https://discord.gg/rYq5WywRBG", "_blank") })
+      )
+    ));
+
+    /* account */
+    root.append(h("div", { class: "card stack stack--tight" },
+      h("div", { class: "t-micro", text: "ACCOUNT" }),
+      keyValue("Email", (u && u.email) || "—"),
+      keyValue("Handle", "@" + handleOf(u)),
+      keyValue("Survivor since", u && u.createdAt ? savedLabel(u.createdAt) : "—"),
+      keyValue("Coins", fmt(p.coins || 0), "var(--amber)"),
+      h("div", { style: { marginTop: "var(--sm)" } },
+        h("button", { class: "btn btn--ghost btn--full btn--ember", text: "LOG OUT", onclick: () => ctx.logout() })
+      )
+    ));
+    return root;
+  }
+
+  function settingsSystem(ctx) {
+    const prefs = ctx.prefs;
+    const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+    root.append(h("div", { class: "card stack" },
+      h("div", { class: "t-micro", text: "PERFORMANCE" }),
+      switchRow("Performance Mode", "Turns off transitions and shortens the wheel spin. Useful on older hardware.",
+        prefs.get("performanceMode") === true, () => {
+          const next = !(prefs.get("performanceMode") === true);
+          ctx.applyPerformanceMode(next);
+          ctx.rerender();
+        }),
+      h("hr", { class: "rule" }),
+      h("div", { class: "row row--between setting-row setting-row--off" },
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-card-title", style: { fontSize: "13px" }, text: "Battery optimisation" }),
+          h("div", { class: "t-body", text: "Not applicable on a desktop terminal — the app never runs in the background here." })
+        ),
+        statusPill("N/A", "low")
+      )
+    ));
+
+    root.append(h("div", { class: "card stack" },
+      h("div", { class: "t-micro", text: "LIVE FEED ALERTS" }),
+      switchRow("Wheel alerts", "Show wheel results in the command center feed.",
+        prefs.get("wheelAlerts") !== false, () => {
+          prefs.set("wheelAlerts", !(prefs.get("wheelAlerts") !== false));
+          ctx.rerender();
+        }),
+      switchRow("Market alerts", "Show Black Market purchases in the feed.",
+        prefs.get("marketAlerts") !== false, () => {
+          prefs.set("marketAlerts", !(prefs.get("marketAlerts") !== false));
+          ctx.rerender();
+        }),
+      switchRow("Wasteland alerts", "Show deaths, sign-ins and everything else.",
+        prefs.get("wastelandAlerts") !== false, () => {
+          prefs.set("wastelandAlerts", !(prefs.get("wastelandAlerts") !== false));
+          ctx.rerender();
+        })
+    ));
+
+    return root;
+  }
+
+  function settingsDiagnostics(ctx) {
+    const u = user();
+    const g = world();
+    const rows = [
+      ["App version", `Dead-Fest ${ctx.appVersionName} (${ctx.appVersion})`],
+      ["Platform", "Windows desktop"],
+      ["Electron", window.electronVersion || "—"],
+      ["User agent", navigator.userAgent],
+      ["Firebase project", DF.FIREBASE.projectId],
+      ["Signed in as", (u && u.email) || "—"],
+      ["UID", (u && u.uid) || "—"],
+      ["Admin", u && u.admin ? "YES" : "NO"],
+      ["Firestore", DF.Data.currentUser() ? "CONNECTED" : "OFFLINE"],
+      ["Survivors", String(users().length)],
+      ["Events loaded", String((DF.Data.state.events || []).length)],
+      ["Images loaded", String((DF.Data.state.images || []).length)],
+      ["Global doc", g.marketEnabled !== undefined ? "LOADED" : "MISSING"]
+    ];
+    const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+    const card = h("div", { class: "card stack stack--tight" });
+    rows.forEach(([k, v]) => card.append(keyValue(k, v)));
+    root.append(card);
+
+    root.append(h("div", { class: "row", style: { gap: "var(--sm)" } },
+      h("button", {
+        class: "btn btn--ghost btn--full",
+        text: "COPY DIAGNOSTICS",
+        onclick: () => {
+          const text = rows.map(([k, v]) => `${k}: ${v}`).join("\n");
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => toast("Diagnostics copied.")).catch(() => toast("Couldn't copy diagnostics.", true));
+          } else {
+            toast("Clipboard is unavailable.", true);
+          }
+        }
+      }),
+      h("button", {
+        class: "btn btn--ghost btn--full",
+        text: "RELOAD APP",
+        onclick: () => window.location.reload()
+      })
+    ));
+
+    root.append(h("div", { class: "card" },
+      h("div", { class: "t-micro", text: "ABOUT THIS BUILD" }),
+      h("div", { class: "t-body", style: { marginTop: "6px" },
+        text: "The desktop client talks to the same Firebase project as the phone app: the same accounts, the same survivors, the same coins and the same event log. Nothing is stored locally except your theme and alert preferences." })
+    ));
+    return root;
+  }
+
+  function settingsThemes(ctx) {
+    const current = DF.Prefs.get("theme");
+    const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+    DF.THEMES.forEach((theme) => {
+      const selected = current === theme.id;
+      root.append(h("div", {
+        class: "card card--click",
+        style: { borderColor: selected ? theme.ember : "var(--ink-line)" },
+        onclick: () => { ctx.applyTheme(theme.id); ctx.rerender(); }
+      },
+        h("div", { class: "row" },
+          h("div", { style: { display: "flex", gap: "4px", flex: "none" } },
+            [theme.ink0, theme.ink3, theme.ember, theme.glow].map((hex) => h("span", {
+              style: { width: "22px", height: "42px", borderRadius: "5px", background: hex, border: "1px solid rgba(255,255,255,0.08)" }
+            }))
+          ),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", text: theme.name }),
+            h("div", { class: "t-micro", text: theme.id.toUpperCase() })
+          ),
+          selected ? statusPill("ACTIVE", "toxic") : h("span", { class: "t-micro", text: "APPLY" })
+        )
+      ));
+    });
+    return root;
+  }
+
+  DF.Screens.settings = {
+    title: "TERMINAL CONFIG",
+    subtitle: "System Operations & Personalization",
+    pill() { return statusPill(`v${DF.APP_VERSION.name}`, "low"); },
+    render(ctx) {
+      const tab = L(ctx, "settingsTab", "general");
+      const tabs = h("div", { class: "tabbar" });
+      [["general", "General"], ["system", "System"], ["diagnostics", "Diagnostics"], ["themes", "Themes"]].forEach(([key, label]) => {
+        tabs.append(pillChip(label, tab === key, () => { ctx.local("settingsTab", key); ctx.rerender(); }));
+      });
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } }, tabs);
+      if (tab === "system") root.append(settingsSystem(ctx));
+      else if (tab === "diagnostics") root.append(settingsDiagnostics(ctx));
+      else if (tab === "themes") root.append(settingsThemes(ctx));
+      else root.append(settingsGeneral(ctx));
+      return root;
+    }
+  };
+})();

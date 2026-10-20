@@ -48,6 +48,39 @@ function timeAgo(ms) {
   return `${d}d ago`;
 }
 
+/* ---- presence (mirrors domain/Presence.kt) ---------------------------------
+   A survivor is online when the flag is set AND their last heartbeat is fresh. The staleness
+   window is what stops a killed app from looking online forever: without it a crash would leave
+   a ghost in the network until somebody died. */
+DF.Presence = {
+  HEARTBEAT_MS: 60000,
+  STALE_AFTER_MS: 150000,
+  isOnline(playerData, now) {
+    const pd = playerData || {};
+    const seen = pd.lastSeen || 0;
+    return pd.isOnline === true && seen > 0 && (now || Date.now()) - seen < DF.Presence.STALE_AFTER_MS;
+  },
+  /** "just now", "5m ago", "3h ago", "2d ago" or "never". */
+  lastSeenLabel(lastSeenMs, now) {
+    if (!lastSeenMs || lastSeenMs <= 0) return "never";
+    const mins = Math.max(0, Math.floor(((now || Date.now()) - lastSeenMs) / 60000));
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    if (mins < 60 * 24) return `${Math.floor(mins / 60)}h ago`;
+    return `${Math.floor(mins / (60 * 24))}d ago`;
+  }
+};
+
+/** True when this survivor counts as online right now. */
+function isOnlineNow(user, now) {
+  return DF.Presence.isOnline(user && user.playerData, now);
+}
+
+/** The "seen" line under a survivor's name. */
+function lastSeenLabel(user) {
+  return DF.Presence.lastSeenLabel(user && user.playerData ? user.playerData.lastSeen : 0);
+}
+
 function dateStr(ms) {
   if (!ms) return "—";
   return new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
@@ -140,19 +173,66 @@ function emptyState(icon, title, message) {
   );
 }
 
-/** Avatar: uses the survivor's chosen colour, or a neutral default. */
-function avatar(user, size) {
-  const data = (user && user.playerData) || {};
-  const color = data.color || "#4ce07f";
-  const label = ((user && (user.username || user.displayName)) || "?").trim().charAt(0).toUpperCase() || "?";
-  return h("div", {
-    class: "avatar" + (size === "lg" ? " avatar--lg" : size === "sm" ? " avatar--sm" : ""),
-    style: { background: color },
-    text: label
+/** Avatar frames, mirroring AvatarFrames.brush() in Common.kt. */
+const DF_AVATAR_FRAMES = {
+  rust:     { label: "Rust",     css: "#CD7F32" },
+  neon:     { label: "Neon",     css: "#FF4B4B" },
+  toxic:    { label: "Toxic",    css: "#4CE07F" },
+  gold:     { label: "Gold",     css: "linear-gradient(135deg,#FFD54F,#FFF9C4,#FFD54F,#FFA000,#FFD54F)" },
+  inferno:  { label: "Inferno",  css: "linear-gradient(135deg,#FF4B4B,#FF8A5B,#FFD54F,#FF4B4B)" },
+  prestige: { label: "Prestige", css: "linear-gradient(135deg,#B388FF,#4DD0E1,#FFD54F,#B388FF)" }
+};
+
+/**
+ * Framed avatar: the survivor's emoji, their badge colour and — when they have
+ * earned one — the frame brush around it. The online dot is the same green as
+ * the phone app's, and it only appears when presence is actually fresh.
+ */
+function avatar(user, size, online) {
+  const pd = (user && user.playerData) || {};
+  const color = pd.color || "#536DFE";
+  const frame = pd.avatarFrame || "none";
+  const px = typeof size === "number" ? size : size === "xl" ? 64 : size === "lg" ? 56 : size === "sm" ? 28 : 40;
+  const brush = DF_AVATAR_FRAMES[frame];
+  const inner = h("div", {
+    class: "avatar-core",
+    style: {
+      background: "color-mix(in srgb, " + color + " 18%, transparent)",
+      color: color,
+      fontSize: Math.round(px * 0.45) + "px"
+    },
+    text: pd.avatar || "💀"
   });
+  const wrap = h("div", {
+    class: "avatar-wrap",
+    style: {
+      width: px + "px",
+      height: px + "px",
+      borderRadius: "50%",
+      flex: "none",
+      padding: brush ? "3px" : "0",
+      background: brush ? brush.css : "transparent",
+      boxShadow: brush ? "none" : "0 0 0 1.5px " + color
+    }
+  }, inner);
+  if (online === undefined ? isOnlineNow(user) : online) {
+    const dot = Math.max(8, Math.round(px * 0.28));
+    wrap.append(h("div", {
+      class: "avatar-dot",
+      style: { width: dot + "px", height: dot + "px" }
+    }));
+  }
+  return wrap;
 }
 
-/** The display name a survivor should be shown under. */
+/** The name a survivor is listed under on the player network. */
+function displayNameOf(user) {
+  if (!user) return "Survivor";
+  const name = (user.displayName || "").trim();
+  return name || "Survivor";
+}
+
+/** The display name a survivor should be shown under in logs and requests. */
 function handleOf(user) {
   if (!user) return "—";
   return (user.username && user.username.trim()) ||
@@ -160,16 +240,47 @@ function handleOf(user) {
     ("SURVIVOR-" + String(user.uid || "").slice(0, 4).toUpperCase());
 }
 
-/** Human wording for a Black Market outcome. */
-function shopOutcomeMessage(outcome) {
+/** Total deaths across every sector. */
+function totalDeaths(user) {
+  const games = (user && user.playerData && user.playerData.games) || {};
+  return Object.keys(games).reduce((sum, k) => sum + ((games[k] || {}).deaths || 0), 0);
+}
+
+/** Human wording for a Black Market failure, mirroring the phone's snackbars. */
+function shopOutcomeMessage(item, outcome, target) {
+  const name = (item && item.name) || "that item";
+  const targetName = target ? displayNameOf(target) : "that survivor";
   switch (outcome) {
-    case "INSUFFICIENT_FUNDS": return "Not enough coins.";
-    case "ALREADY_ACTIVE": return "You already have that.";
-    case "TIER_LOCKED": return "You need the previous insulation tier first.";
-    case "BLOCKED_BY_SHIELD": return "Their shield absorbed the curse.";
-    case "NO_DEATHS": return "You have no deaths to remove.";
-    case "TARGET_MISSING": return "Pick a target first.";
-    case "DISABLED": return "That item is disabled.";
+    case "INSUFFICIENT_FUNDS": return `Not enough coins for ${name}.`;
+    case "ALREADY_ACTIVE":
+      return item && item.oneTime
+        ? `You already own ${name}.`
+        : `You already have an active ${name.toLowerCase()}.`;
+    case "TIER_LOCKED": return "Buy the previous insulation tier first.";
+    case "BLOCKED_BY_SHIELD": return `${targetName}'s Shield blocked your curse. The Shield is gone now.`;
+    case "NO_DEATHS": return "No deaths to revive. You're clean!";
+    case "TARGET_MISSING": return "That survivor couldn't be found.";
+    case "DISABLED": return `${name} is disabled by an admin.`;
     default: return "That did not work.";
   }
+}
+
+/** The snackbar shown after a successful purchase, mirroring MainViewModel.kt. */
+function purchaseMessage(item, result, target) {
+  const where = result && result.sector ? " in " + result.sector : "";
+  const targetName = target ? displayNameOf(target) : "a survivor";
+  if (item.curseDeaths > 0) return `Curse landed on ${targetName}${where}.`;
+  if (item.id === "revive") return `Revived: 1 death removed${where}.`;
+  if (item.id === "shield") return "Shield is up. The next curse on you will be blocked.";
+  if (item.id === "lucky_coin") return "Lucky Coin armed. Your next Wheel win is doubled.";
+  if (item.id === "insurance") {
+    const pct = Math.round((result && result.insurancePct) || 25);
+    return `Insurance armed: ${pct}% of your next casualty tax is covered.`;
+  }
+  if (item.id === "ration_upgrade") {
+    const cfg = (DF.Data.state.global && DF.Data.state.global.economy) || DF.Economy.DEFAULT_CONFIG;
+    return `Ration Upgrade active: ${fmt(cfg.dailyUpgraded)} coins every day.`;
+  }
+  if (item.tier > 0) return `WEALTH INSULATION UPGRADED: Tier ${DF.Economy.roman(item.tier)} active.`;
+  return `Purchased ${item.name}.`;
 }

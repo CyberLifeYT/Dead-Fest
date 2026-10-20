@@ -1,6 +1,6 @@
 {
   "name": "deadfest-desktop",
-  "version": "2.0.9",
+  "version": "2.1.0",
   "description": "Dead-Fest desktop client (Windows) — same accounts and live data as the Android app.",
   "main": "main.js",
   "author": "CyberLifeYT",

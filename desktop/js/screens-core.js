@@ -1,577 +1,957 @@
 /* =============================================================================
    Dead-Fest desktop — core screens
-   Home (Command Center), Players, Shop, Wheel, Scratch, Progression.
+   -----------------------------------------------------------------------------
+   Home, Players, Shop, Wheel, Scratch and Progression, rebuilt against the
+   Android screens of record. Every string, gate and ordering rule here comes
+   from HomeScreen.kt, PlayersScreen.kt, ShopScreen.kt, WheelScreen.kt,
+   ScratchScreen.kt and ProgressionScreen.kt rather than being invented.
    ========================================================================== */
 window.DF = window.DF || {};
-
 DF.Screens = DF.Screens || {};
 
-/* ---- shared pieces -------------------------------------------------------- */
+(function () {
+  /* ---- state helpers ------------------------------------------------------ */
+  const cfg = () => (DF.Data.state.global && DF.Data.state.global.economy) || DF.Economy.DEFAULT_CONFIG;
+  const world = () => DF.Data.state.global || {};
+  const user = () => DF.Data.state.user;
+  const pd = () => (user() && user().playerData) || {};
+  const myCoins = () => pd().coins || 0;
+  const isLocked = (sector) => (world().lockedGames || []).indexOf(sector) >= 0;
+  const openSectors = () => (world().games || []).filter((s) => !isLocked(s));
+  const L = (ctx, key, fallback) => {
+    const v = ctx.local(key);
+    return v === undefined || v === null ? fallback : v;
+  };
+  const sectorDeaths = (playerData, sector) => ((playerData.games || {})[sector] || {}).deaths || 0;
 
-function liveFeedStrip(message) {
-  if (!message) return null;
-  return h("div", { class: "banner" },
-    h("span", { text: "▸" , style: { color: "var(--ember)", fontWeight: "900" } }),
-    h("span", { class: "t-body hi", text: message, style: { flex: "1" } })
-  );
-}
-
-function alertBanner(icon, title, message, kind) {
-  return h("div", { class: "banner banner--" + (kind || "ember") },
-    h("span", { text: icon, style: { fontSize: "20px" } }),
-    h("div", {},
-      h("div", { class: "t-card-title", text: title }),
-      h("div", { class: "t-body", text: message })
-    )
-  );
-}
-
-function penaltyStatusCard(player, onSpin) {
-  const level = player.bankruptcyLevel || 0;
-  const spins = player.pendingSpins || 0;
-  if (level <= 0 && spins <= 0) return null;
-  let title, message, accent, critical = false;
-  if (level >= 2) {
-    title = "BANKRUPTCY LEVEL 2";
-    message = "Clear every pending spin and get your balance above 0 to escape. Survival payouts are halved.";
-    accent = "var(--ember)"; critical = true;
-  } else if (level === 1) {
-    title = "BANKRUPTCY LEVEL 1";
-    message = "Balance hit 0. Survival payouts are halved. Another death means Level 2.";
-    accent = "var(--ember)";
-  } else {
-    title = "FORCED SPIN PROTOCOL";
-    message = "Penalty spins are waiting for you on the Wheel of Fate.";
-    accent = "var(--amber)";
+  function overloadLive(now) {
+    const g = world();
+    if (!g.sectorOverload || !g.overloadedSector) return false;
+    return !g.overloadEndsAt || g.overloadEndsAt > (now || Date.now());
   }
-  return h("div", {
-    class: "card card--click",
-    style: { borderColor: critical ? "var(--ember)" : "var(--amber)", cursor: "pointer" },
-    onclick: onSpin
-  },
-    h("div", { class: "row" },
-      h("div", { class: "icon-tile", style: { "--tint": "rgba(255,213,79,0.18)", "--edge": "rgba(255,213,79,0.45)", "--fg": "var(--amber)" }, text: "🎲" }),
-      h("div", { style: { flex: "1" } },
-        h("div", { class: "t-card-title", style: { color: accent }, text: title }),
-        h("div", { class: "t-body", text: message })
-      ),
-      spins > 0 ? h("div", { class: "stat-tile", style: { textAlign: "center" } },
-        h("div", { class: "stat-value ember", text: String(spins) }),
-        h("div", { class: "stat-label", text: "PENDING SPINS" })
-      ) : null
-    )
-  );
-}
 
-function dailyRationsCard(player, cfg, onClaim) {
-  const now = Date.now();
-  const can = DF.Economy.canClaimDaily(player.lastDailyClaim || 0, now);
-  const amount = player.dailyUpgradeOwned ? cfg.dailyUpgraded : cfg.dailyBase;
-  return h("div", { class: "card" },
-    h("div", { class: "row row--between" },
-      h("div", {},
-        h("div", { class: "t-card-title", text: "DAILY RATIONS" }),
-        h("div", { class: "t-body", text: can ? `${fmt(amount)} coins waiting to be claimed.` : "Already claimed today. Come back after midnight." })
-      ),
-      can
-        ? h("button", { class: "btn btn--sm", text: "CLAIM", onclick: onClaim })
-        : h("div", { class: "t-stat mono amber", text: DF.Economy.dailyCountdown(now) })
-    )
-  );
-}
+  function overloadRemaining(endsAt, now) {
+    if (!endsAt) return "no time limit";
+    const left = Math.max(0, endsAt - (now || Date.now()));
+    const mins = Math.floor(left / 60000);
+    if (mins >= 60) return `${Math.floor(mins / 60)}h ${mins % 60}m left`;
+    if (mins >= 1) return `${mins}m left`;
+    return `${Math.max(0, Math.floor(left / 1000))}s left`;
+  }
 
-function eliminationHero(total, online, sectors, yourDeaths) {
-  return h("div", { class: "hero" },
-    h("div", { class: "hero-mark", text: "💀" }),
-    h("div", { class: "hero-eyebrow", text: "GLOBAL ELIMINATIONS" }),
-    h("div", { class: "t-stat-hero", text: fmt(total) }),
-    h("div", { class: "row", style: { marginTop: "12px", gap: "24px" } },
-      h("div", {},
-        h("div", { class: "t-micro", text: "ONLINE NOW" }),
-        h("div", { class: "t-stat toxic", text: String(online) })
-      ),
-      h("div", {},
-        h("div", { class: "t-micro", text: "SECTORS" }),
-        h("div", { class: "t-stat", text: String(sectors) })
-      ),
-      h("div", {},
-        h("div", { class: "t-micro", text: "YOUR DEATHS" }),
-        h("div", { class: "t-stat ember", text: fmt(yourDeaths) })
-      )
-    )
-  );
-}
+  function onlineCount() {
+    return (DF.Data.state.users || []).filter((u) => isOnlineNow(u)).length;
+  }
 
-function survivorProfileCard(user, player, cfg, totalDeaths) {
-  if (!user) return null;
-  const pd = user.playerData || player || {};
-  const xpCfg = cfg.xp;
-  const progress = DF.Economy.xpProgress(pd.xp || 0, pd.level || 1, xpCfg);
-  const gear = [
-    pd.shield ? ["SHIELD ARMED", "var(--plasma)"] : null,
-    pd.luckyCoin ? ["LUCKY COIN", "var(--amber)"] : null,
-    pd.insurance ? ["INSURED", "var(--toxic)"] : null,
-    pd.insulationTier ? ["INSULATION " + DF.Economy.roman(pd.insulationTier), "var(--prestige)"] : null
-  ].filter(Boolean);
+  /* ---- live feed ---------------------------------------------------------- */
+  function feedEvents() {
+    const prefs = DF.Prefs;
+    const wheel = prefs.get("wheelAlerts") !== false;
+    const market = prefs.get("marketAlerts") !== false;
+    const wasteland = prefs.get("wastelandAlerts") !== false;
+    return (DF.Data.state.events || []).filter((e) => {
+      if (e.category === "WHEEL_SPIN") return wheel;
+      if (e.category === "BLACK_MARKET") return market;
+      return wasteland;
+    }).slice(0, 14);
+  }
 
-  return h("div", { class: "card" },
-    h("div", { class: "row" },
-      avatar(user, "lg"),
-      h("div", { style: { flex: "1" } },
-        h("div", { class: "t-card-title", text: handleOf(user) }),
-        h("div", { class: "t-body", text: (pd.title || "Survivor") + " · Level " + (pd.level || 1) })
-      ),
-      h("div", { style: { textAlign: "right" } },
-        h("div", { class: "t-micro", text: "COINS" }),
-        h("div", { class: "t-stat amber", text: fmt(pd.coins || 0) })
-      )
-    ),
-    h("div", { class: "divider" }),
-    h("div", { class: "row row--between" },
-      h("div", { class: "t-micro", text: `LEVEL ${pd.level || 1} · ${fmt(pd.xp || 0)} XP` }),
-      h("div", { class: "t-micro", text: `NEXT ${fmt(DF.Economy.xpForLevel(pd.level || 1, xpCfg))} XP` })
-    ),
-    h("div", { class: "bar", style: { marginTop: "6px" } }, h("i", { style: { width: (progress * 100) + "%" } })),
-    gear.length ? h("div", { class: "row row--wrap", style: { marginTop: "12px" } },
-      gear.map((g) => statusPill(g[0], g[1].includes("var(--ember)") ? "ember" : g[1].includes("plasma") ? "plasma" : g[1].includes("amber") ? "amber" : g[1].includes("toxic") ? "toxic" : "prestige"))
-    ) : null,
-    h("div", { class: "row", style: { marginTop: "12px", gap: "18px" } },
-      h("div", {}, h("div", { class: "t-micro", text: "DEATHS" }), h("div", { class: "t-stat", text: fmt(totalDeaths) })),
-      h("div", {}, h("div", { class: "t-micro", text: "PRESTIGE" }), h("div", { class: "t-stat prestige", text: String(pd.prestigeCount || 0) })),
-      h("div", {}, h("div", { class: "t-micro", text: "BANKRUPTCY" }), h("div", { class: "t-stat", style: { color: (pd.bankruptcyLevel || 0) > 0 ? "var(--ember)" : null }, text: ["SOLVENT", "LEVEL 1", "LEVEL 2"][pd.bankruptcyLevel || 0] }))
-    )
-  );
-}
-
-function sectorChips(sectors, lockedGames, playerGames, overloadedSector, overloadLive, onPick) {
-  return h("div", { class: "row row--wrap" },
-    sectors.map((sector) => {
-      const locked = lockedGames.indexOf(sector) >= 0;
-      const overloaded = overloadLive && sector === overloadedSector;
-      const deaths = (playerGames || {})[sector] ? ((playerGames || {})[sector].deaths || 0) : 0;
-      return h("button", {
-        class: "chip" + (overloaded ? " on" : ""),
-        style: locked ? { opacity: "0.5" } : null,
-        title: locked ? "Locked" : `${deaths} deaths`,
-        onclick: () => !locked && onPick(sector)
-      },
-        h("span", { text: sector.toUpperCase() }),
-        h("span", { class: "mono", style: { color: "var(--amber)", fontWeight: "900" }, text: String(deaths) })
-      );
-    })
-  );
-}
-
-/* =============================================================================
-   HOME
-   ========================================================================== */
-DF.Screens.home = {
-  title: "COMMAND CENTER",
-  subtitle: "Sector Net // Live Feed",
-  needs: ["user", "global", "users", "events"],
-  render(ctx) {
-    const { state, go } = ctx;
-    const user = state.user;
-    const global = state.global;
-    const player = user ? (user.playerData || {}) : null;
-    const cfg = global ? global.economy : DF.Economy.DEFAULT_CONFIG;
-    const online = (state.users || []).filter((u) => u.playerData && u.playerData.isOnline).length;
-    const totalDeaths = player ? Object.values(player.games || {}).reduce((a, s) => a + ((s && s.deaths) || 0), 0) : 0;
-    const unlocked = global ? global.games.filter((g) => global.lockedGames.indexOf(g) < 0) : [];
-    const overloadLive = global ? global.sectorOverload && global.overloadedSector && (!global.overloadEndsAt || Date.now() < global.overloadEndsAt) : false;
-    const latest = (state.events || [])[0];
-
-    const wrap = h("div", { class: "stack" });
-    wrap.append(liveFeedStrip(latest && latest.message));
-
-    if (global && global.lockdownActive) {
-      wrap.append(alertBanner("🔒", "DEAD-FEST IS IN LOCKDOWN", "Core protocol actions are restricted by an administrator."));
-    }
-    if (player) wrap.append(penaltyStatusCard(player, () => go("wheel")));
-    if (overloadLive) {
-      wrap.append(alertBanner("⚡", `SECTOR OVERLOAD: ${global.overloadedSector.toUpperCase()}`,
-        `x${global.multiplier} multiplier is active in this sector.`, "amber"));
-    }
-    if (player) {
-      wrap.append(dailyRationsCard(player, cfg, () => ctx.claimDaily()));
-    }
-    wrap.append(eliminationHero(global ? global.grandTotal : 0, online, global ? global.games.length : 0, totalDeaths));
-
-    wrap.append(sectionLabel("Survivor Profile"));
-    wrap.append(survivorProfileCard(user, player, cfg, totalDeaths));
-
-    wrap.append(sectionLabel("Active Sectors"));
-    if (!global || !global.games.length) {
-      wrap.append(h("div", { class: "t-body", text: "No sectors configured yet." }));
+  function feedStrip() {
+    const events = feedEvents();
+    const strip = h("div", { class: "hscroll feed-strip" });
+    if (!events.length) {
+      strip.append(h("div", { class: "feed-empty", text: "Awaiting wasteland transmission..." }));
     } else {
-      wrap.append(sectorChips(global.games, global.lockedGames, player ? player.games : {}, global.overloadedSector, overloadLive, (sector) => ctx.recordDeath(sector)));
+      events.forEach((e) => {
+        strip.append(h("div", { class: "feed-item", title: e.message },
+          h("span", { class: "feed-dot" }),
+          h("span", { class: "feed-msg", text: e.message }),
+          e.timestamp ? h("span", { class: "feed-time", "data-live": "ago", "data-at": String(e.timestamp), text: timeAgo(e.timestamp) }) : null
+        ));
+      });
     }
-
-    wrap.append(h("div", { class: "row", style: { marginTop: "8px" } },
-      h("button", {
-        class: "btn btn--full", style: { maxWidth: "340px" },
-        disabled: !global || global.lockdownActive || !unlocked.length,
-        text: global && global.lockdownActive ? "Death recording locked" : !unlocked.length ? "No open sectors" : "Record Death",
-        onclick: () => ctx.pickSector(unlocked, overloadLive, global)
-      })
-    ));
-    return wrap;
-  }
-};
-
-/* =============================================================================
-   PLAYERS
-   ========================================================================== */
-DF.Screens.players = {
-  title: "SURVIVOR NETWORK",
-  subtitle: "Every survivor // live presence",
-  needs: ["users", "global"],
-  render(ctx) {
-    const { state } = ctx;
-    const users = state.users || [];
-    const global = state.global;
-    const query = ctx.local("playersQuery", "");
-    const filtered = query ? users.filter((u) => handleOf(u).toLowerCase().indexOf(query.toLowerCase()) >= 0) : users;
-
-    const wrap = h("div", { class: "stack" });
-    wrap.append(h("div", { class: "row" },
-      h("div", { class: "field", style: { flex: "1", maxWidth: "360px" } },
-        h("input", {
-          value: query,
-          placeholder: "Find survivor...",
-          "data-focus-key": "playersSearch",
-          oninput: (e) => { ctx.local("playersQuery", e.target.value); ctx.rerender(); }
-        })
+    return h("div", { class: "feed" },
+      h("div", { class: "row row--between" },
+        h("div", { class: "t-micro", text: "LIVE FEED" }),
+        h("div", { class: "row", style: { gap: "5px" } },
+          h("span", { class: "live-dot" }),
+          h("span", { class: "t-micro toxic", text: "LIVE" })
+        )
       ),
-      h("div", { class: "spacer" }),
-      h("div", { class: "t-micro", text: `${filtered.length} SURVIVOR${filtered.length === 1 ? "" : "S"}` })
-    ));
+      strip
+    );
+  }
 
-    if (!filtered.length) {
-      wrap.append(emptyState("👥", "No survivors found", query ? `Nobody matches "${query}".` : "No player records have loaded yet."));
-      return wrap;
-    }
-
-    const grid = h("div", { class: "grid-2" });
-    filtered.forEach((u) => {
-      const pd = u.playerData || {};
-      const deaths = Object.values(pd.games || {}).reduce((a, s) => a + ((s && s.deaths) || 0), 0);
-      grid.append(h("div", { class: "list-row", onclick: () => ctx.openDossier(u) },
-        avatar(u),
+  /* ---- home --------------------------------------------------------------- */
+  function dailyCard(ctx, playerData, economy, now) {
+    const claimable = DF.Economy.canClaimDaily(playerData.lastDailyClaim || 0, now);
+    const amount = playerData.dailyUpgradeOwned ? economy.dailyUpgraded : economy.dailyBase;
+    const tint = claimable ? "var(--toxic)" : "var(--text-low)";
+    const card = h("div", {
+      class: "card",
+      style: {
+        borderColor: claimable ? "rgba(76,224,127,0.45)" : "var(--ink-line)",
+        background: claimable ? "linear-gradient(90deg, rgba(76,224,127,0.12), transparent 70%), var(--ink2)" : "var(--ink2)"
+      }
+    },
+      h("div", { class: "row" },
+        h("div", { class: "tile", style: { "--tint": tint }, text: "📦" }),
         h("div", { style: { flex: "1", minWidth: "0" } },
-          h("div", { class: "t-card-title", text: handleOf(u), style: { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }),
-          h("div", { class: "t-body", text: `${fmt(pd.coins || 0)} coins · ${fmt(deaths)} deaths` })
+          h("div", { class: "t-card-title", text: "DAILY RATIONS" }),
+          claimable
+            ? h("div", { class: "t-body", text: `${fmt(amount)} coins ready to collect` })
+            : h("div", { class: "t-body", "data-live": "daily", "data-at": String(now), text: "Next drop in " + DF.Economy.dailyCountdown(now) }),
+          playerData.dailyUpgradeOwned
+            ? h("div", { class: "t-micro amber", style: { marginTop: "4px" }, text: "RATION UPGRADE ACTIVE" })
+            : null
         ),
-        pd.isOnline ? statusPill("ONLINE", "toxic") : h("div", { class: "t-micro", text: timeAgo(pd.lastSeen) }),
-        u.admin ? statusPill("ADMIN", "ember") : null
+        claimable
+          ? h("button", { class: "btn btn--toxic btn--sm", text: "CLAIM", onclick: () => ctx.claimDaily() })
+          : h("span", { class: "t-micro", text: "TOMORROW" })
+      )
+    );
+    return card;
+  }
+
+  function heroStat(label, value, color) {
+    return h("div", { style: { minWidth: "70px" } },
+      h("div", { class: "hero-stat-val", style: { color: color || "var(--text-hi)" }, text: String(value) }),
+      h("div", { class: "t-micro", text: label })
+    );
+  }
+
+  function eliminationsHero(playerData) {
+    const g = world();
+    const deaths = g.grandTotal || 0;
+    return h("div", {
+      class: "hero",
+      style: { background: "linear-gradient(160deg, rgba(255,75,75,0.16) 0%, rgba(255,75,75,0.02) 45%, transparent 100%), var(--ink2)" }
+    },
+      h("div", { class: "hero-mark", text: "💀" }),
+      h("div", { class: "row", style: { alignItems: "flex-start" } },
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "hero-eyebrow", text: "GLOBAL ELIMINATIONS" }),
+          h("div", { style: { fontSize: "44px", lineHeight: "48px", fontWeight: "900", letterSpacing: "-1px" }, text: fmt(deaths) })
+        ),
+        h("div", { class: "tile", style: { "--tint": "var(--ember)" }, text: "💀" })
+      ),
+      h("hr", { class: "rule" }),
+      h("div", { class: "hero-stats" },
+        heroStat("SURVIVORS", (DF.Data.state.users || []).length, "var(--text-hi)"),
+        heroStat("SECTORS", (g.games || []).length, "var(--text-hi)"),
+        heroStat("YOUR DEATHS", totalDeaths(user()), "var(--ember)")
+      )
+    );
+  }
+
+  function profileCard(ctx, me, economy) {
+    const p = me.playerData || {};
+    return h("div", { class: "card", style: { padding: "var(--md)" } },
+      h("div", { class: "row" },
+        avatar(me, 52),
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-card-title", text: displayNameOf(me) }),
+          h("div", { class: "row row--wrap", style: { gap: "6px", marginTop: "3px" } },
+            levelBadge(p.level || 1, p.prestigeCount || 0),
+            h("span", { class: "t-micro ember", text: String(p.title || "SURVIVOR").toUpperCase() }),
+            isOnlineNow(me) ? h("span", { class: "t-micro toxic", text: "ONLINE" }) : null
+          )
+        ),
+        coinBadge(p.coins || 0)
+      ),
+      h("div", { style: { marginTop: "var(--sm)" } }, xpBar(p.xp || 0, p.level || 1, economy.xp)),
+      h("div", { class: "row", style: { marginTop: "var(--sm)", gap: "6px" } },
+        miniStat("DEATHS", String(totalDeaths(me)), "var(--ember)"),
+        miniStat("SHIELD", p.shield ? "ACTIVE" : "NONE", p.shield ? "var(--plasma)" : "var(--text-low)"),
+        miniStat("LUCKY", p.luckyCoin ? "ARMED" : "NONE", p.luckyCoin ? "var(--amber)" : "var(--text-low)")
+      ),
+      h("div", { class: "row", style: { marginTop: "6px", gap: "6px" } },
+        miniStat("INSURANCE", p.insurance ? "ARMED" : "NONE", p.insurance ? "var(--plasma)" : "var(--text-low)"),
+        miniStat("INSULATION", p.insulationTier ? "TIER " + DF.Economy.roman(p.insulationTier) : "NONE", p.insulationTier ? "var(--amber)" : "var(--text-low)"),
+        miniStat("SPINS DUE", String(p.pendingSpins || 0), (p.pendingSpins || 0) > 0 ? "var(--ember)" : "var(--text-low)")
+      )
+    );
+  }
+
+  function sectorChips(playerData) {
+    const games = world().games || [];
+    if (!games.length) {
+      return h("div", { class: "t-body", text: "No sectors have been configured yet." });
+    }
+    const strip = h("div", { class: "hscroll" });
+    games.forEach((sector) => {
+      const locked = isLocked(sector);
+      const deaths = sectorDeaths(playerData, sector);
+      strip.append(h("div", { class: "sector-chip" + (locked ? " sector-chip--locked" : "") },
+        h("div", { class: "sector-chip-name", text: String(sector).toUpperCase() }),
+        h("div", {
+          class: "t-micro " + (locked ? "ember" : deaths > 0 ? "ember" : ""),
+          style: locked ? null : { color: deaths > 0 ? "var(--ember)" : "var(--text-low)" },
+          text: locked ? "LOCKED" : `${deaths} YOUR DEATHS`
+        })
       ));
     });
-    wrap.append(grid);
-    return wrap;
+    return strip;
   }
-};
 
-/* =============================================================================
-   SHOP (BLACK MARKET)
-   ========================================================================== */
-DF.Screens.shop = {
-  title: "BLACK MARKET",
-  subtitle: "Wealth is a weapon",
-  needs: ["user", "global", "users"],
-  render(ctx) {
-    const { state } = ctx;
-    const user = state.user;
-    const global = state.global;
-    const cfg = global ? global.economy : DF.Economy.DEFAULT_CONFIG;
-    const pd = user ? (user.playerData || {}) : {};
-    const wrap = h("div", { class: "stack" });
+  function recordDeathBar(ctx, now) {
+    const g = world();
+    const lockedDown = g.lockdownActive === true;
+    const sectors = openSectors();
+    const can = !lockedDown && sectors.length > 0;
+    let label = "RECORD DEATH";
+    if (lockedDown) { label = "DEATH RECORDING LOCKED"; }
+    else if (!sectors.length) { label = "NO OPEN SECTORS"; }
 
-    wrap.append(h("div", { class: "card" },
-      h("div", { class: "row" },
-        h("div", { class: "icon-tile", style: { "--tint": "rgba(255,213,79,0.18)", "--edge": "rgba(255,213,79,0.45)", "--fg": "var(--amber)" }, text: "🪙" }),
-        h("div", { style: { flex: "1" } },
-          h("div", { class: "t-micro", text: "YOUR BALANCE" }),
-          h("div", { class: "t-stat-hero amber", text: fmt(pd.coins || 0) })
-        ),
-        h("div", { style: { textAlign: "right" } },
-          h("div", { class: "t-micro", text: "CASUALTY TAX" }),
-          h("div", { class: "t-stat", text: DF.Economy.effectiveRateLabel(pd.coins || 0, DF.Economy.insulationReduction(pd.insulationTier || 0, cfg)) })
+    return h("div", { class: "sticky-bar" },
+      primaryAction(label, () => ctx.pickSector(sectors, overloadLive(now), g), can, "var(--ember)")
+    );
+  }
+
+  DF.Screens.home = {
+    title: "COMMAND CENTER",
+    subtitle: "Sector Net // Live Feed",
+    pill() {
+      return statusPill(`${onlineCount()} ONLINE`, "toxic");
+    },
+    render(ctx) {
+      const me = user();
+      if (!me) return emptyState("🔒", "SIGNAL LOST", "Sign in to open the command center.");
+      const g = world();
+      const p = me.playerData || {};
+      const economy = cfg();
+      const now = Date.now();
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+      root.append(feedStrip());
+      if (g.lockdownActive) {
+        root.append(alertBanner("🔒", "DEAD-FEST IS IN LOCKDOWN",
+          "Core protocol actions are restricted by an administrator.", "var(--ember)"));
+      }
+      if (overloadLive(now)) {
+        root.append(alertBanner("⚡", `SECTOR OVERLOAD: ${String(g.overloadedSector).toUpperCase()}`,
+          `x${g.multiplier} multiplier is active in this sector · ${overloadRemaining(g.overloadEndsAt, now)}.`, "var(--amber)"));
+      }
+
+      const penalty = penaltyStatusCard(p, () => ctx.go("wheel"));
+      if (penalty) root.append(penalty);
+
+      root.append(dailyCard(ctx, p, economy, now));
+      root.append(eliminationsHero(p));
+      root.append(profileCard(ctx, me, economy));
+
+      root.append(sectionLabel("Active Sectors"));
+      root.append(sectorChips(p));
+      root.append(recordDeathBar(ctx, now));
+
+      return root;
+    }
+  };
+
+  /* ---- players ------------------------------------------------------------ */
+  function playerRow(ctx, u, rank, tab) {
+    const p = u.playerData || {};
+    const isMe = user() && user().uid === u.uid;
+    const coins = p.coins || 0;
+    const deaths = totalDeaths(u);
+    const right = tab === "wealth"
+      ? h("div", { class: "right" },
+          h("div", { class: "t-stat amber", text: fmt(coins) }),
+          h("div", { class: "t-micro", text: "COINS" })
         )
-      )
-    ));
+      : tab === "prowess"
+        ? h("div", { class: "right" },
+            h("div", { class: "t-stat ember", text: fmt(deaths) }),
+            h("div", { class: "t-micro", text: "DEATHS" })
+          )
+        : h("div", { class: "right" },
+            h("div", { class: "row", style: { gap: "5px", justifyContent: "flex-end" } }, coinIcon(13), h("div", { class: "t-card-title", text: fmt(coins) })),
+            h("div", { class: "t-micro", text: `${deaths} DEATHS` })
+          );
 
-    if (global && !global.marketEnabled) {
-      wrap.append(alertBanner("🚫", "BLACK MARKET CLOSED", "An administrator has disabled purchases."));
+    return h("div", { class: "list-row", onclick: () => ctx.openDossier(u) },
+      rank ? rankBadge(rank) : null,
+      avatar(u, 44),
+      h("div", { style: { flex: "1", minWidth: "0" } },
+        h("div", { class: "row", style: { gap: "6px" } },
+          h("div", { class: "t-card-title", style: { fontSize: "14px" }, text: displayNameOf(u) }),
+          isMe ? h("span", { class: "me-pill", text: "YOU" }) : null,
+          p.shield ? h("span", { class: "t-micro plasma", style: { fontSize: "13px" }, text: "🛡" }) : null,
+          (p.bankruptcyLevel || 0) > 0 ? h("span", { class: "t-micro ember", style: { fontSize: "13px" }, text: "💸" }) : null
+        ),
+        h("div", { class: "row", style: { gap: "6px", marginTop: "2px" } },
+          levelBadge(p.level || 1, p.prestigeCount || 0),
+          h("span", { class: "t-micro", text: String(p.title || "SURVIVOR").toUpperCase() })
+        )
+      ),
+      right
+    );
+  }
+
+  DF.Screens.players = {
+    title: "SURVIVOR NETWORK",
+    get subtitle() { return `${(DF.Data.state.users || []).length} registered // leaderboard`; },
+    pill() { return statusPill(`${onlineCount()} ONLINE`, "toxic"); },
+    render(ctx) {
+      const tab = L(ctx, "playersTab", "survivors");
+      const query = L(ctx, "playersQuery", "");
+      const all = (DF.Data.state.users || []).slice();
+
+      if (tab === "wealth") {
+        all.sort((a, b) => ((b.playerData || {}).coins || 0) - ((a.playerData || {}).coins || 0));
+      } else if (tab === "prowess") {
+        all.sort((a, b) => totalDeaths(a) - totalDeaths(b) || (((b.playerData || {}).coins || 0) - ((a.playerData || {}).coins || 0)));
+      } else {
+        all.sort((a, b) => (Number(isOnlineNow(b)) - Number(isOnlineNow(a))) || displayNameOf(a).localeCompare(displayNameOf(b)));
+      }
+
+      const shown = all.filter((u) => displayNameOf(u).toLowerCase().indexOf(query.toLowerCase()) >= 0);
+
+      const search = h("input", {
+        placeholder: "Search survivors...",
+        value: query,
+        "data-focus-key": "players-search",
+        style: { paddingRight: "38px" }
+      });
+      search.addEventListener("input", () => {
+        ctx.local("playersQuery", search.value);
+        ctx.rerender();
+      });
+
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } },
+        h("div", { class: "tabbar" },
+          pillChip("Survivors", tab === "survivors", () => { ctx.local("playersTab", "survivors"); ctx.rerender(); }),
+          pillChip("Wealth", tab === "wealth", () => { ctx.local("playersTab", "wealth"); ctx.rerender(); }),
+          pillChip("Prowess", tab === "prowess", () => { ctx.local("playersTab", "prowess"); ctx.rerender(); })
+        ),
+        h("div", { style: { position: "relative" } },
+          search,
+          query ? h("button", {
+            class: "search-clear",
+            title: "Clear search",
+            text: "✕",
+            onclick: () => { ctx.local("playersQuery", ""); ctx.rerender(); }
+          }) : null
+        )
+      );
+
+      if (!all.length) {
+        root.append(emptyStateCard("👥", "NO SURVIVORS YET", "The network is quiet. Be the first to sign in."));
+      } else if (!shown.length) {
+        root.append(emptyStateCard("🔍", "NO MATCHES", `No survivor matches "${query}".`));
+      } else {
+        const list = h("div", { class: "stack stack--tight" });
+        shown.forEach((u, i) => {
+          // Ranks are a property of the sorted tab, not of the filtered list.
+          const rank = tab === "survivors" ? 0 : all.findIndex((x) => x.uid === u.uid) + 1;
+          list.append(playerRow(ctx, u, rank, tab));
+        });
+        root.append(list);
+      }
+      return root;
+    }
+  };
+
+  /* ---- shop --------------------------------------------------------------- */
+  const TITLES = [
+    { title: "SURVIVOR", price: 0, description: "The name every survivor starts with." },
+    { title: "UNDEAD LEGEND", price: 250, description: "You died. You got better." },
+    { title: "WARLORD", price: 500, description: "Sectors fall where you walk." },
+    { title: "SHADOW ASSASSIN", price: 750, description: "Nobody sees the curse coming." },
+    { title: "APOCALYPSE EMPEROR", price: 1500, description: "The wasteland answers to you." }
+  ];
+
+  function itemStatus(item, p) {
+    if (item.id === "shield") return p.shield ? "ACTIVE" : null;
+    if (item.id === "lucky_coin") return p.luckyCoin ? "ARMED" : null;
+    if (item.id === "insurance") return p.insurance ? "ARMED" : null;
+    if (item.id === "ration_upgrade") return p.dailyUpgradeOwned ? "ACTIVE" : null;
+    if (item.tier > 0) {
+      const owned = p.insulationTier || 0;
+      if (owned === item.tier) return "ACTIVE";
+      if (owned > item.tier) return "OWNED";
+      if (owned + 1 < item.tier) return "LOCKED";
+    }
+    return null;
+  }
+
+  function itemDescription(item, economy, p) {
+    if (item.id === "insurance") {
+      return `${economy.insurancePct}% of your next casualty tax is covered.`;
+    }
+    if (item.id === "ration_upgrade") {
+      return `${fmt(economy.dailyUpgraded)} coins every day instead of ${fmt(economy.dailyBase)}.`;
+    }
+    if (item.tier > 0) {
+      return `Tier ${DF.Economy.roman(item.tier)}: ${DF.Economy.reductionIn(item, economy)}% off every casualty tax.`;
+    }
+    return item.desc;
+  }
+
+  function itemCard(ctx, item, economy, p) {
+    const price = DF.Economy.priceIn(item, economy);
+    const enabled = DF.Economy.enabledIn(item, economy);
+    const status = itemStatus(item, p);
+    const affordable = (p.coins || 0) >= price;
+    const blocked = status === "ACTIVE" || status === "OWNED" || status === "LOCKED" || !enabled;
+
+    const right = h("div", { class: "stack", style: { alignItems: "flex-end", gap: "6px", flex: "none" } });
+
+    if (!enabled) {
+      right.append(statusPill("DISABLED", "low"));
+    } else if (status) {
+      right.append(statusPill(status, status === "ACTIVE" || status === "ARMED" ? "toxic" : status === "LOCKED" ? "low" : "plasma"));
+      right.append(priceTag(price, false));
+    } else {
+      right.append(priceTag(price, affordable));
+      right.append(h("button", {
+        class: "btn btn--sm" + (affordable ? "" : " btn--off"),
+        text: "BUY",
+        disabled: !affordable,
+        onclick: () => openBuy(ctx, item, price, economy, p)
+      }));
     }
 
-    const categories = [
-      { key: "COMBAT", label: "Combat" },
-      { key: "ECONOMY", label: "Economy" },
-      { key: "INSULATION", label: "Insulation" }
-    ];
-    categories.forEach((cat) => {
-      const items = DF.Economy.SHOP.filter((i) => i.category === cat.key && DF.Economy.enabledIn(i, cfg));
-      if (!items.length) return;
-      wrap.append(sectionLabel(cat.label));
-      const grid = h("div", { class: "grid-3" });
-      items.forEach((item) => {
-        const price = DF.Economy.priceIn(item, cfg);
-        const owned = ctx.ownedState(item, pd);
-        const affordable = (pd.coins || 0) >= price;
-        grid.append(h("div", { class: "card" },
-          h("div", { class: "row row--between" },
-            h("div", { class: "t-card-title", text: item.name }),
-            owned ? statusPill("OWNED", "toxic") : h("div", { class: "t-stat amber", style: { fontSize: "16px" }, text: fmt(price) })
+    return h("div", { class: "card item-card" },
+      itemEmblem(item.tier > 0 ? "🏦" : item.id === "curse" || item.id === "double_curse" ? "🪦" : item.id === "shield" ? "🛡" : item.id === "revive" ? "💉" : item.id === "lucky_coin" ? "🍀" : item.id === "insurance" ? "📄" : item.id === "ration_upgrade" ? "📦" : "⚙", "var(--ember)"),
+      h("div", { style: { flex: "1", minWidth: "0" } },
+        h("div", { class: "row", style: { gap: "6px" } },
+          h("div", { class: "t-card-title", text: item.name }),
+          status === "ACTIVE" || status === "ARMED" ? h("span", { class: "t-micro toxic", text: "●" }) : null
+        ),
+        h("div", { class: "t-body", text: itemDescription(item, economy, p) }),
+        item.curseDeaths > 0
+          ? h("div", { class: "t-micro", text: `CURSES · ${item.curseDeaths} DEATH${item.curseDeaths === 1 ? "" : "S"}` })
+          : null
+      ),
+      right
+    );
+  }
+
+  function openBuy(ctx, item, price, economy, p) {
+    if (item.curseDeaths > 0) { ctx.openCurse(item); return; }
+    const desc = itemDescription(item, economy, p);
+    const permanent = item.oneTime ? "\n\nOne-time purchase. It's yours for good." : "";
+    const message = `${desc}${permanent}\n\n${fmt(price)} coins will be taken from your balance of ${fmt(p.coins || 0)}.`;
+    if (item.tier > 0) {
+      const current = p.insulationTier || 0;
+      const replacing = current > 0 ? ` Replaces Tier ${DF.Economy.roman(current)}.` : "";
+      confirmDialog({
+        title: `UPGRADE TO TIER ${DF.Economy.roman(item.tier)}?`,
+        message: `${desc}${replacing}\n\n${fmt(price)} coins will be taken from your balance of ${fmt(p.coins || 0)}.`,
+        confirmText: "UPGRADE",
+        onConfirm: () => ctx.applyPurchase(item)
+      });
+      return;
+    }
+    confirmDialog({
+      title: `BUY ${item.name}?`,
+      message,
+      confirmText: "BUY",
+      onConfirm: () => ctx.applyPurchase(item)
+    });
+  }
+
+  function scratchEntryCard(ctx) {
+    return h("div", { class: "card card--click", style: { borderColor: "rgba(77,208,225,0.4)" }, onclick: () => ctx.go("scratch") },
+      h("div", { class: "row" },
+        itemEmblem("🎟", "var(--plasma)"),
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-card-title", text: "SCRATCH CARDS" }),
+          h("div", { class: "t-body", text: `A quick gamble. ${fmt(cfg().scratchCost)} coins a card.` })
+        ),
+        h("span", { class: "t-micro plasma", text: "OPEN →" })
+      )
+    );
+  }
+
+  function insulationTab(ctx, economy, p) {
+    const current = p.insulationTier || 0;
+    const tiers = DF.Economy.SHOP.filter((i) => i.tier > 0).sort((a, b) => a.tier - b.tier);
+    const activeReduction = DF.Economy.insulationReduction(current, economy);
+    const root = h("div", { class: "stack" });
+
+    const tracker = h("div", { class: "row", style: { gap: "4px" } });
+    for (let t = 1; t <= 4; t++) {
+      tracker.append(h("div", {
+        class: "tier-seg" + (t <= current ? " on" : ""),
+        style: t <= current ? { background: "var(--amber)", borderColor: "var(--amber)" } : null
+      }));
+    }
+
+    root.append(heroPanel({
+      eyebrow: "Wealth Insulation",
+      title: current === 0 ? "NO TIER YET" : `TIER ${DF.Economy.roman(current)} OF IV`,
+      glyph: "🏦",
+      accent: "var(--amber)",
+      badge: statusPill(current === 0 ? "UNPROTECTED" : `${activeReduction}% COVERED`, current === 0 ? "ember" : "amber"),
+      children: h("div", { class: "stack", style: { marginTop: "var(--sm)" } },
+        tracker,
+        h("div", { class: "t-body", text: current === 0
+          ? "Every death takes a cut of your coins. Insulation shrinks that cut, permanently."
+          : `Tier ${DF.Economy.roman(current)} erases ${activeReduction}% of every casualty tax, permanently.` })
+      )
+    }));
+
+    if (!economy.insulationEnabled) {
+      root.append(noticeCard("🚫", "INSULATION OFFLINE", "Wealth insulation is disabled by an administrator."));
+      return root;
+    }
+
+    root.append(sectionLabel("Insulation Tiers"));
+    tiers.forEach((item) => root.append(itemCard(ctx, item, economy, p)));
+    return root;
+  }
+
+  function titlesTab(ctx, p) {
+    const root = h("div", { class: "stack" });
+    const owned = Array.isArray(p.ownedTitles) ? p.ownedTitles : [];
+    TITLES.forEach((offer) => {
+      const isEquipped = String(p.title || "Survivor").toUpperCase() === offer.title;
+      const isOwned = offer.price === 0 || owned.indexOf(offer.title) >= 0;
+      const affordable = (p.coins || 0) >= offer.price;
+      const right = h("div", { class: "stack", style: { alignItems: "flex-end", gap: "6px", flex: "none" } });
+      if (isEquipped) {
+        right.append(statusPill("EQUIPPED", "toxic"));
+      } else if (isOwned) {
+        right.append(h("button", { class: "btn btn--ghost btn--sm", text: "EQUIP", onclick: () => ctx.equipTitleNow(offer.title) }));
+      } else {
+        right.append(priceTag(offer.price, affordable));
+        right.append(h("button", {
+          class: "btn btn--sm" + (affordable ? "" : " btn--off"),
+          text: "BUY",
+          disabled: !affordable,
+          onclick: () => confirmDialog({
+            title: `UNLOCK ${offer.title}?`,
+            message: `${offer.description}\n\n${fmt(offer.price)} coins will be taken from your balance of ${fmt(p.coins || 0)}.`,
+            confirmText: "UNLOCK",
+            onConfirm: () => ctx.buyTitleNow(offer)
+          })
+        }));
+      }
+      root.append(h("div", { class: "card item-card" },
+        itemEmblem("🎖", "var(--prestige)"),
+        h("div", { style: { flex: "1", minWidth: "0" } },
+          h("div", { class: "t-card-title", text: offer.title }),
+          h("div", { class: "t-body", text: offer.description })
+        ),
+        right
+      ));
+    });
+    return root;
+  }
+
+  DF.Screens.shop = {
+    title: "BLACK MARKET",
+    subtitle: "Illegal Gear & Curses",
+    pill() { return coinBadge(myCoins()); },
+    render(ctx) {
+      const g = world();
+      const economy = cfg();
+      const p = pd();
+
+      if (g.lockdownActive) {
+        return noticeCard("🔒", "SYSTEM LOCKDOWN ACTIVE",
+          "The Black Market is currently locked down by an administrator.");
+      }
+      if (!g.marketEnabled) {
+        return noticeCard("🚫", "SHOP CLOSED BY ADMIN",
+          "All transactions and illegal gear acquisitions are temporarily suspended.");
+      }
+
+      const tab = L(ctx, "shopTab", "all");
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+      const tabs = h("div", { class: "tabbar" });
+      [["all", "All"], ["combat", "Combat"], ["economy", "Economy"], ["insulation", "Insulation"], ["titles", "Titles"]].forEach(([key, label]) => {
+        tabs.append(pillChip(label, tab === key, () => { ctx.local("shopTab", key); ctx.rerender(); }));
+      });
+      root.append(tabs);
+
+      if (tab === "insulation") {
+        root.append(insulationTab(ctx, economy, p));
+        return root;
+      }
+      if (tab === "titles") {
+        root.append(titlesTab(ctx, p));
+        return root;
+      }
+
+      if ((tab === "all" || tab === "economy") && economy.scratchEnabled) {
+        root.append(scratchEntryCard(ctx));
+      }
+
+      let items = DF.Economy.SHOP.slice();
+      if (tab === "combat") items = items.filter((i) => i.category === "COMBAT");
+      if (tab === "economy") items = items.filter((i) => i.category === "ECONOMY");
+      items.forEach((item) => root.append(itemCard(ctx, item, economy, p)));
+      return root;
+    }
+  };
+
+  /* ---- wheel -------------------------------------------------------------- */
+  function wheelItems() {
+    return (world().wheelItems || []).filter((i) => i.enabled !== false && i.weight > 0);
+  }
+
+  function wheelDisc(items, angle) {
+    const total = items.reduce((a, i) => a + i.weight, 0);
+    let acc = 0;
+    const stops = items.map((i) => {
+      const from = acc / total * 360;
+      acc += i.weight;
+      const to = acc / total * 360;
+      return `${i.color} ${from}deg ${to}deg`;
+    });
+    const disc = h("div", {
+      id: "wheel-disc",
+      class: "wheel-disc",
+      style: {
+        background: `conic-gradient(from 0deg, ${stops.join(",")})`,
+        transform: `rotate(${angle || 0}deg)`
+      }
+    });
+
+    let cursor = 0;
+    items.forEach((item) => {
+      const mid = (cursor + item.weight / 2) / total * 360;
+      cursor += item.weight;
+      disc.append(h("div", {
+        class: "wheel-label",
+        style: { transform: `rotate(${mid}deg) translateY(-38%) rotate(${-mid}deg)` },
+        text: String(item.label || "").toUpperCase()
+      }));
+    });
+    disc.append(h("div", { class: "wheel-hub", text: "💀" }));
+    return disc;
+  }
+
+  function wheelResultLabel(result) {
+    if (!result) return "";
+    if (result.penaltyCleared) {
+      return result.pendingLeft > 0 ? `PENALTY CLEARED · ${result.pendingLeft} LEFT` : "ALL PENALTY SPINS CLEARED";
+    }
+    if (result.delta > 0) return `YOU WON ${fmt(result.delta)} COINS`;
+    if (result.delta < 0) return `YOU LOST ${fmt(Math.abs(result.delta))} COINS`;
+    return "NOTHING THIS TIME";
+  }
+
+  DF.Screens.wheel = {
+    title: "WHEEL OF FATE",
+    subtitle: "TEST YOUR LUCK, SURVIVOR",
+    pill() {
+      const p = pd();
+      return (p.pendingSpins || 0) > 0
+        ? statusPill(`${p.pendingSpins} PENALTY SPIN${p.pendingSpins === 1 ? "" : "S"}`, "ember")
+        : coinBadge(myCoins());
+    },
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const g = world();
+      const economy = cfg();
+      const p = pd();
+      if (g.lockdownActive) {
+        return noticeCard("🔒", "SYSTEM LOCKDOWN ACTIVE",
+          "The Wheel of Fate is currently locked down by an administrator.");
+      }
+      if (!g.wheelEnabled) {
+        return noticeCard("🚫", "WHEEL OF FATE OFFLINE",
+          "Fate is taking a break. The wheel has been disabled by an administrator.");
+      }
+
+      const items = wheelItems();
+      const spinning = ctx.local("spinning") === true;
+      const result = ctx.local("wheelResult");
+      const pending = p.pendingSpins || 0;
+      const angle = ctx.local("wheelAngle") || 0;
+
+      const root = h("div", { class: "stack", style: { gap: "var(--md)", alignItems: "center" } });
+
+      if (!items.length) {
+        root.append(noticeCard("🎡", "WHEEL IS EMPTY", "An administrator hasn't loaded any slices yet."));
+        return root;
+      }
+
+      root.append(h("div", { class: "wheel-hero" },
+        h("div", { class: "wheel-pointer", text: "▼" }),
+        wheelDisc(items, angle),
+        h("div", { class: "wheel-center-ring" })
+      ));
+
+      const stateLabel = spinning ? "SPIN IN PROGRESS"
+        : result ? "SPIN COMPLETE"
+        : pending > 0 ? "PENALTY SPINS QUEUED"
+        : "READY TO SPIN";
+      root.append(h("div", {
+        id: "wheel-state",
+        class: "t-micro " + (spinning ? "amber" : result ? "toxic" : pending > 0 ? "ember" : ""),
+        text: stateLabel
+      }));
+
+      if (result) {
+        const payout = result.result || result;
+        root.append(h("div", {
+          class: "card",
+          style: {
+            width: "100%",
+            borderColor: payout.penaltyCleared ? "rgba(255,75,75,0.45)" : payout.delta >= 0 ? "rgba(76,224,127,0.45)" : "rgba(255,75,75,0.45)",
+            background: payout.penaltyCleared ? "rgba(255,75,75,0.07)" : "var(--ink2)"
+          }
+        },
+          h("div", { class: "stack stack--tight", style: { alignItems: "center" } },
+            h("div", {
+              class: "t-stat",
+              style: { color: payout.penaltyCleared ? "var(--ember)" : payout.delta > 0 ? "var(--toxic)" : payout.delta < 0 ? "var(--ember)" : "var(--text-mid)" },
+              text: wheelResultLabel(payout)
+            }),
+            payout.luckyCoinUsed ? h("div", { class: "t-micro amber", text: "LUCKY COIN · PAYOUT DOUBLED" }) : null,
+            h("div", { class: "t-micro", text: String(result.item.label || "").toUpperCase() + (result.item.value ? " · " + result.item.value : "") })
+          )
+        ));
+      }
+
+      const disabled = spinning || pending === 0 && !g.wheelEnabled;
+      const label = spinning ? "FATE IS DECIDING..."
+        : pending > 0 ? `EXECUTE PENALTY SPIN (${pending})`
+        : "INITIATE SPIN";
+      const btn = h("button", {
+        id: "wheel-btn",
+        class: "btn btn--full btn--tall" + (pending > 0 ? "" : " btn--ember"),
+        style: pending > 0 ? { background: "var(--ember)" } : null,
+        disabled,
+        text: label,
+        onclick: () => ctx.spinWheel(items)
+      });
+      root.append(btn);
+
+      if (pending > 0) {
+        root.append(alertBanner("🎰", "PENALTY SPINS QUEUED",
+          `${pending} forced spin${pending === 1 ? "" : "s"} must be cleared before you can spin for fun.`, "var(--ember)"));
+      }
+
+      root.append(h("div", { class: "card", style: { width: "100%" } },
+        h("div", { class: "t-micro", text: "ON THE WHEEL" }),
+        h("div", { class: "stack stack--tight", style: { marginTop: "6px" } },
+          ...items.map((i) => h("div", { class: "row row--between" },
+            h("div", { class: "row", style: { gap: "6px" } },
+              h("span", { style: { width: "10px", height: "10px", borderRadius: "2px", background: i.color, flex: "none" } }),
+              h("span", { class: "t-body", text: String(i.label).toUpperCase() })
+            ),
+            h("span", { class: "t-micro", text: i.actionType === "take" ? `−${i.value}` : i.value ? `+${i.value}` : "—" })
+          ))
+        )
+      ));
+
+      return root;
+    }
+  };
+
+  /* ---- scratch ------------------------------------------------------------ */
+  function scratchPrizeText(prize) {
+    if (!prize) return "?";
+    if (prize.type === "coins") return `${fmt(parseInt(prize.value, 10) || 0)} COINS`;
+    if (prize.type === "shield") return "SHIELD";
+    if (prize.type === "lucky_coin") return "LUCKY COIN";
+    if (prize.type === "revive") return "REVIVE";
+    return String(prize.label || "NOTHING").toUpperCase();
+  }
+
+  DF.Screens.scratch = {
+    title: "SCRATCH CARDS",
+    subtitle: "INSTANT WASTELAND LOTTERY",
+    pill() { return coinBadge(myCoins()); },
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const g = world();
+      const economy = cfg();
+      const p = pd();
+      if (g.lockdownActive) {
+        return noticeCard("🔒", "SYSTEM LOCKDOWN ACTIVE",
+          "Scratch cards are currently locked down by an administrator.");
+      }
+      if (!economy.scratchEnabled) {
+        return noticeCard("🚫", "SCRATCH CARDS OFFLINE",
+          "Scratch cards are disabled by an administrator.");
+      }
+
+      const cost = economy.scratchCost;
+      const busy = ctx.local("scratchBusy") === true;
+      const prize = ctx.local("scratchPrize");
+      const enabled = (DF.Data.state.scratchPrizes || []).filter((x) => x.enabled !== false);
+      const total = enabled.reduce((a, x) => a + (x.weight > 0 ? x.weight : 0), 0);
+
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
+
+      if (!enabled.length) {
+        root.append(noticeCard("🎟", "NO PRIZES LOADED",
+          "An administrator hasn't loaded the prize pool yet."));
+        return root;
+      }
+
+      const foil = h("div", {
+        id: "scratch-foil",
+        class: "scratch-foil" + (prize && Date.now() - (prize.at || 0) > 4000 ? " gone" : ""),
+        text: busy ? "PRINTING..." : "SCRATCH"
+      });
+      if (prize && Date.now() - (prize.at || 0) <= 4000) {
+        setTimeout(() => { if (foil.isConnected) foil.classList.add("gone"); }, 40);
+      }
+
+      root.append(h("div", { class: "scratch-card" },
+        h("div", { class: "scratch-prize" },
+          h("div", { class: "t-micro", text: prize ? String(prize.prize.label || "PRIZE").toUpperCase() : "UNSCRATCHED" }),
+          h("div", { class: "scratch-prize-value", style: prize ? { color: (prize.prize.color || "var(--toxic)") } : null, text: prize ? scratchPrizeText(prize.prize) : "•••" }),
+          prize && prize.convertedItem ? h("div", { class: "t-body", text: `${prize.convertedItem} added automatically.` }) : null,
+          prize && prize.coinsWon ? h("div", { class: "t-micro amber", text: `PAYOUT ${fmt(prize.coinsWon)} COINS` }) : null
+        ),
+        foil
+      ));
+
+      const affordable = (p.coins || 0) >= cost;
+      const label = busy ? "SCRATCHING..." : !affordable ? `NEED ${fmt(cost)} COINS` : `SCRATCH A CARD · ${fmt(cost)} COINS`;
+      root.append(h("button", {
+        class: "btn btn--full btn--tall" + (busy || !affordable ? " btn--off" : ""),
+        disabled: busy || !affordable,
+        text: label,
+        onclick: () => ctx.buyScratch(enabled)
+      }));
+      root.append(h("div", { class: "t-micro", style: { textAlign: "center" }, text: `BALANCE ${fmt(p.coins || 0)} COINS` }));
+
+      const odds = h("div", { class: "card" });
+      odds.append(h("div", { class: "t-micro", text: "PRIZE ODDS" }));
+      const rows = h("div", { class: "stack stack--tight", style: { marginTop: "6px" } });
+      enabled.slice().sort((a, b) => (b.weight || 0) - (a.weight || 0)).forEach((x) => {
+        const chance = total > 0 ? ((x.weight || 0) / total) * 100 : 0;
+        rows.append(h("div", { class: "row row--between" },
+          h("div", { class: "row", style: { gap: "6px" } },
+            h("span", { style: { width: "10px", height: "10px", borderRadius: "2px", background: x.color || "var(--ink4)", flex: "none" } }),
+            h("span", { class: "t-body", text: String(x.label).toUpperCase() })
           ),
-          h("div", { class: "t-body", style: { marginTop: "4px" }, text: item.desc }),
-          item.tier > 0 ? h("div", { class: "t-micro", style: { marginTop: "4px" }, text: `TAX REDUCTION ${DF.Economy.reductionIn(item, cfg)}%` }) : null,
-          h("div", { style: { marginTop: "12px" } },
-            h("button", {
-              class: "btn btn--full btn--sm",
-              disabled: owned === true || !affordable || (global && !global.marketEnabled),
-              text: owned === true ? "OWNED" : owned === "TIER_LOCKED" ? "LOCKED" : !affordable ? "TOO EXPENSIVE" : "BUY",
-              onclick: () => ctx.buy(item, cat.key)
-            })
+          h("div", { class: "row", style: { gap: "8px" } },
+            h("span", { class: "t-micro", text: (chance < 1 ? chance.toFixed(1) : Math.round(chance)) + "%" }),
+            h("span", { class: "t-micro", text: scratchPrizeText(x) })
           )
         ));
       });
-      wrap.append(grid);
-    });
-    return wrap;
+      odds.append(rows);
+      root.append(odds);
+      return root;
+    }
+  };
+
+  /* ---- progression -------------------------------------------------------- */
+  const XP_ROWS = [
+    { key: "death", label: "Logging a death" },
+    { key: "survivalDay", label: "Surviving a full day" },
+    { key: "purchase", label: "Black Market purchase" },
+    { key: "spin", label: "Wheel spin" },
+    { key: "scratch", label: "Scratch card" },
+    { key: "penaltySpin", label: "Penalty spin" }
+  ];
+
+  function isEquipped(reward, p) {
+    if (reward.type === "title") return String(p.title || "").toUpperCase() === String(reward.value).toUpperCase();
+    if (reward.type === "color") return String(p.color || "").toUpperCase() === String(reward.value).toUpperCase();
+    if (reward.type === "frame") return p.avatarFrame === reward.value;
+    return false;
   }
-};
 
-/* =============================================================================
-   WHEEL OF FATE
-   ========================================================================== */
-DF.Screens.wheel = {
-  title: "WHEEL OF FATE",
-  subtitle: "Spin // win // or owe",
-  needs: ["user", "global"],
-  render(ctx) {
-    const { state } = ctx;
-    const user = state.user;
-    const global = state.global;
-    const cfg = global ? global.economy : DF.Economy.DEFAULT_CONFIG;
-    const pd = user ? (user.playerData || {}) : {};
-    const items = global ? global.wheelItems.filter((i) => i.enabled !== false) : [];
-    const totalWeight = items.reduce((a, i) => a + (i.weight > 0 ? i.weight : 0), 0);
-    const pending = pd.pendingSpins || 0;
-
-    const wrap = h("div", { class: "stack" });
-    if (pending > 0) {
-      wrap.append(alertBanner("🎲", `${pending} PENALTY SPIN${pending === 1 ? "" : "S"} WAITING`,
-        "This spin clears one of your pending penalty spins.", "amber"));
+  function rewardRow(ctx, reward, p, level, prestige) {
+    const unlocked = DF.Economy.rewardUnlocked(reward, level, prestige);
+    const equipped = isEquipped(reward, p);
+    const right = h("div", { style: { flex: "none" } });
+    if (!unlocked) {
+      right.append(statusPill(`LV ${reward.level}`, "low"));
+    } else if (equipped) {
+      right.append(statusPill("EQUIPPED", "toxic"));
+    } else {
+      right.append(h("button", { class: "btn btn--ghost btn--sm", text: "EQUIP", onclick: () => ctx.equip(reward) }));
     }
-    if (global && !global.wheelEnabled) {
-      wrap.append(alertBanner("🚫", "WHEEL DISABLED", "An administrator has disabled spinning."));
-    }
+    const icon = reward.type === "color" ? "🎨" : reward.type === "frame" ? "👤" : "🎖";
+    return h("div", { class: "list-row " + (unlocked ? "" : "locked") },
+      itemEmblem(icon, reward.type === "title" ? "var(--prestige)" : reward.type === "frame" ? "var(--amber)" : "var(--plasma)", 38),
+      h("div", { style: { flex: "1", minWidth: "0" } },
+        h("div", { class: "t-card-title", style: { fontSize: "13px" }, text: reward.label }),
+        h("div", { class: "t-micro", text: reward.type === "title" ? "TITLE" : reward.type === "frame" ? "AVATAR FRAME" : "BADGE COLOUR" })
+      ),
+      right
+    );
+  }
 
-    if (!items.length) {
-      wrap.append(emptyState("🎡", "The Wheel has no slices", "An admin has to add some before it can spin."));
-      return wrap;
-    }
+  DF.Screens.progression = {
+    title: "PROGRESSION",
+    subtitle: "LEVELS, REWARDS & PRESTIGE",
+    back(ctx) { return ghostAction("BACK", () => ctx.go("more")); },
+    render(ctx) {
+      const economy = cfg();
+      const p = pd();
+      const level = p.level || 1;
+      const prestige = p.prestigeCount || 0;
+      const rewards = (DF.Data.state.levelRewards && DF.Data.state.levelRewards.length)
+        ? DF.Data.state.levelRewards.slice()
+        : DF.Economy.LEVEL_REWARDS.slice();
+      rewards.sort((a, b) => a.level - b.level);
 
-    const wheel = h("div", { class: "wheel", id: "wheel-disc" });
-    const stops = items.map((i) => {
-      const pct = totalWeight > 0 ? ((i.weight > 0 ? i.weight : 0) / totalWeight) * 100 : 100 / items.length;
-      return `${i.color} 0% ${i.color} ${pct}%`;
-    });
-    wheel.style.background = `conic-gradient(${stops.join(", ")})`;
-    wheel.append(h("div", { class: "wheel-hub", text: "💀" }));
+      const root = h("div", { class: "stack", style: { gap: "var(--md)" } });
 
-    const list = h("div", { class: "stack stack--tight", style: { flex: "1", minWidth: "320px" } });
-    list.append(sectionLabel("Slices"));
-    items.forEach((item) => {
-      const pct = totalWeight > 0 ? ((item.weight > 0 ? item.weight : 0) / totalWeight) * 100 : 0;
-      list.append(h("div", { class: "row", style: { padding: "6px 0" } },
-        h("span", { style: { width: "12px", height: "12px", borderRadius: "50%", background: item.color, flex: "none" } }),
-        h("div", { style: { flex: "1" } },
-          h("div", { class: "t-body hi", text: item.label }),
-          h("div", { class: "t-micro", text: `${item.actionType === "take" ? "TAKE" : "GIVE"} ${item.value || "-"} · ${pct.toFixed(1)}%` })
+      root.append(heroPanel({
+        eyebrow: "Survivor Progression",
+        title: `Level ${level} of ${economy.xp.maxLevel}`,
+        glyph: "★",
+        accent: "var(--ember)",
+        badge: prestige > 0 ? statusPill(`★ PRESTIGE ${prestige}`, "prestige") : null,
+        children: h("div", { style: { marginTop: "var(--sm)" } }, xpBar(p.xp || 0, level, economy.xp))
+      }));
+
+      root.append(h("div", { class: "card" },
+        h("div", { class: "t-micro", text: "HOW XP IS EARNED" }),
+        h("div", { class: "stack stack--tight", style: { marginTop: "6px" } },
+          ...XP_ROWS.map((row) => h("div", { class: "row row--between" },
+            h("span", { class: "t-body", text: row.label }),
+            h("span", { class: "t-body amber", style: { fontWeight: "900" }, text: `+${fmt(economy.xp[row.key] || 0)} XP` })
+          ))
         )
       ));
-    });
 
-    const result = ctx.local("wheelResult", null);
-    const spinBtn = h("button", {
-      class: "btn", style: { minWidth: "220px" },
-      disabled: !global || !global.wheelEnabled || ctx.local("spinning", false),
-      text: ctx.local("spinning", false) ? "SPINNING..." : "SPIN",
-      onclick: () => ctx.spinWheel(items, wheel)
-    });
-
-    wrap.append(h("div", { class: "wheel-wrap" },
-      h("div", { style: { position: "relative" } },
-        h("div", { class: "wheel-pointer" }),
-        wheel
-      ),
-      h("div", { class: "stack", style: { flex: "1", minWidth: "300px" } },
-        result ? h("div", { class: "card card--accent" },
-          h("div", { class: "t-micro", text: "RESULT" }),
-          h("div", { class: "t-stat-hero", text: result.title }),
-          h("div", { class: "t-body", text: result.detail })
-        ) : null,
-        spinBtn,
-        h("div", { class: "card" },
-          h("div", { class: "row row--between" },
-            h("div", {}, h("div", { class: "t-micro", text: "COINS" }), h("div", { class: "t-stat amber", text: fmt(pd.coins || 0) })),
-            h("div", { style: { textAlign: "right" } }, h("div", { class: "t-micro", text: "PENDING SPINS" }), h("div", { class: "t-stat ember", text: String(pending) }))
+      const maxed = DF.Economy.canPrestige(level, economy);
+      root.append(h("div", { class: "card " + (maxed ? "card--prestige" : ""), style: { borderColor: maxed ? "rgba(179,136,255,0.5)" : "var(--ink-line)" } },
+        h("div", { class: "row" },
+          h("div", { class: "tile", style: { "--tint": "var(--prestige)" }, text: "★" }),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", text: "PRESTIGE" }),
+            h("div", { class: "t-body", text: maxed
+              ? "You've reached the top. Prestige resets your level and XP, and unlocks every cosmetic."
+              : `Reach level ${economy.xp.maxLevel} to prestige. Prestiges so far: ${prestige}` })
           )
         ),
-        list
-      )
-    ));
-    return wrap;
-  }
-};
+        h("div", { style: { marginTop: "var(--sm)" } },
+          primaryAction(maxed ? "PRESTIGE" : `LEVEL ${economy.xp.maxLevel} REQUIRED`, () => ctx.prestige(), maxed, "var(--prestige)")
+        )
+      ));
 
-/* =============================================================================
-   SCRATCH CARDS
-   ========================================================================== */
-DF.Screens.scratch = {
-  title: "SCRATCH CARDS",
-  subtitle: "Instant wins // instant ruin",
-  needs: ["user", "global"],
-  render(ctx) {
-    const { state } = ctx;
-    const user = state.user;
-    const global = state.global;
-    const cfg = global ? global.economy : DF.Economy.DEFAULT_CONFIG;
-    const pd = user ? (user.playerData || {}) : {};
-    const pool = (state.scratchPrizes && state.scratchPrizes.length)
-      ? state.scratchPrizes
-      : DF.Economy.SCRATCH_POOL;
+      root.append(sectionLabel("Level Rewards"));
+      const list = h("div", { class: "stack stack--tight" });
+      rewards.forEach((r) => list.append(rewardRow(ctx, r, p, level, prestige)));
+      root.append(list);
 
-    const wrap = h("div", { class: "stack" });
-    const bought = ctx.local("scratchBought", false);
-    const revealed = ctx.local("scratchRevealed", []);
-
-    const grid = h("div", { class: "scratch-grid" });
-    for (let i = 0; i < 9; i++) {
-      const done = revealed.indexOf(i) >= 0;
-      const cell = h("div", { class: "scratch-cell" + (done ? " scratched" : "") },
-        h("span", { text: done ? "✦" : "▒" })
-      );
-      if (!done && bought) {
-        cell.onclick = () => ctx.revealScratch(i, pool);
+      const frameRow = h("div", { class: "stack stack--tight" });
+      if (prestige > 0) {
+        frameRow.append(h("div", { class: "list-row" },
+          itemEmblem("👑", "var(--prestige)", 38),
+          h("div", { style: { flex: "1", minWidth: "0" } },
+            h("div", { class: "t-card-title", style: { fontSize: "13px" }, text: "PRESTIGE FRAME" }),
+            h("div", { class: "t-micro", text: "PRESTIGE " + prestige })
+          ),
+          p.avatarFrame === "prestige"
+            ? statusPill("EQUIPPED", "toxic")
+            : h("button", { class: "btn btn--ghost btn--sm", text: "EQUIP", onclick: () => ctx.equip({ type: "frame", label: "Prestige frame", value: "prestige" }) })
+        ));
       }
-      grid.append(cell);
+      frameRow.append(h("div", { class: "row", style: { justifyContent: "center", marginTop: "var(--xs)" } },
+        ghostAction("REMOVE AVATAR FRAME", () => ctx.equip({ type: "frame", label: "No frame", value: "none" }), "var(--text-low)")
+      ));
+      root.append(frameRow);
+
+      return root;
     }
-
-    wrap.append(h("div", { class: "card" },
-      h("div", { class: "row row--between" },
-        h("div", {},
-          h("div", { class: "t-micro", text: "COST PER CARD" }),
-          h("div", { class: "t-stat amber", text: fmt(cfg.scratchCost) })
-        ),
-        h("div", { style: { textAlign: "right" } },
-          h("div", { class: "t-micro", text: "YOUR BALANCE" }),
-          h("div", { class: "t-stat", text: fmt(pd.coins || 0) })
-        )
-      )
-    ));
-
-    if (!cfg.scratchEnabled) {
-      wrap.append(alertBanner("🚫", "SCRATCH DISABLED", "An administrator has disabled scratch cards."));
-    } else if (!bought) {
-      wrap.append(h("button", {
-        class: "btn btn--full", style: { maxWidth: "300px" },
-        disabled: (pd.coins || 0) < cfg.scratchCost,
-        text: (pd.coins || 0) < cfg.scratchCost ? "NOT ENOUGH COINS" : `BUY A CARD (${fmt(cfg.scratchCost)})`,
-        onclick: () => ctx.buyScratch(pool)
-      }));
-    } else {
-      wrap.append(h("div", { class: "card" },
-        h("div", { class: "t-card-title", text: "SCRATCH THE GRID" }),
-        h("div", { class: "t-body", text: "Nine squares. One holds your prize." }),
-        h("div", { style: { marginTop: "16px", maxWidth: "360px" } }, grid)
-      ));
-    }
-
-    wrap.append(sectionLabel("Prize Pool & Odds"));
-    const table = h("table", { class: "tbl" },
-      h("thead", {}, h("tr", {},
-        h("th", { text: "PRIZE" }), h("th", { text: "CHANCE" }), h("th", { text: "VALUE" })
-      ))
-    );
-    const tbody = h("tbody");
-    const chances = DF.Economy.weightedChances(pool.map((p) => p.weight));
-    pool.forEach((prize, i) => {
-      tbody.append(h("tr", {},
-        h("td", { class: "hi", text: prize.label }),
-        h("td", { text: chances[i].toFixed(2) + "%" }),
-        h("td", { text: prize.value || (prize.type === "shield" ? "SHIELD" : prize.type === "lucky_coin" ? "LUCKY COIN" : "-") })
-      ));
-    });
-    table.append(tbody);
-    wrap.append(h("div", { class: "card scroll-420" }, table));
-    return wrap;
-  }
-};
-
-/* =============================================================================
-   PROGRESSION
-   ========================================================================== */
-DF.Screens.progression = {
-  title: "PROGRESSION",
-  subtitle: "Levels // prestige // unlocks",
-  needs: ["user", "global", "levelRewards"],
-  render(ctx) {
-    const { state } = ctx;
-    const user = state.user;
-    const global = state.global;
-    const cfg = global ? global.economy : DF.Economy.DEFAULT_CONFIG;
-    const pd = user ? (user.playerData || {}) : {};
-    const rewards = (state.levelRewards && state.levelRewards.length)
-      ? state.levelRewards
-      : DF.Economy.LEVEL_REWARDS;
-    const level = pd.level || 1;
-    const progress = DF.Economy.xpProgress(pd.xp || 0, level, cfg.xp);
-
-    const wrap = h("div", { class: "stack" });
-    wrap.append(h("div", { class: "hero" },
-      h("div", { class: "hero-mark", text: "🏅" }),
-      h("div", { class: "hero-eyebrow", text: "CURRENT LEVEL" }),
-      h("div", { class: "t-stat-hero", text: String(level) }),
-      h("div", { class: "row row--between", style: { marginTop: "10px" } },
-        h("div", { class: "t-body", text: `${fmt(pd.xp || 0)} XP` }),
-        h("div", { class: "t-body", text: `NEXT ${fmt(DF.Economy.xpForLevel(level, cfg.xp))} XP` })
-      ),
-      h("div", { class: "bar", style: { marginTop: "8px" } }, h("i", { style: { width: (progress * 100) + "%" } })),
-      h("div", { class: "row", style: { marginTop: "14px", gap: "20px" } },
-        h("div", {}, h("div", { class: "t-micro", text: "PRESTIGE" }), h("div", { class: "t-stat prestige", text: String(pd.prestigeCount || 0) })),
-        h("div", {}, h("div", { class: "t-micro", text: "TITLE" }), h("div", { class: "t-stat", style: { fontSize: "15px" }, text: pd.title || "Survivor" })),
-        DF.Economy.canPrestige(level, cfg.xp)
-          ? h("button", { class: "btn btn--sm", text: "PRESTIGE", onclick: () => ctx.prestige() })
-          : null
-      )
-    ));
-
-    wrap.append(sectionLabel("Reward Track"));
-    const grid = h("div", { class: "grid-3" });
-    rewards.forEach((r) => {
-      const unlocked = DF.Economy.rewardUnlocked(r, level, pd.prestigeCount || 0);
-      const equipped =
-        (r.type === "color" && pd.color === r.value) ||
-        (r.type === "frame" && pd.avatarFrame === r.value) ||
-        (r.type === "title" && pd.title === r.value);
-      grid.append(h("div", { class: "card", style: unlocked ? null : { opacity: "0.45" } },
-        h("div", { class: "row row--between" },
-          h("div", { class: "t-card-title", text: r.label }),
-          h("div", { class: "t-micro", text: "LV " + r.level })
-        ),
-        h("div", { style: { marginTop: "10px" } },
-          h("button", {
-            class: "btn btn--ghost btn--sm btn--full",
-            disabled: !unlocked || equipped,
-            text: equipped ? "EQUIPPED" : unlocked ? "EQUIP" : "LOCKED",
-            onclick: () => ctx.equip(r)
-          })
-        )
-      ));
-    });
-    wrap.append(grid);
-    return wrap;
-  }
-};
+  };
+})();
