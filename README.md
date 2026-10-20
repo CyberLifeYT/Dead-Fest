@@ -32,7 +32,15 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ## 🔄 What's New
 
-### v2.0.9 – The admin side, enforced by the database *(Latest)*
+### v2.1.0 – The desktop console, at full parity *(Latest)*
+
+- **🖥️ Every screen, every action** – The Windows client is now the phone app, not a tour of it: command center, survivor network, black market (all five tabs), Wheel of Fate, scratch cards, progression, utility hub, team progress, archives, image board, survival intel, game requests, every settings page, and the full 12-module admin console. Same layout, same wording, same rules as the Compose screen it replaces.
+- **⚙️ The same transactions** – Buying, cursing, upgrading insulation, buying and equipping titles, spinning, scratching, recording a death (tax, penalty spin, bankruptcy, XP, mutual reward), claiming rations, prestiging, equipping reward frames, editing profiles, posting images and requesting games all call the same Firestore operations as the phone. The formulas live in `js/economy.js` and the repository port in `js/data.js`; there is no desktop-only shortcut and no separate database.
+- **🧪 Tested screen by screen** – A render harness walks every screen, tab and dialog, stubs the data layer and asserts 31 actions (spin timing and readout, scratch reveal, purchase confirmation, the death pipeline, handle validation, themes, admin edits). It ships in the repo at `desktop/tools/smoke.js`.
+- **📦 Still one file** – `Dead-Fest-Desktop-2.1.0.exe`, no installer. It reports itself as 2.1.0 (build 15), so it will not offer you the phone's 2.0.9 update.
+- **📱 The APKs are unchanged** – Both 2.0.9 builds are attached again for convenience. Android stays on 2.0.9 (build 14); only the desktop moved.
+
+### v2.0.9 – The admin side, enforced by the database
 
 - **🔐 Firestore security rules** – The rules are now part of the project, in [`firestore.rules`](firestore.rules), and **tested on every change** — 45 cases decided against the real rules file on the Firestore emulator. This was not a formality: **the two features added in 2.0.8 — changing your handle and asking for a game — were being refused by the server**, because nothing had told Firestore those collections were allowed to exist. Now only an **admin** can change the global document (which holds the update link every survivor is told to download, the economy, the sectors and every switch), nobody can promote themselves, only an admin can approve or remove a game request or edit the shop, a handle can only be claimed once, and the global death counter can only move one step at a time. See [docs/ADMIN.md](docs/ADMIN.md).
 - **🖥️ The desktop console caught up** – The Windows client can now **inject a death** (the full pipeline: tax, penalty spin, bankruptcy, XP) and **grant or revoke admin rights** — the two player controls the phone app has always had. It also refuses to render the console for anybody who is not an admin.
