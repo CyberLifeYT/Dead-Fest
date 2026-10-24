@@ -488,3 +488,67 @@ test('only an admin can start a flash sale', async () => {
   await assertFails(updateDoc(doc(asBob(), 'gameState/global'), { flashSaleActive: true, flashSalePct: 90 }));
   await assertSucceeds(updateDoc(doc(asAlice(), 'gameState/global'), { flashSaleActive: true, flashSalePct: 30, flashSaleEndsAt: 0 }));
 });
+
+// ==================================================================== v2.1.1: image reactions & comments
+
+const seedImage = async (id, uploader) => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), `images/${id}`), {
+      uploaderUid: uploader, uploaderName: uploader, caption: '', createdAt: Date.now(),
+      width: 10, height: 10, sizeBytes: 10, thumb: 'x'
+    });
+  });
+};
+
+test('a survivor can react once, change it, and take it back', async () => {
+  await seedImage('r1', ALICE);
+  await assertSucceeds(setDoc(doc(asBob(), `images/r1/reactions/${BOB}`), { emoji: '🔥', createdAt: Date.now() }));
+  await assertSucceeds(setDoc(doc(asBob(), `images/r1/reactions/${BOB}`), { emoji: '💀', createdAt: Date.now() }));
+  await assertSucceeds(deleteDoc(doc(asBob(), `images/r1/reactions/${BOB}`)));
+});
+
+test('a reaction cannot be left for somebody else or use an unknown emoji', async () => {
+  await seedImage('r2', ALICE);
+  await assertFails(setDoc(doc(asBob(), `images/r2/reactions/${CAROL}`), { emoji: '🔥', createdAt: Date.now() }));
+  await assertFails(setDoc(doc(asBob(), `images/r2/reactions/${BOB}`), { emoji: '💩', createdAt: Date.now() }));
+  await assertFails(setDoc(doc(asBob(), `images/r2/reactions/${BOB}`), { emoji: '🔥', createdAt: Date.now(), coins: 5 }));
+});
+
+test('the uploader can clear reactions on their image; other survivors cannot', async () => {
+  await seedImage('r3', ALICE);
+  await assertSucceeds(setDoc(doc(asBob(), `images/r3/reactions/${BOB}`), { emoji: '👍', createdAt: Date.now() }));
+  await assertFails(deleteDoc(doc(asCarol(), `images/r3/reactions/${BOB}`)));
+  await assertSucceeds(deleteDoc(doc(asAlice(), `images/r3/reactions/${BOB}`)));
+});
+
+const commentBy = (uid, text = 'nice shot') => ({ uid, name: uid, avatar: '', text, createdAt: Date.now() });
+
+test('a survivor can comment in their own name', async () => {
+  await seedImage('c1', ALICE);
+  await assertSucceeds(setDoc(doc(asBob(), 'images/c1/comments/k1'), commentBy(BOB)));
+});
+
+test('a comment cannot be forged, empty or too long', async () => {
+  await seedImage('c2', ALICE);
+  await assertFails(setDoc(doc(asBob(), 'images/c2/comments/k1'), commentBy(CAROL)));
+  await assertFails(setDoc(doc(asBob(), 'images/c2/comments/k2'), commentBy(BOB, '')));
+  await assertFails(setDoc(doc(asBob(), 'images/c2/comments/k3'), commentBy(BOB, 'x'.repeat(301))));
+});
+
+test('the author, the uploader or an admin can delete a comment; nobody else', async () => {
+  await seedImage('c3', CAROL);
+  await assertSucceeds(setDoc(doc(asBob(), 'images/c3/comments/k1'), commentBy(BOB)));
+  await assertSucceeds(setDoc(doc(asBob(), 'images/c3/comments/k2'), commentBy(BOB)));
+  await assertSucceeds(setDoc(doc(asBob(), 'images/c3/comments/k3'), commentBy(BOB)));
+  await assertFails(deleteDoc(doc(env.authenticatedContext('dave').firestore(), 'images/c3/comments/k1')));
+  await assertSucceeds(deleteDoc(doc(asBob(), 'images/c3/comments/k1')));
+  await assertSucceeds(deleteDoc(doc(asCarol(), 'images/c3/comments/k2')));
+  await assertSucceeds(deleteDoc(doc(asAlice(), 'images/c3/comments/k3')));
+});
+
+test('weekly challenge progress lives on your own profile', async () => {
+  await assertSucceeds(updateDoc(doc(asBob(), `users/${BOB}`), {
+    'playerData.weekKey': '2026-W43', 'playerData.weeklyStats': { spins: 3 }, 'playerData.weeklyClaimed': []
+  }));
+  await assertFails(updateDoc(doc(asBob(), `users/${ALICE}`), { 'playerData.weeklyStats': { spins: 99 } }));
+});

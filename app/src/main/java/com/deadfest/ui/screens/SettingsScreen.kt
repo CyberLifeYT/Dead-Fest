@@ -325,6 +325,8 @@ private fun SystemTab(viewModel: MainViewModel) {
     val market by prefs.marketAlerts.collectAsStateWithLifecycle()
     val wasteland by prefs.wastelandAlerts.collectAsStateWithLifecycle()
     val personal by prefs.personalAlerts.collectAsStateWithLifecycle()
+    val chatNotifs by prefs.chatNotifications.collectAsStateWithLifecycle()
+    val backgroundSync by prefs.backgroundSync.collectAsStateWithLifecycle()
     val lowEnd = remember { AppPrefs.isLowEndDevice(context) }
 
     BackgroundActivityGroup()
@@ -375,6 +377,54 @@ private fun SystemTab(viewModel: MainViewModel) {
             checked = personal,
             onChange = prefs::setPersonalAlerts
         )
+        GroupDivider()
+        SettingSwitch(
+            icon = Icons.Default.Forum,
+            title = stringResource(com.deadfest.R.string.settings_chat_notifications),
+            subtitle = stringResource(com.deadfest.R.string.settings_chat_notifications_desc),
+            checked = chatNotifs,
+            onChange = prefs::setChatNotifications
+        )
+        GroupDivider()
+        SettingSwitch(
+            icon = Icons.Default.Sync,
+            title = stringResource(com.deadfest.R.string.settings_background_sync),
+            subtitle = stringResource(com.deadfest.R.string.settings_background_sync_desc),
+            checked = backgroundSync,
+            onChange = prefs::setBackgroundSync
+        )
+        GroupDivider()
+        val notifContext = LocalContext.current
+        SettingSwitchLink(
+            icon = Icons.Default.Tune,
+            title = stringResource(com.deadfest.R.string.settings_notification_categories),
+            subtitle = stringResource(com.deadfest.R.string.settings_notification_categories_desc)
+        ) {
+            // Android's per-app notification page, where each channel can be muted.
+            val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, notifContext.packageName)
+            try { notifContext.startActivity(intent) } catch (_: Exception) { }
+        }
+    }
+}
+
+/** A settings row that opens something instead of toggling. */
+@Composable
+private fun SettingSwitchLink(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .pressClick(androidx.compose.foundation.shape.RoundedCornerShape(Radius.sm), onClick = onClick)
+            .padding(vertical = Spacing.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = TextMid, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(Spacing.sm))
+        Column(Modifier.weight(1f)) {
+            Text(title, color = TextHi, style = DeadFestType.cardTitle)
+            Text(subtitle, color = TextMid, style = DeadFestType.body)
+        }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextLow)
     }
 }
 

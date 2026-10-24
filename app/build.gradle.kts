@@ -124,6 +124,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    // Background check-ins (v2.1.1): periodic, battery-batched by Android, no server needed.
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Firebase
     implementation(platform(libs.firebase.bom))

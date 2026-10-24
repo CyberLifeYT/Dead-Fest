@@ -51,6 +51,11 @@
                 android:resource="@xml/deadfest_widget_info" />
         </receiver>
 
+        <!-- Quick Reply from chat notifications (v2.1.1). -->
+        <receiver
+            android:name=".notifications.ChatReplyReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="com.deadfest.provider"

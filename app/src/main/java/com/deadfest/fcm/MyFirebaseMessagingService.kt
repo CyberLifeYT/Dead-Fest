@@ -1,29 +1,21 @@
 package com.deadfest.fcm
 
-import android.content.Context
+import com.deadfest.R
+import com.deadfest.data.AppPrefs
+import com.deadfest.util.NotificationHelper
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.deadfest.util.NotificationHelper
 
+/** Pushes sent from the Firebase console arrive here and go out on the broadcasts channel. */
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        remoteMessage.notification?.let {
-            val title = it.title ?: "Dead-Fest Wasteland"
-            val body = it.body ?: ""
-            checkAndSendNotification(title, body, "pref_wasteland_alerts")
-        }
-    }
-
-    override fun onNewToken(token: String) {
-        // Handle new token registration if needed
-    }
-
-    private fun checkAndSendNotification(title: String, body: String, prefKey: String) {
-        val prefs = getSharedPreferences("deadfest_optimizations", MODE_PRIVATE)
-        val enabled = prefs.getBoolean(prefKey, true)
-        if (enabled) {
-            NotificationHelper.showNotification(applicationContext, title, body)
-        }
+        val n = remoteMessage.notification ?: return
+        if (!AppPrefs(applicationContext).wastelandAlerts.value) return
+        NotificationHelper.notifyBroadcast(
+            applicationContext,
+            n.title ?: getString(R.string.notif_broadcast_title),
+            n.body ?: ""
+        )
     }
 }

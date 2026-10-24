@@ -46,6 +46,14 @@ data class PlayerData(
     /** Personal stats: recorded deaths per day, keyed "yyyy-MM-dd" (last 60 days). */
     @get:PropertyName("deathsByDay") @set:PropertyName("deathsByDay") var deathsByDay: Map<String, Long> = emptyMap(),
 
+    // ---- v2.1.1: weekly challenges ----
+    /** ISO week the weekly stats belong to, e.g. "2026-W43". */
+    @get:PropertyName("weekKey") @set:PropertyName("weekKey") var weekKey: String = "",
+    /** This week's counters per ChallengeMetric key. */
+    @get:PropertyName("weeklyStats") @set:PropertyName("weeklyStats") var weeklyStats: Map<String, Long> = emptyMap(),
+    /** Challenge ids already claimed this week. */
+    @get:PropertyName("weeklyClaimed") @set:PropertyName("weeklyClaimed") var weeklyClaimed: List<String> = emptyList(),
+
     /**
      * `playerData.lastSeen` is written as a server timestamp by the heartbeat. It's parsed by
      * hand in the repository (older data may hold a number), so it's excluded from mapping.

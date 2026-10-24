@@ -121,6 +121,13 @@ service cloud.firestore {
       return resource != null && resource.data != null && resource.data.uploaderUid == uid;
     }
 
+    /** True when the signed-in survivor uploaded gallery image [imageId]. */
+    function isImageUploader(imageId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/images/$(imageId)) &&
+        get(/databases/$(database)/documents/images/$(imageId)).data.uploaderUid == request.auth.uid;
+    }
+
     // ==================================================================== players
 
     match /users/{uid} {
@@ -287,6 +294,34 @@ service cloud.firestore {
         request.resource.data.thumb.size() < 100 * 1024;
       allow update: if isAdmin();
       allow delete: if isAdmin() || (signedIn() && uploadedBy(request.auth.uid));
+
+      /**
+       * Reactions (v2.1.1): one per survivor per image, keyed by uid, from a fixed emoji set.
+       * The image's uploader may clear them when deleting the image.
+       */
+      match /reactions/{reactorUid} {
+        allow read: if signedIn();
+        allow create, update: if isSelf(reactorUid) &&
+          request.resource.data.keys().hasOnly(['emoji', 'createdAt']) &&
+          request.resource.data.emoji in ['🔥', '💀', '😂', '😮', '❤️', '👍'];
+        allow delete: if isSelf(reactorUid) || isAdmin() || isImageUploader(id);
+      }
+
+      /**
+       * Comments (v2.1.1): posted in your own name, capped at 300 characters. The author, the
+       * image's uploader or an admin can delete one.
+       */
+      match /comments/{commentId} {
+        allow read: if signedIn();
+        allow create: if signedIn() &&
+          request.resource.data.keys().hasOnly(['uid', 'name', 'avatar', 'text', 'createdAt']) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.text is string &&
+          request.resource.data.text.size() >= 1 &&
+          request.resource.data.text.size() <= 300;
+        allow delete: if isAdmin() || isImageUploader(id) ||
+          (signedIn() && resource != null && resource.data != null && resource.data.uid == request.auth.uid);
+      }
     }
 
     match /imageBlobs/{id} {

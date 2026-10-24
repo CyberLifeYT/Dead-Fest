@@ -13,6 +13,8 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.deadfest.data.AppPrefs
 import com.deadfest.domain.Presence
+import com.deadfest.util.AppVisibility
+import com.deadfest.util.DeepLinks
 import com.deadfest.ui.components.BatteryOptimizationDialog
 import com.deadfest.ui.components.DailyClaimDialog
 import com.deadfest.ui.components.AchievementUnlockedDialog
@@ -105,18 +107,23 @@ class MainActivity : ComponentActivity() {
 
         super.onCreate(savedInstanceState)
         requestNotificationPermissionOnce()
+        DeepLinks.handle(intent)
 
         // Presence: ONLINE + heartbeat while on screen, OFFLINE the moment the app leaves it.
         // (A rotation isn't "leaving", so configuration changes don't flicker the status.)
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
+                AppVisibility.foreground = true
                 try {
                     while (isActive) {
                         mainViewModel.heartbeat()
                         delay(Presence.HEARTBEAT_MS)
                     }
                 } finally {
-                    if (!isChangingConfigurations) mainViewModel.goOffline()
+                    if (!isChangingConfigurations) {
+                        AppVisibility.foreground = false
+                        mainViewModel.goOffline()
+                    }
                 }
             }
         }
@@ -165,6 +172,13 @@ class MainActivity : ComponentActivity() {
      * Android 13+ blocks every notification (push broadcasts, level-ups) until the user
      * grants POST_NOTIFICATIONS. Ask once; respect the answer afterwards.
      */
+    /** A notification tapped while the app is already open. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        DeepLinks.handle(intent)
+    }
+
     private fun requestNotificationPermissionOnce() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
@@ -236,6 +250,15 @@ fun DeadFestApp(viewModel: MainViewModel) {
     LaunchedEffect(user?.playerData) { if (user != null) viewModel.onProfileChanged() }
     val alerts by viewModel.alerts.collectAsStateWithLifecycle()
     LaunchedEffect(alerts) { viewModel.onAlertsChanged(alerts) }
+
+    // ---- v2.1.1: chat notifications, background check-ins, notification deep links ----
+    val latestChat by viewModel.latestChat.collectAsStateWithLifecycle()
+    LaunchedEffect(latestChat) { viewModel.onLatestChat(latestChat) }
+    val backgroundSync by viewModel.prefs.backgroundSync.collectAsStateWithLifecycle()
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+    LaunchedEffect(user != null, backgroundSync) {
+        com.deadfest.work.CheckInWorker.sync(appContext, backgroundSync, user != null)
+    }
     // First launch: offer to lift battery optimisation (asked once; also in Settings → System).
     val context = androidx.compose.ui.platform.LocalContext.current
     var showBatteryPrompt by remember {
@@ -312,6 +335,13 @@ fun DeadFestApp(viewModel: MainViewModel) {
         // and performance mode turns transitions off entirely.
         val enterMs = if (performanceMode) 0 else 180
         val exitMs = if (performanceMode) 0 else 120
+        // Open the screen a tapped notification points at.
+        val deepLink by DeepLinks.route.collectAsStateWithLifecycle()
+        LaunchedEffect(deepLink) {
+            val target = deepLink ?: return@LaunchedEffect
+            DeepLinks.route.value = null
+            navController.navigate(target) { launchSingleTop = true }
+        }
         NavHost(
             navController = navController,
             startDestination = "home",
@@ -338,6 +368,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
             composable("alerts") { AlertsScreen(navController, viewModel) }
             composable("chat") { ChatScreen(navController, viewModel) }
             composable("stats") { StatsScreen(navController, viewModel) }
+            composable("challenges") { ChallengesScreen(navController, viewModel) }
             composable("admin") {
                 if (isAdmin) {
                     AdminScreen(navController, viewModel)

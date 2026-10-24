@@ -60,6 +60,41 @@ class AppPrefs(context: Context) {
     val alertNotificationsEnabled: Boolean get() = _personalAlerts.value
     fun setPersonalAlerts(on: Boolean) = save(KEY_PERSONAL_ALERTS, on, _personalAlerts)
 
+    // ---- v2.1.1: notifications & background check-ins ----
+
+    /** Group-chat messages as phone notifications. */
+    private val _chatNotifications = MutableStateFlow(prefs.getBoolean(KEY_CHAT_NOTIFS, true))
+    val chatNotifications: StateFlow<Boolean> = _chatNotifications.asStateFlow()
+    fun setChatNotifications(on: Boolean) = save(KEY_CHAT_NOTIFS, on, _chatNotifications)
+
+    /** Check for alerts, chat, broadcasts and updates every 15 minutes while the app is closed. */
+    private val _backgroundSync = MutableStateFlow(prefs.getBoolean(KEY_BACKGROUND_SYNC, true))
+    val backgroundSync: StateFlow<Boolean> = _backgroundSync.asStateFlow()
+    fun setBackgroundSync(on: Boolean) = save(KEY_BACKGROUND_SYNC, on, _backgroundSync)
+
+    /** Newest chat message already notified / already seen on the chat screen (epoch millis). */
+    var lastChatNotifiedAt: Long
+        get() = prefs.getLong("last_chat_notified_at", 0L)
+        set(value) = prefs.edit { putLong("last_chat_notified_at", value) }
+    var lastChatSeenAt: Long
+        get() = prefs.getLong("last_chat_seen_at", 0L)
+        set(value) = prefs.edit { putLong("last_chat_seen_at", value) }
+
+    /** Newest admin broadcast already notified by a background check-in. */
+    var lastBroadcastNotifiedAt: Long
+        get() = prefs.getLong("last_broadcast_notified_at", 0L)
+        set(value) = prefs.edit { putLong("last_broadcast_notified_at", value) }
+
+    /** Highest app version code already announced as an update. */
+    var lastUpdateNotifiedCode: Int
+        get() = prefs.getInt("last_update_notified_code", 0)
+        set(value) = prefs.edit { putInt("last_update_notified_code", value) }
+
+    /** "pct:endsAt" of the last flash sale announced, so each sale notifies once. */
+    var lastFlashSaleKey: String
+        get() = prefs.getString("last_flash_sale_key", "") ?: ""
+        set(value) = prefs.edit { putString("last_flash_sale_key", value) }
+
     fun setWheelAlerts(on: Boolean) = save(KEY_WHEEL, on, _wheelAlerts)
     fun setMarketAlerts(on: Boolean) = save(KEY_MARKET, on, _marketAlerts)
     fun setWastelandAlerts(on: Boolean) = save(KEY_WASTELAND, on, _wastelandAlerts)
@@ -105,6 +140,9 @@ class AppPrefs(context: Context) {
         const val KEY_THEME = "pref_app_theme"
         /** Added in 2.1.0. */
         const val KEY_PERSONAL_ALERTS = "pref_personal_alerts"
+        /** Added in 2.1.1. */
+        const val KEY_CHAT_NOTIFS = "pref_chat_notifications"
+        const val KEY_BACKGROUND_SYNC = "pref_background_sync"
 
         fun isLowEndDevice(context: Context): Boolean {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager

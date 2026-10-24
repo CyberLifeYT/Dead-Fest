@@ -132,6 +132,60 @@
     <string name="overload_payout">Deaths here pay every survivor x%1$s and earn x%1$s XP.</string>
     <string name="report_overload">SECTOR OVERLOAD x%1$s: boosted XP and survival payout</string>
 
+    <!-- ===================================================== notifications (v2.1.1) -->
+    <string name="channel_alerts">Personal alerts</string>
+    <string name="channel_alerts_desc">Curses, blocked curses, removed images and admin changes to your account</string>
+    <string name="channel_chat">Group chat</string>
+    <string name="channel_chat_desc">New messages in the group chat</string>
+    <string name="channel_progress">Levels &amp; achievements</string>
+    <string name="channel_progress_desc">Level-ups, prestige, achievements and finished weekly challenges</string>
+    <string name="channel_broadcasts">Wasteland broadcasts</string>
+    <string name="channel_broadcasts_desc">Announcements from the admins</string>
+    <string name="channel_market">Black Market</string>
+    <string name="channel_market_desc">Flash sales and market news</string>
+    <string name="channel_updates">App updates</string>
+    <string name="channel_updates_desc">When a new version of Dead-Fest is ready</string>
+    <string name="notif_reply">Reply</string>
+    <string name="notif_count">%1$d new</string>
+    <string name="notif_alerts_summary">Dead-Fest alerts</string>
+    <string name="notif_progress_summary">Dead-Fest progress</string>
+    <string name="notif_update_title">Dead-Fest v%1$s is out</string>
+    <string name="notif_update_body">Tap to update from Settings.</string>
+    <string name="notif_flash_title">FLASH SALE: %1$d%% off</string>
+    <string name="notif_flash_body">Everything in the Black Market is discounted. Don\'t miss it.</string>
+    <string name="notif_broadcast_title">Wasteland broadcast</string>
+    <string name="notif_challenge_title">Challenge complete: %1$s</string>
+    <string name="notif_challenge_body">Claim %1$s coins and %2$s XP in Weekly Challenges.</string>
+    <string name="settings_chat_notifications">Chat messages</string>
+    <string name="settings_chat_notifications_desc">Notify me about new group chat messages</string>
+    <string name="settings_background_sync">Background check-ins</string>
+    <string name="settings_background_sync_desc">Look for alerts, chat, broadcasts and updates about every 15 minutes while the app is closed. Uses a little battery.</string>
+    <string name="settings_notification_categories">Notification categories</string>
+    <string name="settings_notification_categories_desc">Mute or change each kind of notification in Android settings</string>
+
+    <!-- ===================================================== weekly challenges (v2.1.1) -->
+    <string name="challenges_title">WEEKLY CHALLENGES</string>
+    <string name="challenges_subtitle">Same goals for every survivor</string>
+    <string name="challenges_resets">Resets in %1$s</string>
+    <string name="challenges_reward">+%1$s coins · +%2$s XP</string>
+    <string name="challenges_progress">%1$s / %2$s</string>
+    <string name="challenges_claim">Claim</string>
+    <string name="challenges_claimed">CLAIMED</string>
+    <string name="challenges_done">COMPLETE</string>
+    <string name="challenges_claimed_msg">Challenge claimed: +%1$s coins, +%2$s XP</string>
+    <string name="hub_challenges">CHALLENGES</string>
+    <string name="hub_challenges_desc">Four new goals every Monday</string>
+
+    <!-- ===================================================== image reactions & comments (v2.1.1) -->
+    <string name="comments_title">COMMENTS</string>
+    <string name="comments_count">%1$d comments</string>
+    <string name="comments_empty">No comments yet. Say something.</string>
+    <string name="comments_hint">Add a comment…</string>
+    <string name="cd_reaction">React with %1$s, %2$d so far</string>
+    <string name="cd_reaction_mine">Your reaction %1$s, %2$d so far. Tap to remove.</string>
+    <string name="cd_comments_toggle">Show or hide comments</string>
+    <string name="cd_delete_comment">Delete comment</string>
+
     <!-- ===================================================== settings -->
     <string name="settings_personal_alerts">Personal alerts</string>
     <string name="settings_personal_alerts_desc">Notify me when I\'m cursed, my Shield blocks a curse, or an admin changes my stuff</string>

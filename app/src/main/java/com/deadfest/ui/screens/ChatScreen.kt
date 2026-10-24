@@ -58,6 +58,13 @@ fun ChatScreen(navController: NavController, viewModel: MainViewModel) {
     var deleting by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
 
+    // While this screen is open: no chat notifications, and everything shown counts as read.
+    DisposableEffect(Unit) {
+        viewModel.onChatVisible(true)
+        onDispose { viewModel.onChatVisible(false) }
+    }
+    LaunchedEffect(messages.lastOrNull()?.id) { viewModel.onChatVisible(true) }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) viewModel.prepareChatImage(uri)
     }

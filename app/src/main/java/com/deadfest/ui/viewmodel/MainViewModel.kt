@@ -12,6 +12,7 @@ import com.deadfest.data.repository.TheGamesDbClient
 import com.deadfest.domain.*
 import com.deadfest.util.ImageCompressor
 import com.deadfest.util.NotificationHelper
+import com.deadfest.util.AppVisibility
 import com.google.firebase.FirebaseNetworkException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -120,6 +121,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val chat: StateFlow<List<ChatMessage>> = repository.getChat()
         .catch { logError("chat", it) }
         .stateIn(viewModelScope, whileVisible, emptyList())
+
+    /** Newest chat message only: drives chat notifications and the unread badge while the app is open. */
+    val latestChat: StateFlow<ChatMessage?> = repository.getLatestChat()
+        .catch { logError("latestChat", it) }
+        .stateIn(viewModelScope, whileVisible, null)
 
     private val _chatImage = MutableStateFlow(ImageUploadState())
     val chatImage: StateFlow<ImageUploadState> = _chatImage.asStateFlow()
@@ -254,6 +260,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     logError("logout", e)
                 }
             }
+            com.deadfest.work.CheckInWorker.cancel(getApplication())
             auth.signOut()
             _authState.value = AuthState.Idle
         }
@@ -373,6 +380,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             _dailyResult.value = result
             handleXp(result.xp)
+            bumpChallenge(ChallengeMetric.RATIONS)
+            if (result.survivalBonusXp > 0) bumpChallenge(ChallengeMetric.SURVIVED_DAYS)
         }
     }
 
@@ -434,6 +443,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _events.tryEmit(toast)
                     repository.logEvent("BLACK_MARKET", log, currentUser.uid, target?.uid)
                     handleXp(result.xp)
+                    bumpChallenge(ChallengeMetric.PURCHASES)
+                    if (item.isCurse) bumpChallenge(ChallengeMetric.CURSES)
                     if (item.isCurse && target != null) {
                         notifyPlayer(target.uid, AlertItem.TYPE_CURSED, "You were cursed by $buyerName",
                             "${item.displayName.lowercase().replaceFirstChar { it.uppercase() }}: +${item.curseDeaths} death(s)$where.")
@@ -444,6 +455,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _events.tryEmit("$targetName's Shield blocked your curse. The Shield is gone now.")
                     repository.logEvent("BLACK_MARKET", "$targetName's Shield blocked a curse from $buyerName!", currentUser.uid, target?.uid)
                     handleXp(result.xp)
+                    bumpChallenge(ChallengeMetric.PURCHASES)
                     target?.let {
                         notifyPlayer(it.uid, AlertItem.TYPE_SHIELD_BLOCKED, "Your Shield blocked a curse",
                             "$buyerName tried to curse you. Your Shield took the hit and is now gone.")
@@ -469,6 +481,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ShopOutcome.APPLIED -> {
                     _events.tryEmit("Title unlocked and equipped: $title")
                     handleXp(result.xp)
+                    bumpChallenge(ChallengeMetric.PURCHASES)
                 }
                 ShopOutcome.INSUFFICIENT_FUNDS -> _events.tryEmit("Not enough coins for $title.")
                 ShopOutcome.ALREADY_ACTIVE -> _events.tryEmit("You already own $title.")
@@ -562,6 +575,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     currentUser.uid
                 )
                 handleXp(payout.xp)
+                bumpChallenge(ChallengeMetric.SPINS)
                 grantAchievements(buildSet {
                     if (payout.delta >= Achievements.JACKPOT_COINS) add(AchievementEvent.JACKPOT)
                     if (payout.luckyCoinUsed && payout.delta > 0) add(AchievementEvent.LUCKY_STRIKE)
@@ -604,6 +618,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.logEvent("BLACK_MARKET", log, me.uid)
                 handleXp(result.xp)
                 if (result.coinsWon >= Achievements.JACKPOT_COINS) grantAchievements(setOf(AchievementEvent.JACKPOT))
+                bumpChallenge(ChallengeMetric.SCRATCHES)
             } finally {
                 if (_scratch.value.busy) _scratch.value = _scratch.value.copy(busy = false)
             }
@@ -656,6 +671,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     me.uid
                 )
                 grantAchievements(setOf(AchievementEvent.IMAGE_SHARED))
+                bumpChallenge(ChallengeMetric.IMAGES)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -709,7 +725,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             _events.tryEmit("PRESTIGE $count UNLOCKED. Back to level 1, legend.")
             repository.logEvent("LEVEL_UP", "$myName entered PRESTIGE $count!", me.uid)
-            NotificationHelper.showNotification(getApplication(), "PRESTIGE $count", "Your legend resets. The badge is forever.")
+            NotificationHelper.notifyProgress(getApplication(), "PRESTIGE $count", "Your legend resets. The badge is forever.")
         }
     }
 
@@ -721,7 +737,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val unlocked = levelRewards.value.filter { it.level in xp.levelsGained }
         _levelUp.value = LevelUpEvent(xp.level, unlocked)
         val rewardText = if (unlocked.isEmpty()) "Keep surviving." else "Unlocked: ${unlocked.joinToString { it.label }}"
-        NotificationHelper.showNotification(getApplication(), "LEVEL UP: LV ${xp.level}", rewardText)
+        NotificationHelper.notifyProgress(getApplication(), "LEVEL UP: LV ${xp.level}", rewardText)
         repository.logEvent("LEVEL_UP", "$myName reached Level ${xp.level}!", authUid.value)
     }
 
@@ -929,7 +945,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         fresh.forEach { a ->
             _achievementUnlocked.value = a
-            NotificationHelper.showNotification(getApplication(), "ACHIEVEMENT: ${a.title.uppercase()}", a.description)
+            NotificationHelper.notifyProgress(getApplication(), "ACHIEVEMENT: ${a.title.uppercase()}", a.description)
             repository.logEvent("LEVEL_UP", "$myName earned the \"${a.title}\" achievement!", me.uid)
         }
     }
@@ -960,7 +976,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         prefs.lastAlertNotifiedAt = fresh.maxOf { it.createdAt }
         // On a first run, don't flood the tray with the whole backlog.
         val toShow = if (since == 0L) fresh.takeLast(3) else fresh
-        toShow.forEach { NotificationHelper.showNotification(getApplication(), it.title, it.body) }
+        toShow.forEach { NotificationHelper.notifyAlert(getApplication(), it) }
         if (fresh.any { it.type == AlertItem.TYPE_SHIELD_BLOCKED }) {
             viewModelScope.launch { grantAchievements(setOf(AchievementEvent.SHIELD_BLOCKED)) }
         }
@@ -1019,6 +1035,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val sent = withTimeoutOrNull(20_000) { task.await(); true } ?: false
                 if (!sent) _events.tryEmit("No signal: your message will send when you're back online.")
                 grantAchievements(setOf(AchievementEvent.CHAT_MESSAGE))
+                bumpChallenge(ChallengeMetric.CHATS)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1061,6 +1078,120 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun trimMultiplier(m: Double): String =
         if (m % 1.0 == 0.0) m.toLong().toString() else String.format(java.util.Locale.US, "%.1f", m)
+
+    // ---------------------------------------------------------------- chat notifications (v2.1.1)
+
+    /**
+     * Called whenever the newest chat message changes while the app is open. Notifies about
+     * messages from others unless you're looking at the chat right now.
+     */
+    fun onLatestChat(msg: ChatMessage?) {
+        if (msg == null || msg.createdAt <= 0) return
+        val me = authUid.value
+        val seen = maxOf(prefs.lastChatSeenAt, prefs.lastChatNotifiedAt)
+        when {
+            // First run: start the clock without flooding.
+            seen == 0L -> prefs.lastChatSeenAt = msg.createdAt
+            AppVisibility.chatOpen -> prefs.lastChatSeenAt = msg.createdAt
+            msg.senderUid == me || msg.createdAt <= seen -> Unit
+            prefs.chatNotifications.value -> {
+                prefs.lastChatNotifiedAt = msg.createdAt
+                NotificationHelper.notifyChat(getApplication(), listOf(msg), user.value?.handle ?: "")
+            }
+        }
+    }
+
+    /** The chat screen is showing: everything up to now is read and its notification can go. */
+    fun onChatVisible(visible: Boolean) {
+        AppVisibility.chatOpen = visible
+        if (visible) {
+            latestChat.value?.createdAt?.takeIf { it > 0 }?.let { prefs.lastChatSeenAt = maxOf(prefs.lastChatSeenAt, it) }
+            NotificationHelper.cancelChat(getApplication())
+        }
+    }
+
+    /** True when someone else has posted since you last looked at the chat. */
+    fun hasUnreadChat(msg: ChatMessage?): Boolean =
+        msg != null && msg.senderUid != authUid.value && msg.createdAt > prefs.lastChatSeenAt && prefs.lastChatSeenAt > 0
+
+    // ---------------------------------------------------------------- weekly challenges (v2.1.1)
+
+    fun currentWeekKey(): String = Challenges.weekKey(System.currentTimeMillis())
+
+    /** Counts one action towards this week's challenges and announces any it just completed. */
+    private suspend fun bumpChallenge(metric: ChallengeMetric, amount: Long = 1) {
+        val uid = authUid.value ?: return
+        val week = currentWeekKey()
+        val total = try {
+            repository.bumpWeekly(uid, metric.key, amount, week)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logError("bumpWeekly", e)
+            return
+        }
+        Challenges.forWeek(week)
+            .filter { it.metric == metric && total >= it.target && total - amount < it.target }
+            .forEach { c ->
+                _events.tryEmit("Challenge complete: ${c.title}. Claim your reward in Weekly Challenges.")
+                NotificationHelper.notifyProgress(
+                    getApplication(),
+                    getApplication<Application>().getString(com.deadfest.R.string.notif_challenge_title, c.title),
+                    getApplication<Application>().getString(com.deadfest.R.string.notif_challenge_body, fmt(c.coins), fmt(c.xp)),
+                    route = "challenges"
+                )
+            }
+    }
+
+    fun claimChallenge(challenge: ChallengeDef) {
+        val uid = user.value?.uid ?: return
+        launchSafe("Couldn't claim challenge") {
+            val xp = repository.claimChallenge(uid, challenge, currentWeekKey(), cfg)
+            if (xp == null) {
+                _events.tryEmit("That challenge isn't ready to claim.")
+                return@launchSafe
+            }
+            _events.tryEmit(getApplication<Application>().getString(com.deadfest.R.string.challenges_claimed_msg, fmt(challenge.coins), fmt(challenge.xp)))
+            repository.logEvent("LEVEL_UP", "$myName completed the weekly challenge \"${challenge.title}\"!", uid)
+            handleXp(xp)
+        }
+    }
+
+    // ---------------------------------------------------------------- image reactions & comments (v2.1.1)
+
+    fun reactionsFor(imageId: String): Flow<Map<String, String>> =
+        repository.getReactions(imageId).catch { logError("reactions", it); emit(emptyMap()) }
+
+    fun commentsFor(imageId: String): Flow<List<ImageComment>> =
+        repository.getComments(imageId).catch { logError("comments", it); emit(emptyList()) }
+
+    /** Tapping your current reaction removes it; tapping another replaces it. */
+    fun react(image: SharedImage, emoji: String, current: String?) {
+        val uid = user.value?.uid ?: return
+        val next = if (current == emoji) null else emoji
+        launchSafe("Couldn't react") {
+            repository.setReaction(image.id, uid, next)
+            if (current == null && next != null) bumpChallenge(ChallengeMetric.REACTIONS)
+        }
+    }
+
+    fun addComment(image: SharedImage, text: String) {
+        val me = user.value ?: return
+        val clean = text.trim().take(ImageComment.MAX_TEXT)
+        if (clean.isEmpty()) return
+        launchSafe("Couldn't post comment") {
+            repository.addComment(image.id, me, clean)
+            notifyPlayer(image.uploaderUid, AlertItem.TYPE_COMMENT, "${me.handle} commented on your image", clean)
+            bumpChallenge(ChallengeMetric.COMMENTS)
+        }
+    }
+
+    fun deleteComment(image: SharedImage, comment: ImageComment) {
+        val me = user.value ?: return
+        if (comment.uid != me.uid && image.uploaderUid != me.uid && !me.admin) return
+        launchSafe("Couldn't delete comment") { repository.deleteComment(image.id, comment.id) }
+    }
+
 
     // ---------------------------------------------------------------- helpers
 

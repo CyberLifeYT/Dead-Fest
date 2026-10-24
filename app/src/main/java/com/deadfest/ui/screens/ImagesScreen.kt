@@ -1,5 +1,13 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.data.model.ImageComment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -29,6 +37,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -126,7 +135,8 @@ fun ImagesScreen(navController: NavController, viewModel: MainViewModel) {
                 canDelete = live.uploaderUid == me?.uid || me?.admin == true,
                 load = viewModel::loadImage,
                 onDelete = { viewModel.deleteImage(live); viewing = null },
-                onClose = { viewing = null }
+                onClose = { viewing = null },
+                social = { ImageSocialPanel(live, viewModel) }
             )
         }
     }
@@ -313,7 +323,9 @@ internal fun ImageViewer(
     canDelete: Boolean,
     load: suspend (String) -> ByteArray?,
     onDelete: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    /** Reactions & comments (gallery images only; chat photos pass null). */
+    social: (@Composable ColumnScope.() -> Unit)? = null
 ) {
     val screenPx = with(LocalDensity.current) {
         val cfg = LocalConfiguration.current
@@ -407,17 +419,113 @@ internal fun ImageViewer(
                 }
             }
 
-            if (image.caption.isNotBlank()) {
-                Text(
-                    image.caption,
-                    color = TextHi,
-                    style = DeadFestType.body,
-                    modifier = Modifier
+            if (image.caption.isNotBlank() || social != null) {
+                Column(
+                    Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
-                        .background(Ink0.copy(alpha = 0.6f))
+                        .background(Ink0.copy(alpha = 0.78f))
+                        .navigationBarsPadding()
+                        .imePadding()
                         .padding(Spacing.md)
-                )
+                ) {
+                    if (image.caption.isNotBlank()) {
+                        Text(image.caption, color = TextHi, style = DeadFestType.body)
+                        if (social != null) Spacer(Modifier.height(Spacing.xs))
+                    }
+                    social?.invoke(this)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Reactions and comments under a gallery image (v2.1.1). One reaction per survivor (tap yours to
+ * remove it); comments are live, and the uploader is alerted about each one.
+ */
+@Composable
+private fun ImageSocialPanel(image: SharedImage, viewModel: MainViewModel) {
+    val me by viewModel.user.collectAsStateWithLifecycle()
+    val reactions by remember(image.id) { viewModel.reactionsFor(image.id) }.collectAsStateWithLifecycle(emptyMap())
+    val comments by remember(image.id) { viewModel.commentsFor(image.id) }.collectAsStateWithLifecycle(emptyList())
+    var showComments by remember(image.id) { mutableStateOf(false) }
+    var draft by remember(image.id) { mutableStateOf("") }
+    val mine = me?.uid?.let { reactions[it] }
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        ImageComment.REACTIONS.forEach { emoji ->
+            val count = reactions.values.count { it == emoji }
+            val selected = mine == emoji
+            val cd = if (selected) stringResource(com.deadfest.R.string.cd_reaction_mine, emoji, count)
+            else stringResource(com.deadfest.R.string.cd_reaction, emoji, count)
+            Row(
+                Modifier
+                    .heightIn(min = 40.dp)
+                    .clip(RoundedCornerShape(Radius.pill))
+                    .background(if (selected) Ember.copy(alpha = 0.28f) else Ink3)
+                    .pressClick(RoundedCornerShape(Radius.pill)) { viewModel.react(image, emoji, mine) }
+                    .clearAndSetSemantics { contentDescription = cd }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(emoji, fontSize = 16.sp)
+                if (count > 0) {
+                    Spacer(Modifier.width(4.dp))
+                    Text("$count", color = TextHi, style = DeadFestType.microLabel)
+                }
+            }
+        }
+    }
+    Spacer(Modifier.height(Spacing.xs))
+    Text(
+        stringResource(com.deadfest.R.string.comments_count, comments.size),
+        color = Plasma,
+        style = DeadFestType.chip,
+        modifier = Modifier
+            .pressClick(RoundedCornerShape(Radius.sm)) { showComments = !showComments }
+            .padding(vertical = 6.dp)
+    )
+    if (showComments) {
+        LazyColumn(
+            Modifier.fillMaxWidth().heightIn(max = 260.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+        ) {
+            if (comments.isEmpty()) {
+                item { Text(stringResource(com.deadfest.R.string.comments_empty), color = TextMid, style = DeadFestType.body) }
+            }
+            items(comments, key = { it.id }) { c ->
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(c.avatar.ifBlank { "\u2620" }, fontSize = 18.sp)
+                    Spacer(Modifier.width(Spacing.xs))
+                    Column(Modifier.weight(1f)) {
+                        Text(c.name, color = TextMid, style = DeadFestType.microLabel)
+                        Text(c.text, color = TextHi, style = DeadFestType.body)
+                    }
+                    val canDelete = c.uid == me?.uid || image.uploaderUid == me?.uid || me?.admin == true
+                    if (canDelete) {
+                        IconButton(onClick = { viewModel.deleteComment(image, c) }) {
+                            Icon(Icons.Default.Close, contentDescription = stringResource(com.deadfest.R.string.cd_delete_comment), tint = TextLow, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(Spacing.xs))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { if (it.length <= ImageComment.MAX_TEXT) draft = it },
+                placeholder = { Text(stringResource(com.deadfest.R.string.comments_hint), color = TextLow) },
+                singleLine = true,
+                colors = deadFestFieldColors(),
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(
+                onClick = { viewModel.addComment(image, draft); draft = "" },
+                enabled = draft.isNotBlank()
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(com.deadfest.R.string.cd_chat_send), tint = if (draft.isNotBlank()) Ember else TextLow)
             }
         }
     }

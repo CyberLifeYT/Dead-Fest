@@ -15,5 +15,8 @@ class DeadFestApplication : Application() {
             previous?.uncaughtException(thread, throwable)
         }
         FirebaseApp.initializeApp(this)
+        // Notification channels exist from the first launch, so they show up in Android's
+        // settings (and can be muted) before the first notification ever arrives.
+        com.deadfest.util.NotificationHelper.createChannels(this)
     }
 }

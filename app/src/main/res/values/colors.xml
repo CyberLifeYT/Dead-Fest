@@ -16,4 +16,6 @@
     <!-- Retained: referenced by the platform theme and by notification/vector defaults. -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+    <!-- Tint for notification icons and action buttons (the default ember). -->
+    <color name="notification_accent">#FFFF4B4B</color>
 </resources>

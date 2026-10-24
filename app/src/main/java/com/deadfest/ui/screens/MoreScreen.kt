@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Notifications
@@ -59,6 +60,11 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
     val isAdmin = user?.admin == true
     val alerts by viewModel.alerts.collectAsStateWithLifecycle()
     val unreadAlerts = alerts.count { !it.read }
+    val latestChat by viewModel.latestChat.collectAsStateWithLifecycle()
+    val week = viewModel.currentWeekKey()
+    val claimableChallenges = user?.playerData?.let {
+        com.deadfest.domain.Challenges.claimable(week, it.weekKey, it.weeklyStats, it.weeklyClaimed).size
+    } ?: 0
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(title = "UTILITY HUB", subtitle = "Advanced Terminal Systems")
@@ -101,8 +107,18 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
                     description = stringResource(R.string.hub_chat_desc),
                     icon = Icons.Default.Forum,
                     accent = Plasma,
-                    badge = stringResource(R.string.badge_new),
+                    badge = if (viewModel.hasUnreadChat(latestChat)) "\u25CF" else null,
                     onClick = { navController.navigate("chat") }
+                )
+            }
+            item {
+                HubButton(
+                    label = stringResource(R.string.hub_challenges),
+                    description = stringResource(R.string.hub_challenges_desc),
+                    icon = Icons.Default.EmojiEvents,
+                    accent = Amber,
+                    badge = if (claimableChallenges > 0) "$claimableChallenges" else stringResource(R.string.badge_new),
+                    onClick = { navController.navigate("challenges") }
                 )
             }
             item {

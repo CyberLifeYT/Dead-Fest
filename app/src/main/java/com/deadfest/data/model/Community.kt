@@ -23,6 +23,7 @@ data class AlertItem(
         const val TYPE_IMAGE_REMOVED = "image_removed"
         const val TYPE_ADMIN = "admin"
         const val TYPE_GAME_REQUEST = "game_request"
+        const val TYPE_COMMENT = "comment"
     }
 }
 
@@ -54,5 +55,21 @@ data class ChatMessage(
     companion object {
         const val MAX_TEXT = 500
         const val MAX_MESSAGES = 100L
+    }
+}
+
+/** A comment on a shared image (`images/{id}/comments`). */
+data class ImageComment(
+    val id: String,
+    val uid: String,
+    val name: String,
+    val avatar: String,
+    val text: String,
+    val createdAt: Long
+) {
+    companion object {
+        const val MAX_TEXT = 300
+        /** The reactions anyone can leave on an image (must match firestore.rules). */
+        val REACTIONS = listOf("🔥", "💀", "😂", "😮", "❤️", "👍")
     }
 }

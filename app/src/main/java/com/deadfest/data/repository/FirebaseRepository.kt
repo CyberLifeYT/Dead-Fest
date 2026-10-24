@@ -83,9 +83,14 @@ class FirebaseRepository(
             snapshot.documents.mapNotNull { it.toUserModel() }
         }
 
-    fun getGlobalState(): Flow<GlobalState> =
-        globalRef.snapshots().map { snapshot ->
-            if (!snapshot.exists()) return@map GlobalState()
+    fun getGlobalState(): Flow<GlobalState> = globalRef.snapshots().map { parseGlobalState(it) }
+
+    /** One fresh read of the global document from the server (background check-ins). */
+    suspend fun fetchGlobalState(): GlobalState =
+        parseGlobalState(globalRef.get(com.google.firebase.firestore.Source.SERVER).await())
+
+    private fun parseGlobalState(snapshot: DocumentSnapshot): GlobalState {
+            if (!snapshot.exists()) return GlobalState()
 
             val state = GlobalState(
                 marketEnabled = snapshot.getBoolean("marketEnabled") ?: true,
@@ -139,7 +144,7 @@ class FirebaseRepository(
                     weight = (item["weight"] as? Number)?.toDouble() ?: 1.0
                 )
             } ?: emptyList()
-            state
+            return state
         }
 
     fun getEventLogs(): Flow<List<EventLog>> =
@@ -806,6 +811,18 @@ class FirebaseRepository(
         imageBlobsRef.document(id).get().await().getBlob("data")?.toBytes()
 
     suspend fun deleteImage(id: String) {
+        // Reactions and comments first, while the image (and its uploader) still exists for the rules.
+        try {
+            val subs = imagesRef.document(id).collection("reactions").get().await().documents +
+                imagesRef.document(id).collection("comments").get().await().documents
+            subs.chunked(400).forEach { chunk ->
+                val b = firestore.batch()
+                chunk.forEach { b.delete(it.reference) }
+                b.commit().await()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("FirebaseRepository", "Couldn't clear image reactions/comments", e)
+        }
         firestore.batch()
             .delete(imagesRef.document(id))
             .delete(imageBlobsRef.document(id))
@@ -958,6 +975,142 @@ class FirebaseRepository(
         val batch = firestore.batch().delete(messagesRef.document(message.id))
         message.imageId?.let { batch.delete(imageBlobsRef.document(it)) }
         batch.commit().await()
+    }
+
+
+    // ================================================================ background check-ins (v2.1.1)
+
+    suspend fun fetchUser(uid: String): User? = usersRef.document(uid).get().await().toUserModel()
+
+    /** Alerts newer than [since], oldest first (one read per alert, only when there are new ones). */
+    suspend fun fetchAlertsSince(uid: String, since: Long): List<AlertItem> =
+        alertsRef(uid).whereGreaterThan("createdAt", since).orderBy("createdAt").limit(20).get().await()
+            .documents.map { d ->
+                AlertItem(
+                    id = d.id,
+                    type = d.getString("type") ?: "",
+                    title = d.getString("title") ?: "",
+                    body = d.getString("body") ?: "",
+                    fromUid = d.getString("fromUid") ?: "",
+                    fromName = d.getString("fromName") ?: "",
+                    createdAt = (d.get("createdAt") as? Number)?.toLong() ?: 0L,
+                    read = d.getBoolean("read") ?: false
+                )
+            }
+
+    /** Chat messages newer than [since], oldest first. */
+    suspend fun fetchChatSince(since: Long): List<ChatMessage> =
+        messagesRef.whereGreaterThan("timestamp", Timestamp(Date(since)))
+            .orderBy("timestamp").limit(15).get().await().documents.map { d -> d.toChatMessage() }
+
+    /** The single newest chat message (foreground notifications and the unread badge). */
+    fun getLatestChat(): Flow<ChatMessage?> =
+        messagesRef.orderBy("timestamp", Query.Direction.DESCENDING).limit(1).snapshots()
+            .map { snap -> snap.documents.firstOrNull()?.toChatMessage() }
+
+    /** Feed entries newer than [since] (admin broadcasts are picked out by the caller). */
+    suspend fun fetchEventsSince(since: Long): List<EventLog> =
+        eventLogRef.whereGreaterThan("timestamp", Timestamp(Date(since)))
+            .orderBy("timestamp").limit(30).get().await().toObjects(EventLog::class.java)
+
+    private fun DocumentSnapshot.toChatMessage() = ChatMessage(
+        id = id,
+        senderUid = getString("senderUid") ?: "",
+        senderName = getString("senderName") ?: "Survivor",
+        senderAvatar = getString("senderAvatar") ?: "",
+        senderColor = getString("senderColor") ?: "",
+        text = getString("text") ?: "",
+        createdAt = (get("timestamp", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) as? Timestamp)?.toDate()?.time ?: 0L,
+        imageId = getString("imageId")?.takeIf { it.isNotBlank() },
+        thumb = getBlob("thumb")?.toBytes(),
+        imageWidth = (get("imageWidth") as? Number)?.toInt() ?: 0,
+        imageHeight = (get("imageHeight") as? Number)?.toInt() ?: 0
+    )
+
+    // ================================================================ weekly challenges (v2.1.1)
+
+    /**
+     * Adds [amount] to a weekly metric, rolling the week over first when a new one has started.
+     * Returns the metric's new total for this week.
+     */
+    suspend fun bumpWeekly(uid: String, metric: String, amount: Long, weekKey: String): Long {
+        val ref = usersRef.document(uid)
+        return firestore.runTransaction { tx ->
+            val d = tx.get(ref).toUserModel()?.playerData ?: return@runTransaction 0L
+            if (d.weekKey != weekKey) {
+                tx.update(ref, mapOf(
+                    "playerData.weekKey" to weekKey,
+                    "playerData.weeklyStats" to mapOf(metric to amount),
+                    "playerData.weeklyClaimed" to emptyList<String>()
+                ))
+                amount
+            } else {
+                val total = (d.weeklyStats[metric] ?: 0L) + amount
+                tx.update(ref, FieldPath.of("playerData", "weeklyStats", metric), total)
+                total
+            }
+        }.await()
+    }
+
+    /** Claims a finished challenge's coins and XP, once, for the current week only. */
+    suspend fun claimChallenge(uid: String, challenge: ChallengeDef, weekKey: String, cfg: EconomyConfig): XpResult? {
+        val ref = usersRef.document(uid)
+        return firestore.runTransaction { tx ->
+            val d = tx.get(ref).toUserModel()?.playerData ?: return@runTransaction null
+            if (d.weekKey != weekKey || challenge.id in d.weeklyClaimed) return@runTransaction null
+            if ((d.weeklyStats[challenge.metric.key] ?: 0L) < challenge.target) return@runTransaction null
+            val xp = Leveling.addXp(d.xp, d.level, challenge.xp, cfg.xp)
+            val updates = balanceUpdates(d, d.coins + challenge.coins).toMutableMap()
+            updates["playerData.weeklyClaimed"] = FieldValue.arrayUnion(challenge.id)
+            updates["playerData.xp"] = xp.xp
+            updates["playerData.level"] = xp.level
+            tx.update(ref, updates)
+            xp
+        }.await()
+    }
+
+    // ================================================================ image reactions & comments (v2.1.1)
+
+    /** Who reacted with what: uid -> emoji. One reaction per survivor per image. */
+    fun getReactions(imageId: String): Flow<Map<String, String>> =
+        imagesRef.document(imageId).collection("reactions").snapshots().map { snap ->
+            snap.documents.mapNotNull { d -> d.getString("emoji")?.let { d.id to it } }.toMap()
+        }
+
+    /** Sets your reaction, or removes it when [emoji] is null. */
+    suspend fun setReaction(imageId: String, uid: String, emoji: String?) {
+        val ref = imagesRef.document(imageId).collection("reactions").document(uid)
+        if (emoji == null) ref.delete().await()
+        else ref.set(mapOf("emoji" to emoji, "createdAt" to System.currentTimeMillis())).await()
+    }
+
+    fun getComments(imageId: String): Flow<List<ImageComment>> =
+        imagesRef.document(imageId).collection("comments").orderBy("createdAt").limitToLast(100).snapshots()
+            .map { snap ->
+                snap.documents.map { d ->
+                    ImageComment(
+                        id = d.id,
+                        uid = d.getString("uid") ?: "",
+                        name = d.getString("name") ?: "Survivor",
+                        avatar = d.getString("avatar") ?: "",
+                        text = d.getString("text") ?: "",
+                        createdAt = (d.get("createdAt") as? Number)?.toLong() ?: 0L
+                    )
+                }
+            }
+
+    suspend fun addComment(imageId: String, author: User, text: String) {
+        imagesRef.document(imageId).collection("comments").add(mapOf(
+            "uid" to author.uid,
+            "name" to author.handle,
+            "avatar" to (author.playerData.avatar ?: ""),
+            "text" to text.take(ImageComment.MAX_TEXT),
+            "createdAt" to System.currentTimeMillis()
+        )).await()
+    }
+
+    suspend fun deleteComment(imageId: String, commentId: String) {
+        imagesRef.document(imageId).collection("comments").document(commentId).delete().await()
     }
 
 
