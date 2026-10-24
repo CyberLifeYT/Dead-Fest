@@ -51,8 +51,8 @@ android {
         applicationId = "com.deadfest"
         minSdk = 24
         targetSdk = 37
-        versionCode = 15
-        versionName = "2.1.0"
+        versionCode = 16
+        versionName = "2.1.1"
 
         // Client-side key for the game database (see TheGamesDbClient). It ships inside the APK,
         // so it must be treated as public; see docs/SIGNING.md.

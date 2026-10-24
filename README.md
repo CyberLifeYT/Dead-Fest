@@ -9,7 +9,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.1.0-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.1.1-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 [![APK](https://img.shields.io/badge/APK-4.0%20MB%20(R8)-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
@@ -34,7 +34,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ## 🔄 What's New
 
-### v2.1.0 – The community update *(Latest)*
+### v2.1.1 – The community update *(Latest)*
 
 - **💬 Group chat** – One chat for every survivor (newest 100 messages, live), with photo attachments. Delete your own messages; admins can delete any.
 - **🔔 Personal alerts** – "You were cursed by X", "Your Shield blocked a curse", "Your image was removed", admin changes to your coins/deaths, approved game requests. Phone notifications while the app is open, plus an Alerts inbox (bell on the Dashboard).
@@ -45,7 +45,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **🔥 Sector Overloads pay out** – Deaths in the overloaded sector now pay every survivor the boosted survival reward and earn boosted XP (capped at x10).
 - **♿ Accessibility & translations** – Every theme now passes WCAG contrast checks (enforced by a test), Halloween/Toxic Storm buttons use readable dark labels, new screens are fully labelled for screen readers, and new text lives in `strings.xml` ready for translation ([docs/TRANSLATING.md](docs/TRANSLATING.md)).
 - **🖥️ Desktop discontinued** – The Windows client gets no further updates; the Android app continues.
-- **Admins:** deploy the updated [`firestore.rules`](firestore.rules) before handing out this build. Full notes: [release/v2.1.0](release/v2.1.0/RELEASE_NOTES.md).
+- **Admins:** deploy the updated [`firestore.rules`](firestore.rules) before handing out this build. Full notes: [release/v2.1.1](release/v2.1.1/RELEASE_NOTES.md).
 
 ### Desktop 2.1.0 – The desktop console, at full parity *(final desktop release)*
 
