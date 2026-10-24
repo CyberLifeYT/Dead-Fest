@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -60,8 +62,8 @@ fun ArchivesScreen(navController: NavController, viewModel: MainViewModel) {
         }
 
         ScreenHeader(
-            title = "ARCHIVES HUB",
-            subtitle = "WASTELAND HISTORICAL DATABASE",
+            title = tr(R.string.archives_archives_hub),
+            subtitle = tr(R.string.archives_wasteland_historical_database),
             onBack = { navController.popBackStack() }
         )
 
@@ -69,8 +71,8 @@ fun ArchivesScreen(navController: NavController, viewModel: MainViewModel) {
             Box(Modifier.fillMaxSize().padding(Spacing.gutter)) {
                 EmptyStateCard(
                     icon = Icons.Default.History,
-                    title = "No archived seasons",
-                    message = "Once a Dead-Fest is sealed, its survivors, losses and champion are kept here.",
+                    title = tr(R.string.archives_no_archived_seasons),
+                    message = tr(R.string.archives_once_a_dead_fest_is_sealed),
                     modifier = Modifier.enterOnMount(0)
                 )
             }
@@ -91,7 +93,7 @@ fun ArchivesScreen(navController: NavController, viewModel: MainViewModel) {
                     LatestSeasonHero(latest, dateFormat, Modifier.enterOnMount(0)) { selectedId = latest.id }
                 }
                 if (earlier.isNotEmpty()) {
-                    item { SectionLabel("Earlier seasons", Modifier.enterOnMount(1)) }
+                    item { SectionLabel(tr(R.string.archives_earlier_seasons), Modifier.enterOnMount(1)) }
                     items(earlier, key = { it.id }) { archive ->
                         ArchiveRow(archive, dateFormat) { selectedId = archive.id }
                     }
@@ -112,27 +114,27 @@ private fun LatestSeasonHero(
 ) {
     val detailed = archive.schemaVersion >= 2
     HeroPanel(
-        eyebrow = "Latest archive",
+        eyebrow = tr(R.string.archives_latest_archive),
         title = archive.name.uppercase(),
         icon = Icons.Default.History,
         modifier = modifier.pressClick(RoundedCornerShape(Radius.xl), onClick = onOpen),
         accent = Amber,
-        badge = { StatusPill(if (detailed) "DETAILED" else "LEGACY", if (detailed) Toxic else TextLow) }
+        badge = { StatusPill(if (detailed) tr(R.string.archives_detailed) else tr(R.string.archives_legacy), if (detailed) Toxic else TextLow) }
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            StatTile("SURVIVORS", formatNumber(archive.survivorCount), TextHi, Modifier.weight(1f))
-            StatTile("DEATHS", formatNumber(archive.totalDeaths), Ember, Modifier.weight(1f))
-            StatTile("COINS", formatNumber(archive.totalCoins), Amber, Modifier.weight(1f))
+            StatTile(tr(R.string.archives_survivors), formatNumber(archive.survivorCount), TextHi, Modifier.weight(1f))
+            StatTile(tr(R.string.archives_deaths), formatNumber(archive.totalDeaths), Ember, Modifier.weight(1f))
+            StatTile(tr(R.string.admineconomy_coins), formatNumber(archive.totalCoins), Amber, Modifier.weight(1f))
         }
         Spacer(Modifier.height(Spacing.sm))
-        KeyValueRow("Sealed", dateFormat.format(Date(archive.timestamp)))
+        KeyValueRow(tr(R.string.archives_sealed), dateFormat.format(Date(archive.timestamp)))
         archive.champion?.let { champ ->
-            KeyValueRow("Champion", champ.displayName?.takeIf { it.isNotBlank() } ?: "Unknown", valueColor = Amber)
+            KeyValueRow(tr(R.string.archives_champion), champ.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_unknown), valueColor = Amber)
         }
         if (!detailed) {
             Spacer(Modifier.height(Spacing.xxs))
             Text(
-                "Archived before v2.0.7: levels, XP and titles weren't captured for this season.",
+                tr(R.string.archives_archived_before_v2_0_7_levels),
                 color = TextLow,
                 style = DeadFestType.body
             )
@@ -156,7 +158,7 @@ private fun ArchiveRow(archive: Archive, dateFormat: SimpleDateFormat, onClick: 
                 )
                 Text(dateFormat.format(Date(archive.timestamp)), color = TextMid, style = DeadFestType.body)
                 Text(
-                    "${formatNumber(archive.totalDeaths)} deaths · ${formatNumber(archive.survivorCount)} survivors",
+                    tr(R.string.archives_1_deaths_2_survivors, formatNumber(archive.totalDeaths), formatNumber(archive.survivorCount)),
                     color = Ember,
                     style = DeadFestType.chip
                 )
@@ -170,7 +172,7 @@ private fun ArchiveRow(archive: Archive, dateFormat: SimpleDateFormat, onClick: 
                     )
                 }
                 if (archive.schemaVersion < 2) {
-                    Text("Pre-v2.0.7 · levels not tracked", color = TextLow, style = DeadFestType.microLabel)
+                    Text(tr(R.string.archives_pre_v2_0_7_levels_not), color = TextLow, style = DeadFestType.microLabel)
                 }
             }
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextLow)
@@ -195,7 +197,7 @@ private fun ArchiveDetail(
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
             title = archive.name.uppercase(),
-            subtitle = "SAVED ${dateFormat.format(Date(archive.timestamp))}",
+            subtitle = tr(R.string.archives_saved_1, dateFormat.format(Date(archive.timestamp))),
             onBack = onBack
         )
         LazyColumn(
@@ -211,7 +213,7 @@ private fun ArchiveDetail(
             if (archives.size > 1) {
                 item {
                     Column {
-                        SectionLabel("Season index")
+                        SectionLabel(tr(R.string.archives_season_index))
                         Spacer(Modifier.height(Spacing.xs))
                         // Horizontal selector: seasons stay one tap away without leaving the record.
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -232,23 +234,23 @@ private fun ArchiveDetail(
 
             item {
                 SurfaceCard(accent = Ember, modifier = Modifier.enterOnMount(0)) {
-                    SectionLabel("Season summary", accent = Amber)
+                    SectionLabel(tr(R.string.archives_season_summary), accent = Amber)
                     Spacer(Modifier.height(Spacing.sm))
                     ArchiveStatGrid(
                         listOf(
-                            ArchiveStat("SURVIVORS", formatNumber(archive.survivorCount)),
-                            ArchiveStat("LOSSES", formatNumber(archive.totalDeaths), Ember),
-                            ArchiveStat("COINS AT CLOSE", formatNumber(archive.totalCoins), Amber),
-                            ArchiveStat("ELIMINATIONS", formatNumber(archive.grandTotalAtEnd)),
-                            ArchiveStat("ARCHIVED", dateFormat.format(Date(archive.timestamp)).substringBefore(" "))
+                            ArchiveStat(tr(R.string.archives_survivors), formatNumber(archive.survivorCount)),
+                            ArchiveStat(tr(R.string.archives_losses), formatNumber(archive.totalDeaths), Ember),
+                            ArchiveStat(tr(R.string.archives_coins_at_close), formatNumber(archive.totalCoins), Amber),
+                            ArchiveStat(tr(R.string.archives_eliminations), formatNumber(archive.grandTotalAtEnd)),
+                            ArchiveStat(tr(R.string.archives_archived), dateFormat.format(Date(archive.timestamp)).substringBefore(" "))
                         )
                     )
                     archive.champion?.let { champ ->
                         Spacer(Modifier.height(Spacing.xs))
                         // Label and value stay in one announcement, and this card is not clickable.
                         KeyValueRow(
-                            "Champion",
-                            champ.displayName?.takeIf { it.isNotBlank() } ?: "Unknown",
+                            tr(R.string.archives_champion),
+                            champ.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_unknown),
                             modifier = Modifier.semantics(mergeDescendants = true) {},
                             valueColor = Amber
                         )
@@ -260,7 +262,7 @@ private fun ArchiveDetail(
                     if (archive.schemaVersion < 2) {
                         Spacer(Modifier.height(Spacing.sm))
                         Text(
-                            "Archived before v2.0.7: levels, XP and titles weren't captured for this season.",
+                            tr(R.string.archives_archived_before_v2_0_7_levels),
                             color = TextLow,
                             style = DeadFestType.body
                         )
@@ -269,7 +271,7 @@ private fun ArchiveDetail(
             }
 
             if (sectors.isNotEmpty()) {
-                item { SectionLabel("Eliminations by sector", Modifier.enterOnMount(1)) }
+                item { SectionLabel(tr(R.string.archives_eliminations_by_sector), Modifier.enterOnMount(1)) }
                 item {
                     SurfaceCard(modifier = Modifier.enterOnMount(2)) {
                         sectors.forEachIndexed { index, (name, deaths) ->
@@ -298,13 +300,13 @@ private fun ArchiveDetail(
                 }
             }
 
-            item { SectionLabel("Final standings", Modifier.enterOnMount(3)) }
+            item { SectionLabel(tr(R.string.archives_final_standings), Modifier.enterOnMount(3)) }
             if (standings.isEmpty()) {
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.History,
-                        title = "No roster recorded",
-                        message = "This season was sealed before any survivor data was captured.",
+                        title = tr(R.string.archives_no_roster_recorded),
+                        message = tr(R.string.archives_this_season_was_sealed_before_any),
                         modifier = Modifier.enterOnMount(4)
                     )
                 }
@@ -338,7 +340,7 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
             Spacer(Modifier.width(Spacing.xs))
             Column(Modifier.weight(1f)) {
                 Text(
-                    snapshot.displayName ?: "Unknown Survivor",
+                    snapshot.displayName ?: tr(R.string.archives_unknown_survivor),
                     color = TextHi,
                     style = DeadFestType.cardTitle,
                     maxLines = 1,
@@ -360,7 +362,7 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
                     }
                 } else {
                     Text(
-                        "LEVEL & TITLE NOT RECORDED",
+                        tr(R.string.archives_level_title_not_recorded),
                         color = TextLow,
                         style = DeadFestType.microLabel,
                         maxLines = 1,
@@ -371,7 +373,7 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
             PriceTag(snapshot.coins)
         }
         Spacer(Modifier.height(Spacing.xs))
-        KeyValueRow("Season deaths", formatNumber(snapshot.totalDeaths), valueColor = Ember)
+        KeyValueRow(tr(R.string.archives_season_deaths), formatNumber(snapshot.totalDeaths), valueColor = Ember)
         if (snapshot.gameDeaths.isNotEmpty()) {
             Text(
                 snapshot.gameDeaths.entries.joinToString(" · ") { "${it.key}: ${it.value}" },

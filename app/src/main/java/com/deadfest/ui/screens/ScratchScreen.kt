@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -58,23 +60,23 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "SCRATCH CARDS",
-            subtitle = "INSTANT WASTELAND LOTTERY",
+            title = tr(R.string.more_scratch_cards),
+            subtitle = tr(R.string.scratch_instant_wasteland_lottery),
             onBack = { navController.popBackStack() },
             trailing = { CoinBadge(coins) }
         )
 
         when {
-            globalState.lockdownActive -> NoticeCard(Icons.Default.Lock, "SYSTEM LOCKDOWN ACTIVE", "Scratch Cards are frozen by an administrator.")
-            !economy.scratchEnabled -> NoticeCard(Icons.Default.ConfirmationNumber, "SCRATCH CARDS OFFLINE", "An admin has switched Scratch Cards off for now.")
+            globalState.lockdownActive -> NoticeCard(Icons.Default.Lock, tr(R.string.scratch_system_lockdown_active), tr(R.string.scratch_scratch_cards_are_frozen_by_an))
+            !economy.scratchEnabled -> NoticeCard(Icons.Default.ConfirmationNumber, tr(R.string.scratch_scratch_cards_offline), tr(R.string.scratch_an_admin_has_switched_scratch_cards))
             pool.isEmpty() -> Box(
                 modifier = Modifier.fillMaxSize().padding(Spacing.gutter),
                 contentAlignment = Alignment.Center
             ) {
                 EmptyStateCard(
                     icon = Icons.Default.ConfirmationNumber,
-                    title = "NO PRIZES LOADED",
-                    message = "An admin needs to stock the prize pool first."
+                    title = tr(R.string.scratch_no_prizes_loaded),
+                    message = tr(R.string.scratch_an_admin_needs_to_stock_the)
                 )
             }
             else -> {
@@ -92,11 +94,11 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
                         val result = scratch.result
                         // The card is the hero: hero panel carries the state, the card carries the reveal.
                         HeroPanel(
-                            eyebrow = "Instant Lottery",
+                            eyebrow = tr(R.string.scratch_instant_lottery),
                             title = when {
-                                scratch.busy -> "STAMPING A FRESH CARD"
-                                result != null -> "CARD RESOLVED"
-                                else -> "READY TO SCRATCH"
+                                scratch.busy -> tr(R.string.scratch_stamping_a_fresh_card)
+                                result != null -> tr(R.string.scratch_card_resolved)
+                                else -> tr(R.string.scratch_ready_to_scratch)
                             },
                             icon = Icons.Default.ConfirmationNumber,
                             modifier = Modifier.enterOnMount(0),
@@ -109,11 +111,11 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
                             badge = {
                                 StatusPill(
                                     text = when {
-                                        scratch.busy -> "PRINTING"
-                                        result?.outcome == ScratchOutcome.ITEM -> "RARE FIND"
-                                        result?.outcome == ScratchOutcome.WIN -> "WIN"
-                                        result?.outcome == ScratchOutcome.LOSS -> if (result.coinsWon > 0) "SMALL RETURN" else "NO LUCK"
-                                        else -> "READY"
+                                        scratch.busy -> tr(R.string.scratch_printing)
+                                        result?.outcome == ScratchOutcome.ITEM -> tr(R.string.scratch_rare_find)
+                                        result?.outcome == ScratchOutcome.WIN -> tr(R.string.scratch_win)
+                                        result?.outcome == ScratchOutcome.LOSS -> if (result.coinsWon > 0) tr(R.string.scratch_small_return) else tr(R.string.scratch_no_luck)
+                                        else -> tr(R.string.images_ready)
                                     },
                                     color = when {
                                         scratch.busy -> Ember
@@ -137,8 +139,8 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
                         PrimaryAction(
                             text = when {
                                 scratch.busy -> "SCRATCHING..."
-                                !affordable -> "NEED ${formatNumber(economy.scratchCost)} COINS"
-                                else -> "SCRATCH A CARD · ${formatNumber(economy.scratchCost)} COINS"
+                                !affordable -> tr(R.string.scratch_need_1_coins, formatNumber(economy.scratchCost))
+                                else -> tr(R.string.scratch_scratch_a_card_1_coins, formatNumber(economy.scratchCost))
                             },
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -148,7 +150,7 @@ fun ScratchScreen(navController: NavController, viewModel: MainViewModel) {
                             modifier = Modifier.enterOnMount(1)
                         )
                     }
-                    item { SectionLabel("Prize Pool & Odds", Modifier.padding(top = Spacing.xs).enterOnMount(2)) }
+                    item { SectionLabel(tr(R.string.scratch_prize_pool_odds), Modifier.padding(top = Spacing.xs).enterOnMount(2)) }
                     items(pool.indices.toList(), key = { pool[it].id.ifEmpty { "p$it" } }) { i ->
                         PrizeRow(prize = pool[i], pct = chances[i], modifier = Modifier.enterOnMount(3))
                     }
@@ -193,7 +195,7 @@ private fun PrizeRow(prize: ScratchPrize, pct: Double, modifier: Modifier = Modi
                     Spacer(Modifier.height(Spacing.xxs))
                 }
                 Text("${CasualtyFormat.pct(pct)}%", color = TextMid, style = DeadFestType.chip)
-                Text("ODDS", color = TextLow, style = DeadFestType.microLabel)
+                Text(tr(R.string.scratch_odds), color = TextLow, style = DeadFestType.microLabel)
             }
         }
     }
@@ -211,10 +213,10 @@ private object CasualtyFormat {
 }
 
 private fun prizeDescription(p: ScratchPrize): String = when (p.type) {
-    ScratchPrize.TYPE_COINS -> if (p.coinAmount > 0) "${formatNumber(p.coinAmount)} coins" else "No win"
-    ScratchPrize.TYPE_SHIELD -> "Free Shield (cashed in if you already have one)"
-    ScratchPrize.TYPE_LUCKY -> "Free Lucky Coin (cashed in if you already have one)"
-    else -> "No win"
+    ScratchPrize.TYPE_COINS -> if (p.coinAmount > 0) "${formatNumber(p.coinAmount)} coins" else tr(R.string.scratch_no_win)
+    ScratchPrize.TYPE_SHIELD -> tr(R.string.scratch_free_shield_cashed_in_if_you)
+    ScratchPrize.TYPE_LUCKY -> tr(R.string.scratch_free_lucky_coin_cashed_in_if)
+    else -> tr(R.string.scratch_no_win)
 }
 
 /**
@@ -251,8 +253,8 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
     // either find "?" or the previous card's result underneath. The card therefore exposes its own
     // state: hidden/printing before the reveal, and the real prize text once the reveal has landed.
     val cardDescription = when {
-        state.busy -> "Printing a fresh scratch card"
-        result == null -> "Scratch card, prize hidden. Ready to scratch."
+        state.busy -> tr(R.string.scratch_printing_a_fresh_scratch_card)
+        result == null -> tr(R.string.scratch_scratch_card_prize_hidden_ready_to)
         else -> null
     }
 
@@ -277,9 +279,9 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
             } else {
                 Text(
                     when (result.outcome) {
-                        ScratchOutcome.ITEM -> "RARE FIND"
-                        ScratchOutcome.WIN -> "WINNER"
-                        ScratchOutcome.LOSS -> if (result.coinsWon > 0) "SMALL RETURN" else "NO LUCK"
+                        ScratchOutcome.ITEM -> tr(R.string.scratch_rare_find)
+                        ScratchOutcome.WIN -> tr(R.string.scratch_winner)
+                        ScratchOutcome.LOSS -> if (result.coinsWon > 0) tr(R.string.scratch_small_return) else tr(R.string.scratch_no_luck)
                     },
                     color = accent,
                     fontWeight = FontWeight.Black,
@@ -295,10 +297,10 @@ private fun ScratchCardView(state: ScratchState, cost: Long, onRevealed: () -> U
                 Spacer(Modifier.height(Spacing.xxs))
                 Text(
                     when {
-                        result.convertedItem -> "Already owned: cashed in for ${formatNumber(result.coinsWon)} coins"
-                        result.outcome == ScratchOutcome.ITEM -> "Added to your gear"
-                        result.coinsWon > 0 -> "+${formatNumber(result.coinsWon)} coins (card cost ${formatNumber(cost)})"
-                        else -> "Better luck next card"
+                        result.convertedItem -> tr(R.string.scratch_already_owned_cashed_in_for_1, formatNumber(result.coinsWon))
+                        result.outcome == ScratchOutcome.ITEM -> tr(R.string.scratch_added_to_your_gear)
+                        result.coinsWon > 0 -> tr(R.string.scratch_1_coins_card_cost_2, formatNumber(result.coinsWon), formatNumber(cost))
+                        else -> tr(R.string.scratch_better_luck_next_card)
                     },
                     color = TextMid,
                     style = DeadFestType.body,

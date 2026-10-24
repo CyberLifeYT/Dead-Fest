@@ -7,6 +7,7 @@ import com.google.firebase.FirebaseApp
 class DeadFestApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.deadfest.util.I18n.init(this)
         // Log, then hand off to the system handler. Swallowing the crash (as before)
         // left the app frozen on a dead UI thread instead of letting it restart.
         val previous = Thread.getDefaultUncaughtExceptionHandler()

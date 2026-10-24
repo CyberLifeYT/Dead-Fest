@@ -1,5 +1,6 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.util.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -90,7 +91,7 @@ fun EditProfileScreen(navController: NavController, viewModel: MainViewModel) {
                     Spacer(Modifier.width(Spacing.sm))
                     Column(Modifier.weight(1f)) {
                         Text(user?.handle ?: "", color = TextHi, style = DeadFestType.cardTitle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text((p?.title ?: "SURVIVOR").uppercase(), color = parseThemeColor(color), style = DeadFestType.microLabel)
+                        Text((p?.title ?: tr(R.string.admin_survivor)).uppercase(), color = parseThemeColor(color), style = DeadFestType.microLabel)
                         if (bio.isNotBlank()) {
                             Spacer(Modifier.height(4.dp))
                             Text(bio.trim(), color = TextMid, style = DeadFestType.body, maxLines = 3, overflow = TextOverflow.Ellipsis)

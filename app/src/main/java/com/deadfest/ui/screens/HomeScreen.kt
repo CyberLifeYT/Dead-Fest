@@ -1,5 +1,6 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.util.tr
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -103,12 +104,12 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                 .verticalScroll(rememberScrollState())
         ) {
             ScreenHeader(
-                title = "COMMAND CENTER",
-                subtitle = "Sector Net // Live Feed",
+                title = tr(R.string.home_command_center),
+                subtitle = tr(R.string.home_sector_net_live_feed),
                 trailing = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         AlertsBell(unreadAlerts) { navController.navigate("alerts") }
-                        StatusPill("$onlineCount ONLINE", OnlineGreen)
+                        StatusPill(tr(R.string.home_1_online, onlineCount), OnlineGreen)
                     }
                 }
             )
@@ -122,8 +123,8 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                 if (globalState.lockdownActive) {
                     AlertBanner(
                         icon = Icons.Default.Lock,
-                        title = "DEAD-FEST IS IN LOCKDOWN",
-                        message = "Core protocol actions are restricted by an administrator."
+                        title = tr(R.string.home_dead_fest_is_in_lockdown),
+                        message = tr(R.string.home_core_protocol_actions_are_restricted_by)
                     )
                 }
 
@@ -135,11 +136,11 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                 }
 
                 if (overloadLive) {
-                    val left = if (globalState.overloadEndsAt > 0) " · ${remainingLabel(globalState.overloadEndsAt)} left" else ""
+                    val left = if (globalState.overloadEndsAt > 0) tr(R.string.home_1_left, remainingLabel(globalState.overloadEndsAt)) else ""
                     AlertBanner(
                         icon = Icons.Default.Bolt,
-                        title = "SECTOR OVERLOAD: ${globalState.overloadedSector.uppercase()}",
-                        message = "x${trimDouble(globalState.multiplier)} multiplier is active in this sector$left. " +
+                        title = tr(R.string.home_sector_overload_1, globalState.overloadedSector.uppercase()),
+                        message = tr(R.string.home_x_1_multiplier_is_active_in, trimDouble(globalState.multiplier), left) +
                             stringResource(R.string.overload_payout, trimDouble(globalState.multiplier.coerceAtMost(OverloadRules.MAX_MULTIPLIER))),
                         accent = Gold
                     )
@@ -158,17 +159,17 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                 )
 
                 Spacer(Modifier.height(Spacing.xxs))
-                SectionLabel("Survivor Profile")
+                SectionLabel(tr(R.string.home_survivor_profile))
                 SurvivorProfileCard(userState?.displayName, player, economy, totalDeaths, onEdit = { navController.navigate("edit_profile") })
 
                 Spacer(Modifier.height(Spacing.xxs))
-                SectionLabel("Active Sectors")
+                SectionLabel(tr(R.string.home_active_sectors))
             }
 
             Spacer(Modifier.height(Spacing.sm))
             if (globalState.games.isEmpty()) {
                 Text(
-                    "No sectors configured yet.",
+                    tr(R.string.home_no_sectors_configured_yet),
                     color = TextMid,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = Spacing.gutter)
@@ -193,9 +194,9 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
         RecordDeathBar(
             enabled = canRecordDeath,
             label = when {
-                globalState.lockdownActive -> "Death recording locked"
-                unlockedGames.isEmpty() -> "No open sectors"
-                else -> "Record Death"
+                globalState.lockdownActive -> tr(R.string.home_death_recording_locked)
+                unlockedGames.isEmpty() -> tr(R.string.home_no_open_sectors)
+                else -> tr(R.string.home_record_death)
             },
             onClick = {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -221,13 +222,13 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     Spacer(Modifier.width(Spacing.sm))
                     Column {
                         Text(
-                            "SELECT SECTOR",
+                            tr(R.string.home_select_sector),
                             color = TextHi,
                             fontWeight = FontWeight.Black,
                             fontSize = 18.sp,
                             modifier = Modifier.semantics { heading() }
                         )
-                        Text("Where did you fall, survivor?", color = TextMid, fontSize = 12.sp)
+                        Text(tr(R.string.home_where_did_you_fall_survivor), color = TextMid, fontSize = 12.sp)
                     }
                 }
                 Spacer(Modifier.height(Spacing.md))
@@ -272,14 +273,14 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            if (overloaded) StatusPill("OVERLOAD", Gold)
+                            if (overloaded) StatusPill(tr(R.string.home_overload), Gold)
                             else Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextLow, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
 
                 Spacer(Modifier.height(Spacing.md))
-                GhostAction("Cancel", { showSheet = false }, modifier = Modifier.fillMaxWidth())
+                GhostAction(tr(R.string.home_cancel), { showSheet = false }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(Spacing.lg))
             }
         }
@@ -291,7 +292,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
 /** One-line broadcast strip. Cross-fades between messages unless Performance Mode is on. */
 @Composable
 private fun LiveFeedStrip(message: String?, performanceMode: Boolean, modifier: Modifier = Modifier) {
-    val text = message ?: "Awaiting wasteland transmission..."
+    val text = message ?: tr(R.string.home_awaiting_wasteland_transmission)
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -310,7 +311,7 @@ private fun LiveFeedStrip(message: String?, performanceMode: Boolean, modifier: 
                 .background(Ember)
         )
         Spacer(Modifier.width(Spacing.xs))
-        Text("LIVE", color = Ember, style = DeadFestType.microLabel)
+        Text(tr(R.string.home_live), color = Ember, style = DeadFestType.microLabel)
         Spacer(Modifier.width(Spacing.xs))
         if (performanceMode) {
             Text(
@@ -380,7 +381,7 @@ private fun EliminationsHero(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(6.dp).clip(CircleShape).background(Ember))
                 Spacer(Modifier.width(6.dp))
-                Text("Global Eliminations", color = Ember, style = DeadFestType.microLabel)
+                Text(tr(R.string.home_global_eliminations), color = Ember, style = DeadFestType.microLabel)
             }
             Spacer(Modifier.height(Spacing.xxs))
             Text(
@@ -394,9 +395,9 @@ private fun EliminationsHero(
             GradientRule()
             Spacer(Modifier.height(Spacing.sm))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.lg)) {
-                HeroStat("Survivors", "$online")
-                HeroStat("Sectors", "$sectors")
-                HeroStat("Your deaths", formatNumber(yourDeaths))
+                HeroStat(tr(R.string.home_survivors), "$online")
+                HeroStat(tr(R.string.home_sectors), "$sectors")
+                HeroStat(tr(R.string.home_your_deaths), formatNumber(yourDeaths))
             }
         }
     }
@@ -427,7 +428,7 @@ private fun SurvivorProfileCard(
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
                 Text(
-                    displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
+                    displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admineconomy_survivor),
                     color = TextHi,
                     fontWeight = FontWeight.Black,
                     fontSize = 17.sp,
@@ -439,7 +440,7 @@ private fun SurvivorProfileCard(
                     LevelBadge(player?.level ?: 1, player?.prestigeCount ?: 0)
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        (player?.title?.takeIf { it.isNotBlank() } ?: "SURVIVOR").uppercase(),
+                        (player?.title?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_survivor)).uppercase(),
                         color = Ember,
                         style = DeadFestType.microLabel,
                         maxLines = 1,
@@ -458,15 +459,15 @@ private fun SurvivorProfileCard(
         val tier = player?.insulationTier ?: 0
         val spins = player?.pendingSpins ?: 0
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            MiniStat("Deaths", formatNumber(totalDeaths), Ember, Modifier.weight(1f))
-            MiniStat("Shield", if (shielded) "ACTIVE" else "NONE", if (shielded) Plasma else TextLow, Modifier.weight(1f))
-            MiniStat("Lucky", if (lucky) "ARMED" else "NONE", if (lucky) Amber else TextLow, Modifier.weight(1f))
+            MiniStat(tr(R.string.home_deaths), formatNumber(totalDeaths), Ember, Modifier.weight(1f))
+            MiniStat(tr(R.string.home_shield), if (shielded) tr(R.string.home_active) else tr(R.string.home_none), if (shielded) Plasma else TextLow, Modifier.weight(1f))
+            MiniStat(tr(R.string.home_lucky), if (lucky) tr(R.string.home_armed) else tr(R.string.home_none), if (lucky) Amber else TextLow, Modifier.weight(1f))
         }
         Spacer(Modifier.height(Spacing.xs))
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-            MiniStat("Insurance", if (insured) "ARMED" else "NONE", if (insured) Plasma else TextLow, Modifier.weight(1f))
-            MiniStat("Insulation", if (tier > 0) "TIER ${ShopItem.roman(tier)}" else "NONE", if (tier > 0) Amber else TextLow, Modifier.weight(1f))
-            MiniStat("Spins due", "$spins", if (spins > 0) Ember else TextLow, Modifier.weight(1f))
+            MiniStat(tr(R.string.home_insurance), if (insured) tr(R.string.home_armed) else tr(R.string.home_none), if (insured) Plasma else TextLow, Modifier.weight(1f))
+            MiniStat(tr(R.string.admin_insulation), if (tier > 0) tr(R.string.admineconomy_tier_1, ShopItem.roman(tier)) else tr(R.string.home_none), if (tier > 0) Amber else TextLow, Modifier.weight(1f))
+            MiniStat(tr(R.string.home_spins_due), "$spins", if (spins > 0) Ember else TextLow, Modifier.weight(1f))
         }
     }
 }
@@ -511,7 +512,7 @@ private fun SectorChip(name: String, deaths: Long, locked: Boolean, overloaded: 
                 locked -> Icon(Icons.Default.Lock, contentDescription = null, tint = TextLow, modifier = Modifier.size(11.dp))
                 // The bolt is not repeated by any text, so it keeps its description; it is what makes
                 // the overload state audible instead of amber-only.
-                overloaded -> Icon(Icons.Default.Bolt, contentDescription = "Overload", tint = Gold, modifier = Modifier.size(13.dp))
+                overloaded -> Icon(Icons.Default.Bolt, contentDescription = tr(R.string.home_overload_2), tint = Gold, modifier = Modifier.size(13.dp))
                 else -> Box(Modifier.size(5.dp).clip(CircleShape).background(Ember))
             }
             Spacer(Modifier.width(5.dp))
@@ -525,7 +526,7 @@ private fun SectorChip(name: String, deaths: Long, locked: Boolean, overloaded: 
         }
         Spacer(Modifier.height(2.dp))
         Text(
-            if (locked) "LOCKED" else "${formatNumber(deaths)} YOUR DEATHS",
+            if (locked) tr(R.string.home_locked) else tr(R.string.home_1_your_deaths, formatNumber(deaths)),
             color = if (locked) TextLow else TextMid,
             style = DeadFestType.microLabel
         )
@@ -626,15 +627,15 @@ private fun DailyRationsBody(
         IconTile(Icons.Default.Inventory2, tint = if (canClaim) OnlineGreen else TextLow, size = 44)
         Spacer(Modifier.width(Spacing.sm))
         Column(Modifier.weight(1f)) {
-            Text("DAILY RATIONS", color = TextHi, style = DeadFestType.cardTitle)
+            Text(tr(R.string.home_daily_rations), color = TextHi, style = DeadFestType.cardTitle)
             Text(
-                if (canClaim) "${formatNumber(amount)} coins ready to collect"
-                else "Next drop in ${DailyClock.countdown(now.value)}",
+                if (canClaim) tr(R.string.home_1_coins_ready_to_collect, formatNumber(amount))
+                else tr(R.string.home_next_drop_in_1, DailyClock.countdown(now.value)),
                 color = TextMid,
                 fontSize = 12.sp
             )
             if (player.dailyUpgradeOwned) {
-                Text("RATION UPGRADE ACTIVE", color = Amber, style = DeadFestType.microLabel)
+                Text(tr(R.string.home_ration_upgrade_active), color = Amber, style = DeadFestType.microLabel)
             }
         }
         if (canClaim) {
@@ -645,7 +646,7 @@ private fun DailyRationsBody(
                 elevation = null,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
             ) {
-                Text("CLAIM", style = DeadFestType.chip)
+                Text(tr(R.string.home_claim), style = DeadFestType.chip)
             }
         }
     }

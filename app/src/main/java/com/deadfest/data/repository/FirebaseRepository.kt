@@ -978,7 +978,7 @@ class FirebaseRepository(
     }
 
 
-    // ================================================================ background check-ins (v2.1.1)
+    // ================================================================ background check-ins (v2.1.2)
 
     suspend fun fetchUser(uid: String): User? = usersRef.document(uid).get().await().toUserModel()
 
@@ -1027,7 +1027,7 @@ class FirebaseRepository(
         imageHeight = (get("imageHeight") as? Number)?.toInt() ?: 0
     )
 
-    // ================================================================ weekly challenges (v2.1.1)
+    // ================================================================ weekly challenges (v2.1.2)
 
     /**
      * Adds [amount] to a weekly metric, rolling the week over first when a new one has started.
@@ -1069,7 +1069,7 @@ class FirebaseRepository(
         }.await()
     }
 
-    // ================================================================ image reactions & comments (v2.1.1)
+    // ================================================================ image reactions & comments (v2.1.2)
 
     /** Who reacted with what: uid -> emoji. One reaction per survivor per image. */
     fun getReactions(imageId: String): Flow<Map<String, String>> =

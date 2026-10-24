@@ -489,7 +489,7 @@ test('only an admin can start a flash sale', async () => {
   await assertSucceeds(updateDoc(doc(asAlice(), 'gameState/global'), { flashSaleActive: true, flashSalePct: 30, flashSaleEndsAt: 0 }));
 });
 
-// ==================================================================== v2.1.1: image reactions & comments
+// ==================================================================== v2.1.2: image reactions & comments
 
 const seedImage = async (id, uploader) => {
   await env.withSecurityRulesDisabled(async (context) => {

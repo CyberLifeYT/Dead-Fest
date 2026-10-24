@@ -46,7 +46,7 @@ data class PlayerData(
     /** Personal stats: recorded deaths per day, keyed "yyyy-MM-dd" (last 60 days). */
     @get:PropertyName("deathsByDay") @set:PropertyName("deathsByDay") var deathsByDay: Map<String, Long> = emptyMap(),
 
-    // ---- v2.1.1: weekly challenges ----
+    // ---- v2.1.2: weekly challenges ----
     /** ISO week the weekly stats belong to, e.g. "2026-W43". */
     @get:PropertyName("weekKey") @set:PropertyName("weekKey") var weekKey: String = "",
     /** This week's counters per ChallengeMetric key. */

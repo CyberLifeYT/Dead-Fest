@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import com.deadfest.data.model.ImageComment
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -68,7 +70,7 @@ fun ImagesScreen(navController: NavController, viewModel: MainViewModel) {
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "IMAGES",
-            subtitle = "SHARED WITH EVERY SURVIVOR",
+            subtitle = tr(R.string.images_shared_with_every_survivor),
             onBack = { navController.popBackStack() },
             trailing = { StatusPill("${images.size}", Ember) }
         )
@@ -96,14 +98,14 @@ fun ImagesScreen(navController: NavController, viewModel: MainViewModel) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     EmptyStateCard(
                         icon = Icons.Default.PhotoLibrary,
-                        title = "No images yet",
-                        message = "Be the first to share one with the wasteland.",
+                        title = tr(R.string.images_no_images_yet),
+                        message = tr(R.string.images_be_the_first_to_share_one),
                         modifier = Modifier.enterOnMount(1)
                     )
                 }
             } else {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    SectionLabel("Latest shares")
+                    SectionLabel(tr(R.string.images_latest_shares))
                 }
                 items(images, key = { it.id }) { image ->
                     ImageTile(image) { viewing = image }
@@ -150,9 +152,9 @@ fun ImagesScreen(navController: NavController, viewModel: MainViewModel) {
 private fun imageDescription(image: SharedImage): String {
     val caption = image.caption
     return if (caption.isBlank()) {
-        "Image from ${image.uploaderName}"
+        tr(R.string.images_image_from_1, image.uploaderName)
     } else {
-        "Image from ${image.uploaderName}: $caption"
+        tr(R.string.images_image_from_1_2, image.uploaderName, caption)
     }
 }
 
@@ -177,26 +179,26 @@ private fun ShareHero(
     modifier: Modifier = Modifier
 ) {
     HeroPanel(
-        eyebrow = "Field Archive",
-        title = if (processing) "PREPARING IMAGE" else "READY TO SHARE",
+        eyebrow = tr(R.string.images_field_archive),
+        title = if (processing) tr(R.string.images_preparing_image) else tr(R.string.images_ready_to_share),
         icon = Icons.Default.AddPhotoAlternate,
         modifier = modifier,
         accent = Ember,
         badge = {
             StatusPill(
-                text = if (processing) "PROCESSING" else "READY",
+                text = if (processing) tr(R.string.images_processing) else tr(R.string.images_ready),
                 color = if (processing) Amber else Toxic
             )
         }
     ) {
         Text(
-            "Pick a photo. It is compressed before upload and visible to every survivor.",
+            tr(R.string.images_pick_a_photo_it_is_compressed),
             color = TextMid,
             style = DeadFestType.body
         )
         Spacer(Modifier.height(Spacing.sm))
         PrimaryAction(
-            text = "Share an image",
+            text = tr(R.string.images_share_an_image),
             onClick = onPick,
             enabled = !busy
         )
@@ -269,26 +271,26 @@ private fun PostImageDialog(
         onDismissRequest = { if (!uploading) onCancel() },
         containerColor = Ink2,
         shape = RoundedCornerShape(Radius.xxl),
-        title = { Text("SHARE IMAGE", color = TextHi, style = DeadFestType.cardTitle) },
+        title = { Text(tr(R.string.images_share_image), color = TextHi, style = DeadFestType.cardTitle) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (preview != null) {
                     Image(
                         bitmap = remember(preview) { preview.asImageBitmap() },
-                        contentDescription = "Preview",
+                        contentDescription = tr(R.string.images_preview),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxWidth().aspectRatio(1.4f).clip(RoundedCornerShape(Radius.md))
                     )
                 }
                 Text(
-                    "Compressed to $sizeKb KB · visible to every survivor",
+                    tr(R.string.images_compressed_to_1_kb_visible_to, sizeKb),
                     color = TextMid,
                     style = DeadFestType.body
                 )
                 OutlinedTextField(
                     value = caption,
                     onValueChange = { if (it.length <= MAX_CAPTION) caption = it },
-                    label = { Text("Caption (optional)") },
+                    label = { Text(tr(R.string.images_caption_optional)) },
                     supportingText = { Text("${caption.length}/$MAX_CAPTION", color = TextLow) },
                     enabled = !uploading,
                     colors = deadFestFieldColors(),
@@ -306,12 +308,12 @@ private fun PostImageDialog(
                 if (uploading) {
                     CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                 } else {
-                    Text("POST", style = DeadFestType.action)
+                    Text(tr(R.string.images_post), style = DeadFestType.action)
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onCancel, enabled = !uploading) { Text("CANCEL", color = TextMid) }
+            TextButton(onClick = onCancel, enabled = !uploading) { Text(tr(R.string.common_cancel), color = TextMid) }
         }
     )
 }
@@ -344,9 +346,9 @@ internal fun ImageViewer(
 
     if (confirmDelete) {
         ConfirmDialog(
-            title = "DELETE IMAGE?",
-            message = "This removes it for every survivor.",
-            confirmText = "DELETE",
+            title = tr(R.string.images_delete_image),
+            message = tr(R.string.images_this_removes_it_for_every_survivor),
+            confirmText = tr(R.string.admineconomy_delete),
             destructive = true,
             onConfirm = onDelete,
             onDismiss = { confirmDelete = false }
@@ -380,11 +382,11 @@ internal fun ImageViewer(
                 )
             }
             if (full == null && !failed) {
-                LoadingState("Decrypting image", Modifier.align(Alignment.Center))
+                LoadingState(tr(R.string.images_decrypting_image), Modifier.align(Alignment.Center))
             }
             if (failed) {
                 ErrorState(
-                    message = "Couldn't load the full image. Check your connection.",
+                    message = tr(R.string.images_couldn_t_load_the_full_image),
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
@@ -397,7 +399,7 @@ internal fun ImageViewer(
                     .padding(horizontal = Spacing.xs, vertical = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = "Close", tint = TextHi) }
+                IconButton(onClick = onClose) { Icon(Icons.Default.Close, contentDescription = tr(R.string.images_close), tint = TextHi) }
                 Column(Modifier.weight(1f)) {
                     Text(
                         image.uploaderName,
@@ -414,7 +416,7 @@ internal fun ImageViewer(
                 }
                 if (canDelete) {
                     IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete image by ${image.uploaderName}", tint = Ember)
+                        Icon(Icons.Default.Delete, contentDescription = tr(R.string.images_delete_image_by_1, image.uploaderName), tint = Ember)
                     }
                 }
             }
@@ -441,7 +443,7 @@ internal fun ImageViewer(
 }
 
 /**
- * Reactions and comments under a gallery image (v2.1.1). One reaction per survivor (tap yours to
+ * Reactions and comments under a gallery image (v2.1.2). One reaction per survivor (tap yours to
  * remove it); comments are live, and the uploader is alerted about each one.
  */
 @Composable

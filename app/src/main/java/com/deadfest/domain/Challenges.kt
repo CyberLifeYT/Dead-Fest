@@ -6,7 +6,7 @@ import java.util.Locale
 import kotlin.random.Random
 
 /*
- * Weekly challenges (v2.1.1). Every survivor gets the same four challenges each week, picked
+ * Weekly challenges (v2.1.2). Every survivor gets the same four challenges each week, picked
  * from a pool by the ISO week number, so the group competes on the same goals. Progress is
  * counted per metric on the profile and resets when the week rolls over (Monday 00:00 local).
  */

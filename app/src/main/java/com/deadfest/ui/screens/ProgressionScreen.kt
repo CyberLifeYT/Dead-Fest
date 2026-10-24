@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -49,9 +51,9 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
 
     if (confirmPrestige) {
         ConfirmDialog(
-            title = "ENTER PRESTIGE ${prestige + 1}?",
-            message = "Your level and XP reset to 1 / 0. You keep every reward you've unlocked, gain a permanent prestige badge and the Prestige frame.",
-            confirmText = "PRESTIGE",
+            title = tr(R.string.progression_enter_prestige_1, prestige + 1),
+            message = tr(R.string.progression_your_level_and_xp_reset_to),
+            confirmText = tr(R.string.progression_prestige),
             onConfirm = viewModel::prestige,
             onDismiss = { confirmPrestige = false }
         )
@@ -59,8 +61,8 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "PROGRESSION",
-            subtitle = "LEVELS, REWARDS & PRESTIGE",
+            title = tr(R.string.more_progression),
+            subtitle = tr(R.string.progression_levels_rewards_prestige),
             onBack = { navController.popBackStack() }
         )
         LazyColumn(
@@ -85,15 +87,15 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
                 )
             }
 
-            item { SectionLabel("How to earn XP", Modifier.enterOnMount(1)) }
+            item { SectionLabel(tr(R.string.progression_how_to_earn_xp), Modifier.enterOnMount(1)) }
             item {
                 SurfaceCard(modifier = Modifier.enterOnMount(2)) {
-                    XpRow(Icons.Default.Warning, "Recording a death", xpCfg.death)
-                    XpRow(Icons.Default.Shield, "Surviving a full day (claim rations)", xpCfg.survivalDay)
-                    XpRow(Icons.Default.ShoppingCart, "Black Market purchase", xpCfg.purchase)
-                    XpRow(Icons.Default.Casino, "Wheel spin", xpCfg.spin)
-                    XpRow(Icons.Default.ConfirmationNumber, "Scratch card", xpCfg.scratch)
-                    XpRow(Icons.Default.Cyclone, "Clearing a penalty spin (bonus)", xpCfg.penaltySpin)
+                    XpRow(Icons.Default.Warning, tr(R.string.progression_recording_a_death), xpCfg.death)
+                    XpRow(Icons.Default.Shield, tr(R.string.progression_surviving_a_full_day_claim_rations), xpCfg.survivalDay)
+                    XpRow(Icons.Default.ShoppingCart, tr(R.string.progression_black_market_purchase), xpCfg.purchase)
+                    XpRow(Icons.Default.Casino, tr(R.string.progression_wheel_spin), xpCfg.spin)
+                    XpRow(Icons.Default.ConfirmationNumber, tr(R.string.progression_scratch_card), xpCfg.scratch)
+                    XpRow(Icons.Default.Cyclone, tr(R.string.progression_clearing_a_penalty_spin_bonus), xpCfg.penaltySpin)
                 }
             }
 
@@ -113,13 +115,13 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
                 AchievementsPanel(owned = owned, modifier = Modifier.enterOnMount(4))
             }
 
-            item { SectionLabel("Reward track", Modifier.enterOnMount(4)) }
+            item { SectionLabel(tr(R.string.progression_reward_track), Modifier.enterOnMount(4)) }
             if (rewards.isEmpty()) {
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.MilitaryTech,
-                        title = "Reward track offline",
-                        message = "Cosmetics unlocked by levelling will be listed here.",
+                        title = tr(R.string.progression_reward_track_offline),
+                        message = tr(R.string.progression_cosmetics_unlocked_by_levelling_will_be),
                         modifier = Modifier.enterOnMount(5)
                     )
                 }
@@ -144,7 +146,7 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
             if (prestige > 0) {
                 item {
                     RewardRow(
-                        LevelReward(xpCfg.maxLevel, "frame_prestige", "frame", "Prestige frame", "prestige"),
+                        LevelReward(xpCfg.maxLevel, "frame_prestige", "frame", tr(R.string.progression_prestige_frame), "prestige"),
                         unlocked = true,
                         equipped = p?.avatarFrame == "prestige"
                     ) { viewModel.equipFrame("prestige") }
@@ -152,7 +154,7 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
             }
             item {
                 GhostAction(
-                    text = "Remove avatar frame",
+                    text = tr(R.string.progression_remove_avatar_frame),
                     onClick = { viewModel.equipFrame("none") },
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -179,8 +181,8 @@ private fun LevelHeroCard(
     val toNext = (Leveling.xpForLevel(level, cfg) - xp).coerceAtLeast(0)
 
     HeroPanel(
-        eyebrow = "Progression",
-        title = "Level $level of ${cfg.maxLevel}",
+        eyebrow = tr(R.string.progression_progression),
+        title = tr(R.string.progression_level_1_of_2, level, cfg.maxLevel),
         icon = Icons.Default.MilitaryTech,
         modifier = modifier,
         accent = Ember,
@@ -192,19 +194,19 @@ private fun LevelHeroCard(
             Column(Modifier.weight(1f)) {
                 // Each stat line is one item: the label and its value are announced together.
                 KeyValueRow(
-                    "Total XP",
+                    tr(R.string.progression_total_xp),
                     formatNumber(xp),
                     modifier = Modifier.semantics(mergeDescendants = true) {},
                     valueColor = Ember
                 )
                 KeyValueRow(
-                    label = "To next level",
-                    value = if (maxed) "MAX LEVEL" else "${formatNumber(toNext)} XP",
+                    label = tr(R.string.progression_to_next_level),
+                    value = if (maxed) tr(R.string.progression_max_level) else tr(R.string.progression_1_xp, formatNumber(toNext)),
                     modifier = Modifier.semantics(mergeDescendants = true) {},
                     valueColor = if (maxed) Amber else TextHi
                 )
                 KeyValueRow(
-                    "Prestiges",
+                    tr(R.string.progression_prestiges),
                     "$prestige",
                     modifier = Modifier.semantics(mergeDescendants = true) {},
                     valueColor = Prestige
@@ -223,7 +225,7 @@ private fun XpRow(icon: ImageVector, label: String, xp: Long) {
         Spacer(Modifier.width(Spacing.sm))
         KeyValueRow(
             label = label,
-            value = "+${formatNumber(xp)} XP",
+            value = tr(R.string.resultdialogs_1_xp, formatNumber(xp)),
             valueColor = Amber,
             // Decorative icon; the row itself is one item: "label, +N XP".
             modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {}
@@ -248,24 +250,24 @@ private fun PrestigeCard(
             Column(Modifier.weight(1f)) {
                 // Prestige is its own block on this screen, so its title reads as a heading.
                 Text(
-                    "PRESTIGE",
+                    tr(R.string.progression_prestige),
                     color = TextHi,
                     style = DeadFestType.cardTitle,
                     modifier = Modifier.semantics { heading() }
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (ready) "You've hit the cap. Reset to level 1 for a permanent badge."
-                    else "Reach level $maxLevel to prestige. Prestiges so far: $prestige",
+                    if (ready) tr(R.string.progression_you_ve_hit_the_cap_reset)
+                    else tr(R.string.progression_reach_level_1_to_prestige_prestiges, maxLevel, prestige),
                     color = TextMid,
                     style = DeadFestType.body
                 )
             }
-            StatusPill(if (ready) "READY" else "LOCKED", if (ready) Prestige else TextLow)
+            StatusPill(if (ready) tr(R.string.images_ready) else tr(R.string.home_locked), if (ready) Prestige else TextLow)
         }
         if (ready) {
             Spacer(Modifier.height(Spacing.sm))
-            PrimaryAction("Enter prestige ${prestige + 1}", onPrestige, accent = Prestige)
+            PrimaryAction(tr(R.string.progression_enter_prestige_1_2, prestige + 1), onPrestige, accent = Prestige)
         }
     }
 }
@@ -302,16 +304,16 @@ private fun RewardRow(reward: LevelReward, unlocked: Boolean, equipped: Boolean,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    when (reward.type) { "frame" -> "Avatar frame"; "title" -> "Title"; else -> "Badge colour" },
+                    when (reward.type) { "frame" -> tr(R.string.progression_avatar_frame); "title" -> tr(R.string.progression_title); else -> tr(R.string.progression_badge_colour) },
                     color = TextLow,
                     style = DeadFestType.body
                 )
             }
             Spacer(Modifier.width(Spacing.xs))
             when {
-                equipped -> StatusPill("EQUIPPED", Ember)
-                unlocked -> GhostAction("Equip", onEquip, modifier = Modifier.width(104.dp))
-                else -> Icon(Icons.Default.Lock, contentDescription = "Locked", tint = TextLow, modifier = Modifier.size(16.dp))
+                equipped -> StatusPill(tr(R.string.progression_equipped), Ember)
+                unlocked -> GhostAction(tr(R.string.progression_equip), onEquip, modifier = Modifier.width(104.dp))
+                else -> Icon(Icons.Default.Lock, contentDescription = tr(R.string.admin_locked), tint = TextLow, modifier = Modifier.size(16.dp))
             }
         }
     }

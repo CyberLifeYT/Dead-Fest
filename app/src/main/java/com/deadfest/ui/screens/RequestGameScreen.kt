@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -50,8 +52,8 @@ fun RequestGameScreen(navController: NavController, viewModel: MainViewModel) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "REQUEST GAME",
-            subtitle = "SUGGEST A SECTOR",
+            title = tr(R.string.more_request_game),
+            subtitle = tr(R.string.requestgame_suggest_a_sector),
             onBack = { navController.popBackStack() }
         )
 
@@ -63,18 +65,18 @@ fun RequestGameScreen(navController: NavController, viewModel: MainViewModel) {
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             PrimaryAction(
-                text = "Request Game",
+                text = tr(R.string.requestgame_request_game),
                 icon = Icons.Default.Add,
                 onClick = { showDialog = true },
                 modifier = Modifier.enterOnMount(0)
             )
 
-            Text("APPROVED GAMES", color = TextLow, style = DeadFestType.microLabel)
+            Text(tr(R.string.requestgame_approved_games), color = TextLow, style = DeadFestType.microLabel)
             if (approved.isEmpty()) {
                 EmptyStateCard(
                     icon = Icons.Default.SportsEsports,
-                    title = "No approved games yet",
-                    message = "Games the admin has approved will show up here."
+                    title = tr(R.string.requestgame_no_approved_games_yet),
+                    message = tr(R.string.requestgame_games_the_admin_has_approved_will)
                 )
             } else {
                 approved.forEachIndexed { index, request ->
@@ -86,14 +88,14 @@ fun RequestGameScreen(navController: NavController, viewModel: MainViewModel) {
 
             // The queue behind a button: visible when wanted, never in the way when not.
             GhostAction(
-                text = if (showPending) "Hide pending games" else "Pending games (${pending.size})",
+                text = if (showPending) tr(R.string.requestgame_hide_pending_games) else tr(R.string.requestgame_pending_games_1, pending.size),
                 icon = Icons.Default.Schedule,
                 onClick = { showPending = !showPending },
                 modifier = Modifier.fillMaxWidth()
             )
             if (showPending) {
                 if (pending.isEmpty()) {
-                    EmptyState(Icons.Default.CheckCircle, "Nothing waiting for approval.")
+                    EmptyState(Icons.Default.CheckCircle, tr(R.string.requestgame_nothing_waiting_for_approval))
                 } else {
                     pending.forEach { GameRequestRow(it, showRequester = true) }
                 }
@@ -148,13 +150,13 @@ private fun GameRequestRow(
                 )
                 if (showRequester) {
                     Text(
-                        "Requested by ${request.requestedByName}",
+                        tr(R.string.requestgame_requested_by_1, request.requestedByName),
                         color = TextMid,
                         style = DeadFestType.body
                     )
                 }
             }
-            StatusPill(if (request.isApproved) "APPROVED" else "PENDING", if (request.isApproved) Toxic else Amber)
+            StatusPill(if (request.isApproved) tr(R.string.admin_approved) else tr(R.string.admin_pending), if (request.isApproved) Toxic else Amber)
         }
     }
 }
@@ -192,7 +194,7 @@ private fun RequestGameDialog(
         onDismissRequest = onDismiss,
         containerColor = Ink2,
         shape = RoundedCornerShape(Radius.xxl),
-        title = { Text("REQUEST A GAME", color = TextHi, style = DeadFestType.cardTitle) },
+        title = { Text(tr(R.string.requestgame_request_a_game), color = TextHi, style = DeadFestType.cardTitle) },
         text = {
             Column(
                 Modifier.verticalScroll(rememberScrollState()),
@@ -201,7 +203,7 @@ private fun RequestGameDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    label = { Text("Search the game database") },
+                    label = { Text(tr(R.string.requestgame_search_the_game_database)) },
                     singleLine = true,
                     shape = RoundedCornerShape(Radius.md),
                     colors = deadFestFieldColors()
@@ -261,15 +263,15 @@ private fun RequestGameDialog(
 
                 if (showManual) {
                     Text(
-                        if (offline) "The game database is unreachable right now — enter the game by hand."
-                        else "No match found — enter the game by hand.",
+                        if (offline) tr(R.string.requestgame_the_game_database_is_unreachable_right)
+                        else tr(R.string.requestgame_no_match_found_enter_the_game),
                         color = TextMid,
                         style = DeadFestType.body
                     )
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Game name") },
+                        label = { Text(tr(R.string.requestgame_game_name)) },
                         singleLine = true,
                         shape = RoundedCornerShape(Radius.md),
                         colors = deadFestFieldColors()
@@ -277,7 +279,7 @@ private fun RequestGameDialog(
                     OutlinedTextField(
                         value = coverUrl,
                         onValueChange = { coverUrl = it },
-                        label = { Text("Cover image URL (optional)") },
+                        label = { Text(tr(R.string.requestgame_cover_image_url_optional)) },
                         singleLine = true,
                         shape = RoundedCornerShape(Radius.md),
                         colors = deadFestFieldColors()
@@ -291,8 +293,8 @@ private fun RequestGameDialog(
                 enabled = name.isNotBlank(),
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
                 shape = RoundedCornerShape(Radius.sm)
-            ) { Text("SEND REQUEST", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.requestgame_send_request), fontWeight = FontWeight.Black) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = TextMid) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.common_cancel), color = TextMid) } }
     )
 }

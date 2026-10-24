@@ -60,7 +60,7 @@ class AppPrefs(context: Context) {
     val alertNotificationsEnabled: Boolean get() = _personalAlerts.value
     fun setPersonalAlerts(on: Boolean) = save(KEY_PERSONAL_ALERTS, on, _personalAlerts)
 
-    // ---- v2.1.1: notifications & background check-ins ----
+    // ---- v2.1.2: notifications & background check-ins ----
 
     /** Group-chat messages as phone notifications. */
     private val _chatNotifications = MutableStateFlow(prefs.getBoolean(KEY_CHAT_NOTIFS, true))
@@ -140,7 +140,7 @@ class AppPrefs(context: Context) {
         const val KEY_THEME = "pref_app_theme"
         /** Added in 2.1.0. */
         const val KEY_PERSONAL_ALERTS = "pref_personal_alerts"
-        /** Added in 2.1.1. */
+        /** Added in 2.1.2. */
         const val KEY_CHAT_NOTIFS = "pref_chat_notifications"
         const val KEY_BACKGROUND_SYNC = "pref_background_sync"
 

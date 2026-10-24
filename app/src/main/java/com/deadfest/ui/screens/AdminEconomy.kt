@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -75,11 +77,11 @@ internal fun LiveEventDashboard(viewModel: MainViewModel, onPlayerClick: (String
         item { OnlineStatTile(users, now) }
         item { DeathRateStatTile(recent, now) }
         item {
-            StatPanel("PENDING SPINS", formatNumber(pendingTotal), "${pendingPlayers.size} survivor(s) owe spins", Amber)
+            StatPanel(tr(R.string.admineconomy_pending_spins), formatNumber(pendingTotal), tr(R.string.admineconomy_1_survivor_s_owe_spins, pendingPlayers.size), Amber)
         }
         item {
             SurfaceCard {
-                SectionLabel("Bankruptcy", accent = Ember)
+                SectionLabel(tr(R.string.admineconomy_bankruptcy), accent = Ember)
                 Spacer(Modifier.height(Spacing.xxs))
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text("$bankrupt1", color = TextHi, style = DeadFestType.statHero)
@@ -88,7 +90,7 @@ internal fun LiveEventDashboard(viewModel: MainViewModel, onPlayerClick: (String
                     Text("$bankrupt2", color = Ember, style = DeadFestType.statHero)
                     Text(" L2", color = TextMid, style = DeadFestType.body, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = Spacing.xxs))
                 }
-                Text("survivors in bankruptcy", color = TextLow, style = DeadFestType.body)
+                Text(tr(R.string.admineconomy_survivors_in_bankruptcy), color = TextLow, style = DeadFestType.body)
             }
         }
 
@@ -96,7 +98,7 @@ internal fun LiveEventDashboard(viewModel: MainViewModel, onPlayerClick: (String
 
         item(span = { GridItemSpan(maxLineSpan) }) {
             SurfaceCard {
-                SectionLabel("Wealth distribution", accent = Amber)
+                SectionLabel(tr(R.string.admineconomy_wealth_distribution), accent = Amber)
                 Spacer(Modifier.height(Spacing.xs))
                 WealthChart(tiers)
             }
@@ -104,14 +106,14 @@ internal fun LiveEventDashboard(viewModel: MainViewModel, onPlayerClick: (String
 
         item(span = { GridItemSpan(maxLineSpan) }) {
             SurfaceCard {
-                SectionLabel("Pending spins by survivor")
+                SectionLabel(tr(R.string.admineconomy_pending_spins_by_survivor))
                 Spacer(Modifier.height(Spacing.xs))
                 if (pendingPlayers.isEmpty()) {
-                    EmptyState(Icons.Default.Casino, "Nobody owes the Wheel right now.")
+                    EmptyState(Icons.Default.Casino, tr(R.string.admineconomy_nobody_owes_the_wheel_right_now))
                 } else {
                     pendingPlayers.take(12).forEach { u -> PlayerLine(u, "${u.playerData.pendingSpins} spins", Ember) { onPlayerClick(u.uid) } }
                     if (pendingPlayers.size > 12) {
-                        Text("+${pendingPlayers.size - 12} more", color = TextLow, style = DeadFestType.body)
+                        Text(tr(R.string.admineconomy_1_more, pendingPlayers.size - 12), color = TextLow, style = DeadFestType.body)
                     }
                 }
             }
@@ -119,13 +121,13 @@ internal fun LiveEventDashboard(viewModel: MainViewModel, onPlayerClick: (String
 
         item(span = { GridItemSpan(maxLineSpan) }) {
             SurfaceCard {
-                SectionLabel("Wealth insulation ownership", accent = Plasma)
+                SectionLabel(tr(R.string.admineconomy_wealth_insulation_ownership), accent = Plasma)
                 Spacer(Modifier.height(Spacing.xs))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     (1..4).forEach { t ->
                         val count = users.count { it.playerData.insulationTier == t }
                         StatTile(
-                            label = "TIER ${ShopItem.roman(t)}",
+                            label = tr(R.string.admineconomy_tier_1, ShopItem.roman(t)),
                             value = "$count",
                             accent = if (count > 0) Amber else TextMid,
                             modifier = Modifier.weight(1f)
@@ -135,10 +137,10 @@ internal fun LiveEventDashboard(viewModel: MainViewModel, onPlayerClick: (String
                 Spacer(Modifier.height(Spacing.xs))
                 if (insulated.isNotEmpty()) {
                     insulated.take(12).forEach { u ->
-                        PlayerLine(u, "Tier ${ShopItem.roman(u.playerData.insulationTier)}", Amber) { onPlayerClick(u.uid) }
+                        PlayerLine(u, tr(R.string.admineconomy_tier_1_2, ShopItem.roman(u.playerData.insulationTier)), Amber) { onPlayerClick(u.uid) }
                     }
                 } else {
-                    Text("No survivor owns an insulation tier yet.", color = TextLow, style = DeadFestType.body)
+                    Text(tr(R.string.admineconomy_no_survivor_owns_an_insulation_tier), color = TextLow, style = DeadFestType.body)
                 }
             }
         }
@@ -163,7 +165,7 @@ private fun StatPanel(title: String, value: String, caption: String, accent: Col
 @Composable
 private fun OnlineStatTile(users: List<User>, now: State<Long>) {
     val online = remember(users, now.value) { users.count { it.playerData.onlineNow(now.value) } }
-    StatPanel("ONLINE NOW", "$online", "in the app right now · ${users.size} total", Toxic)
+    StatPanel(tr(R.string.admineconomy_online_now), "$online", tr(R.string.admineconomy_in_the_app_right_now_1, users.size), Toxic)
 }
 
 /** Deaths in the last 10 minutes, normalised to deaths per minute. Isolated like [OnlineStatTile]. */
@@ -173,9 +175,9 @@ private fun DeathRateStatTile(recent: List<EventLog>, now: State<Long>) {
         recent.count { it.category == "DEATH" && (it.timestamp?.toDate()?.time ?: 0L) >= now.value - 10 * 60_000L }
     }
     StatPanel(
-        "DEATH RATE",
+        tr(R.string.admineconomy_death_rate),
         com.deadfest.domain.CasualtyTax.formatPct(deaths10 / 10.0),
-        "deaths / min · $deaths10 in last 10 min",
+        tr(R.string.admineconomy_deaths_min_1_in_last_10, deaths10),
         Ember
     )
 }
@@ -184,7 +186,7 @@ private fun DeathRateStatTile(recent: List<EventLog>, now: State<Long>) {
 @Composable
 private fun OverloadPanel(globalState: GlobalState, now: State<Long>) {
     SurfaceCard {
-        SectionLabel("Active overloads", accent = Amber)
+        SectionLabel(tr(R.string.admineconomy_active_overloads), accent = Amber)
         Spacer(Modifier.height(Spacing.xs))
         if (globalState.overloadActive(now.value)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -193,14 +195,14 @@ private fun OverloadPanel(globalState: GlobalState, now: State<Long>) {
                 Text(globalState.overloadedSector, color = TextHi, style = DeadFestType.cardTitle, modifier = Modifier.weight(1f))
                 Text(
                     "x${trimDouble(globalState.multiplier)} · " +
-                        if (globalState.overloadEndsAt > 0) "${remainingLabel(globalState.overloadEndsAt, now.value)} left" else "no time limit",
+                        if (globalState.overloadEndsAt > 0) "${remainingLabel(globalState.overloadEndsAt, now.value)} left" else tr(R.string.admineconomy_no_time_limit),
                     color = Amber,
                     style = DeadFestType.body,
                     fontWeight = FontWeight.Bold
                 )
             }
         } else {
-            Text("No sector is overloaded.", color = TextLow, style = DeadFestType.body)
+            Text(tr(R.string.admineconomy_no_sector_is_overloaded), color = TextLow, style = DeadFestType.body)
         }
     }
 }
@@ -214,7 +216,7 @@ private fun PlayerLine(user: User, value: String, valueColor: Color, onClick: ()
         FramedAvatar(user.playerData.avatar, user.playerData.avatarFrame, user.playerData.color, 26)
         Spacer(Modifier.width(Spacing.xs))
         Text(
-            user.displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
+            user.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admineconomy_survivor),
             color = TextHi,
             style = DeadFestType.body,
             modifier = Modifier.weight(1f),
@@ -236,7 +238,7 @@ private fun WealthChart(counts: Map<TaxTier, Int>) {
         TaxTier.ELITE to "> 5,000 · 30%",
         TaxTier.HIGH to "> 1,000 · 20%",
         TaxTier.MID to "> 500 · 15%",
-        TaxTier.BASE to "≤ 500 · flat 25"
+        TaxTier.BASE to tr(R.string.admineconomy_500_flat_25)
     )
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
         TaxTier.entries.forEach { tier ->
@@ -276,7 +278,7 @@ internal fun ShopAdmin(viewModel: MainViewModel) {
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
     val economy = globalState.economy
 
-    fun save(field: String, value: Any, msg: String = "Saved") =
+    fun save(field: String, value: Any, msg: String = tr(R.string.admineconomy_saved)) =
         viewModel.updateGlobalState(mapOf(field to value), success = msg)
 
     LazyColumn(
@@ -286,25 +288,25 @@ internal fun ShopAdmin(viewModel: MainViewModel) {
     ) {
         item {
             AdminActionCard(
-                title = "Economy",
-                subtitle = "Ration and survival payouts, insurance cover and the insulation system."
+                title = tr(R.string.admineconomy_economy),
+                subtitle = tr(R.string.admineconomy_ration_and_survival_payouts_insurance_cover)
             ) {
-                NumberSetting("Daily rations", economy.dailyBase) { save("dailyBase", it, "Daily rations set to $it") }
-                NumberSetting("Daily rations with Ration Upgrade", economy.dailyUpgraded) { save("dailyUpgraded", it, "Upgraded rations set to $it") }
-                NumberSetting("Mutual Survival Reward per death (0 = off)", economy.survivalReward) { save("survivalReward", it, "Survival reward set to $it") }
-                NumberSetting("Insurance protection %", economy.insurancePct.toLong(), max = 100) { save("insurancePct", it, "Insurance now covers $it%") }
+                NumberSetting(tr(R.string.admineconomy_daily_rations), economy.dailyBase) { save("dailyBase", it, tr(R.string.admineconomy_daily_rations_set_to_1, it)) }
+                NumberSetting(tr(R.string.admineconomy_daily_rations_with_ration_upgrade), economy.dailyUpgraded) { save("dailyUpgraded", it, tr(R.string.admineconomy_upgraded_rations_set_to_1, it)) }
+                NumberSetting(tr(R.string.admineconomy_mutual_survival_reward_per_death_0), economy.survivalReward) { save("survivalReward", it, tr(R.string.admineconomy_survival_reward_set_to_1, it)) }
+                NumberSetting(tr(R.string.admineconomy_insurance_protection), economy.insurancePct.toLong(), max = 100) { save("insurancePct", it, tr(R.string.admineconomy_insurance_now_covers_1, it)) }
                 HorizontalDivider(color = InkLine)
-                AdminSwitch("Wealth Insulation system", "Show and sell the four insulation tiers", economy.insulationEnabled) {
-                    save("insulationEnabled", it, if (it) "Wealth Insulation enabled" else "Wealth Insulation disabled")
+                AdminSwitch(tr(R.string.admineconomy_wealth_insulation_system), tr(R.string.admineconomy_show_and_sell_the_four_insulation), economy.insulationEnabled) {
+                    save("insulationEnabled", it, if (it) tr(R.string.admineconomy_wealth_insulation_enabled) else tr(R.string.admineconomy_wealth_insulation_disabled))
                 }
             }
         }
         item { FlashSaleAdminCard(economy.flashSale, viewModel::startFlashSale, viewModel::endFlashSale) }
         item {
             Column {
-                SectionLabel("Black market items")
+                SectionLabel(tr(R.string.admineconomy_black_market_items))
                 Spacer(Modifier.height(Spacing.xxs))
-                Text("Enable, disable and re-price every item survivors can buy.", color = TextMid, style = DeadFestType.body)
+                Text(tr(R.string.admineconomy_enable_disable_and_re_price_every), color = TextMid, style = DeadFestType.body)
             }
         }
         items(ShopItem.entries, key = { it.id }) { item ->
@@ -342,7 +344,7 @@ private fun ShopItemAdminRow(
                 Text(item.displayName, color = if (enabled) TextHi else TextLow, style = DeadFestType.cardTitle)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (item.isInsulation) "Insulation Tier ${ShopItem.roman(item.tier)}" else item.category.name.lowercase().replaceFirstChar { it.uppercase() },
+                    if (item.isInsulation) tr(R.string.admineconomy_insulation_tier_1, ShopItem.roman(item.tier)) else item.category.name.lowercase().replaceFirstChar { it.uppercase() },
                     color = TextMid,
                     style = DeadFestType.body
                 )
@@ -358,7 +360,7 @@ private fun ShopItemAdminRow(
             OutlinedTextField(
                 value = priceText,
                 onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 9) priceText = v },
-                label = { Text("Price") },
+                label = { Text(tr(R.string.admineconomy_price)) },
                 singleLine = true,
                 isError = priceValue == null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -370,7 +372,7 @@ private fun ShopItemAdminRow(
                 OutlinedTextField(
                     value = reductionText,
                     onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 3) reductionText = v },
-                    label = { Text("Tax cut %") },
+                    label = { Text(tr(R.string.admineconomy_tax_cut)) },
                     singleLine = true,
                     isError = reductionValue == null,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -380,7 +382,7 @@ private fun ShopItemAdminRow(
                 )
             }
             PrimaryAction(
-                text = "Save",
+                text = tr(R.string.admineconomy_save),
                 onClick = { onSave(enabled, priceValue!!, reductionValue) },
                 enabled = dirty && priceValue != null && (!item.isInsulation || reductionValue != null),
                 modifier = Modifier.weight(1f)
@@ -408,7 +410,7 @@ internal fun NumberSetting(label: String, value: Long, max: Long = 1_000_000_000
         )
         Spacer(Modifier.width(Spacing.xs))
         IconButton(onClick = { parsed?.let(onSave) }, enabled = parsed != null && parsed != value) {
-            Icon(Icons.Default.Save, contentDescription = "Save", tint = if (parsed != null && parsed != value) Ember else TextLow)
+            Icon(Icons.Default.Save, contentDescription = tr(R.string.admineconomy_save), tint = if (parsed != null && parsed != value) Ember else TextLow)
         }
     }
 }
@@ -431,7 +433,7 @@ private fun DecimalSetting(label: String, value: Double, onSave: (Double) -> Uni
         )
         Spacer(Modifier.width(Spacing.xs))
         IconButton(onClick = { parsed?.let(onSave) }, enabled = parsed != null && parsed != value) {
-            Icon(Icons.Default.Save, contentDescription = "Save", tint = if (parsed != null && parsed != value) Ember else TextLow)
+            Icon(Icons.Default.Save, contentDescription = tr(R.string.admineconomy_save), tint = if (parsed != null && parsed != value) Ember else TextLow)
         }
     }
 }
@@ -441,19 +443,19 @@ private fun DecimalSetting(label: String, value: Double, onSave: (Double) -> Uni
 @Composable
 internal fun XpConfigCard(xp: XpConfig, onSave: (key: String, value: Any) -> Unit) {
     AdminActionCard(
-        title = "XP & levels",
-        subtitle = "Rewards granted for each action. Level curve: xpForLevel(n) = base × n ^ exponent."
+        title = tr(R.string.admineconomy_xp_levels),
+        subtitle = tr(R.string.admineconomy_rewards_granted_for_each_action_level)
     ) {
-        NumberSetting("XP: recording a death", xp.death) { onSave("death", it) }
-        NumberSetting("XP: surviving a full day", xp.survivalDay) { onSave("survivalDay", it) }
-        NumberSetting("XP: shop purchase", xp.purchase) { onSave("purchase", it) }
-        NumberSetting("XP: wheel spin", xp.spin) { onSave("spin", it) }
-        NumberSetting("XP: scratch card", xp.scratch) { onSave("scratch", it) }
-        NumberSetting("XP: clearing a penalty spin", xp.penaltySpin) { onSave("penaltySpin", it) }
+        NumberSetting(tr(R.string.admineconomy_xp_recording_a_death), xp.death) { onSave("death", it) }
+        NumberSetting(tr(R.string.admineconomy_xp_surviving_a_full_day), xp.survivalDay) { onSave("survivalDay", it) }
+        NumberSetting(tr(R.string.admineconomy_xp_shop_purchase), xp.purchase) { onSave("purchase", it) }
+        NumberSetting(tr(R.string.admineconomy_xp_wheel_spin), xp.spin) { onSave("spin", it) }
+        NumberSetting(tr(R.string.admineconomy_xp_scratch_card), xp.scratch) { onSave("scratch", it) }
+        NumberSetting(tr(R.string.admineconomy_xp_clearing_a_penalty_spin), xp.penaltySpin) { onSave("penaltySpin", it) }
         HorizontalDivider(color = InkLine, modifier = Modifier.padding(vertical = Spacing.xxs))
-        DecimalSetting("Curve base", xp.curveBase) { onSave("curveBase", it) }
-        DecimalSetting("Curve exponent", xp.curveExponent) { onSave("curveExponent", it) }
-        NumberSetting("Max level (prestige unlocks here)", xp.maxLevel.toLong(), max = 999) { onSave("maxLevel", it) }
+        DecimalSetting(tr(R.string.admineconomy_curve_base), xp.curveBase) { onSave("curveBase", it) }
+        DecimalSetting(tr(R.string.admineconomy_curve_exponent), xp.curveExponent) { onSave("curveExponent", it) }
+        NumberSetting(tr(R.string.admineconomy_max_level_prestige_unlocks_here), xp.maxLevel.toLong(), max = 999) { onSave("maxLevel", it) }
     }
 }
 
@@ -477,9 +479,9 @@ internal fun ScratchAdmin(viewModel: MainViewModel) {
     }
     deleting?.let { prize ->
         ConfirmDialog(
-            title = "DELETE PRIZE?",
-            message = "Remove \"${prize.label}\" from the Scratch Card prize pool?",
-            confirmText = "DELETE",
+            title = tr(R.string.admineconomy_delete_prize),
+            message = tr(R.string.admineconomy_remove_1_from_the_scratch_card, prize.label),
+            confirmText = tr(R.string.admineconomy_delete),
             destructive = true,
             onConfirm = { viewModel.deleteScratchPrize(prize.id) },
             onDismiss = { deleting = null }
@@ -493,28 +495,28 @@ internal fun ScratchAdmin(viewModel: MainViewModel) {
     ) {
         item {
             AdminActionCard(
-                title = "Scratch cards",
-                subtitle = "Global switch and the price of one card. Prizes are drawn with the shared weighted odds."
+                title = tr(R.string.admineconomy_scratch_cards),
+                subtitle = tr(R.string.admineconomy_global_switch_and_the_price_of)
             ) {
-                AdminSwitch("Scratch Card system", "Global on/off switch", economy.scratchEnabled) {
-                    viewModel.updateGlobalState(mapOf("scratchEnabled" to it), success = if (it) "Scratch Cards enabled" else "Scratch Cards disabled")
+                AdminSwitch(tr(R.string.admineconomy_scratch_card_system), tr(R.string.admineconomy_global_on_off_switch), economy.scratchEnabled) {
+                    viewModel.updateGlobalState(mapOf("scratchEnabled" to it), success = if (it) tr(R.string.admineconomy_scratch_cards_enabled) else tr(R.string.admineconomy_scratch_cards_disabled))
                 }
-                NumberSetting("Scratch cost (coins)", economy.scratchCost) {
-                    viewModel.updateGlobalState(mapOf("scratchCost" to it), success = "Scratch cost set to $it")
+                NumberSetting(tr(R.string.admineconomy_scratch_cost_coins), economy.scratchCost) {
+                    viewModel.updateGlobalState(mapOf("scratchCost" to it), success = tr(R.string.admineconomy_scratch_cost_set_to_1, it))
                 }
             }
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 PrimaryAction(
-                    text = "Add prize",
+                    text = tr(R.string.admineconomy_add_prize),
                     icon = Icons.Default.Add,
-                    onClick = { editing = ScratchPrize(label = "New Prize", value = "50", weight = 1.0) },
+                    onClick = { editing = ScratchPrize(label = tr(R.string.admineconomy_new_prize), value = "50", weight = 1.0) },
                     modifier = Modifier.weight(1f)
                 )
                 if (prizes.isEmpty()) {
                     GhostAction(
-                        text = "Load defaults",
+                        text = tr(R.string.admineconomy_load_defaults),
                         onClick = viewModel::seedScratchPrizes,
                         modifier = Modifier.weight(1f)
                     )
@@ -525,8 +527,8 @@ internal fun ScratchAdmin(viewModel: MainViewModel) {
             item {
                 EmptyStateCard(
                     icon = Icons.Default.ConfirmationNumber,
-                    title = "No prizes yet",
-                    message = "Add prizes one by one or load the default pool to get the card running."
+                    title = tr(R.string.admineconomy_no_prizes_yet),
+                    message = tr(R.string.admineconomy_add_prizes_one_by_one_or)
                 )
             }
         }
@@ -539,7 +541,7 @@ internal fun ScratchAdmin(viewModel: MainViewModel) {
                         Text(prize.label, color = if (prize.enabled) TextHi else TextLow, style = DeadFestType.cardTitle)
                         Spacer(Modifier.height(2.dp))
                         if (!prize.enabled) {
-                            StatusPill("Disabled", TextLow)
+                            StatusPill(tr(R.string.admineconomy_disabled), TextLow)
                         } else {
                             Text(
                                 "${prize.type.uppercase()} ${prize.value.ifBlank { "" }} · w ${trimDouble(prize.weight)} · " +
@@ -550,7 +552,7 @@ internal fun ScratchAdmin(viewModel: MainViewModel) {
                         }
                     }
                     IconButton(onClick = { deleting = prize }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Ember)
+                        Icon(Icons.Default.Delete, contentDescription = tr(R.string.admineconomy_delete_2), tint = Ember)
                     }
                 }
             }
@@ -571,23 +573,23 @@ private fun ScratchPrizeDialog(prize: ScratchPrize, onSave: (ScratchPrize) -> Un
         (type != ScratchPrize.TYPE_COINS || value.trim().toLongOrNull() != null)
     val palette = listOf("#546E7A", "#7CB342", "#039BE5", "#00897B", "#4DD0E1", "#FDD835", "#FB8C00", "#E53935", "#8E24AA")
     val types = listOf(
-        ScratchPrize.TYPE_COINS to "COINS",
-        ScratchPrize.TYPE_SHIELD to "SHIELD",
-        ScratchPrize.TYPE_LUCKY to "LUCKY",
-        ScratchPrize.TYPE_NONE to "NO WIN"
+        ScratchPrize.TYPE_COINS to tr(R.string.admineconomy_coins),
+        ScratchPrize.TYPE_SHIELD to tr(R.string.admineconomy_shield),
+        ScratchPrize.TYPE_LUCKY to tr(R.string.admineconomy_lucky),
+        ScratchPrize.TYPE_NONE to tr(R.string.admineconomy_no_win)
     )
 
     AlertDialog(
         onDismissRequest = onCancel,
         containerColor = Ink2,
         shape = RoundedCornerShape(Radius.xxl),
-        title = { Text(if (prize.id.isBlank()) "NEW PRIZE" else "EDIT PRIZE", color = TextHi, style = DeadFestType.cardTitle) },
+        title = { Text(if (prize.id.isBlank()) tr(R.string.admineconomy_new_prize_2) else tr(R.string.admineconomy_edit_prize), color = TextHi, style = DeadFestType.cardTitle) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Label") },
+                    label = { Text(tr(R.string.admineconomy_label)) },
                     singleLine = true,
                     colors = deadFestFieldColors(),
                     shape = RoundedCornerShape(Radius.md),
@@ -612,7 +614,7 @@ private fun ScratchPrizeDialog(prize: ScratchPrize, onSave: (ScratchPrize) -> Un
                     OutlinedTextField(
                         value = value,
                         onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 9) value = v },
-                        label = { Text("Coins") },
+                        label = { Text(tr(R.string.admineconomy_coins_2)) },
                         singleLine = true,
                         enabled = type == ScratchPrize.TYPE_COINS,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -623,7 +625,7 @@ private fun ScratchPrizeDialog(prize: ScratchPrize, onSave: (ScratchPrize) -> Un
                     OutlinedTextField(
                         value = weight,
                         onValueChange = { v -> if (v.count { it == '.' } <= 1 && v.all { it.isDigit() || it == '.' }) weight = v },
-                        label = { Text("Weight") },
+                        label = { Text(tr(R.string.admineconomy_weight)) },
                         singleLine = true,
                         isError = weightValue == null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -632,12 +634,12 @@ private fun ScratchPrizeDialog(prize: ScratchPrize, onSave: (ScratchPrize) -> Un
                         modifier = Modifier.weight(1f)
                     )
                 }
-                Text("Same odds engine as the Wheel: decimal weights like 0.25 or 1.35 are fine.", color = TextLow, style = DeadFestType.body)
+                Text(tr(R.string.admineconomy_same_odds_engine_as_the_wheel), color = TextLow, style = DeadFestType.body)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Enabled", color = TextMid, style = DeadFestType.body, modifier = Modifier.weight(1f))
+                    Text(tr(R.string.admineconomy_enabled), color = TextMid, style = DeadFestType.body, modifier = Modifier.weight(1f))
                     Switch(checked = enabled, onCheckedChange = { enabled = it }, colors = SwitchDefaults.colors(checkedTrackColor = Ember))
                 }
-                SectionLabel("Colour")
+                SectionLabel(tr(R.string.admineconomy_colour))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     items(palette) { hex ->
                         Box(
@@ -668,9 +670,9 @@ private fun ScratchPrizeDialog(prize: ScratchPrize, onSave: (ScratchPrize) -> Un
                 enabled = valid,
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
                 shape = RoundedCornerShape(Radius.sm)
-            ) { Text("SAVE", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.admineconomy_save_2), fontWeight = FontWeight.Black) }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("CANCEL", color = TextMid) } }
+        dismissButton = { TextButton(onClick = onCancel) { Text(tr(R.string.common_cancel), color = TextMid) } }
     )
 }
 
@@ -697,7 +699,7 @@ private fun FlashSaleAdminCard(
             StatusPill(androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_live, sale.pct), Toxic)
             if (sale.endsAt > 0L) {
                 Spacer(Modifier.height(Spacing.xs))
-                Text("Ends in ${remainingLabel(sale.endsAt)}", color = TextMid, style = DeadFestType.body)
+                Text(tr(R.string.admineconomy_ends_in_1, remainingLabel(sale.endsAt)), color = TextMid, style = DeadFestType.body)
             }
             Spacer(Modifier.height(Spacing.xs))
         }

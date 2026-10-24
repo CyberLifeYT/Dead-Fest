@@ -1,5 +1,6 @@
 package com.deadfest.ui.components
 
+import com.deadfest.util.tr
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
@@ -161,7 +162,7 @@ fun ScreenHeader(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = tr(R.string.common_back),
                         tint = TextHi,
                         modifier = Modifier.size(18.dp)
                     )
@@ -423,7 +424,7 @@ fun ConfirmDialog(
             ) { Text(confirmText, fontWeight = FontWeight.Black) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = TextSecondary, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) { Text(tr(R.string.common_cancel), color = TextSecondary, fontWeight = FontWeight.Bold) }
         }
     )
 }
@@ -439,8 +440,8 @@ fun parseThemeColor(hex: String?): Color =
 
 /** Avatar frames unlocked through levels (and prestige). */
 object AvatarFrames {
-    val labels = linkedMapOf(
-        "none" to "No frame",
+    val labels get() = linkedMapOf(
+        "none" to tr(R.string.common_no_frame),
         "rust" to "Rust",
         "neon" to "Neon",
         "toxic" to "Toxic",
@@ -501,7 +502,7 @@ fun LevelBadge(level: Int, prestige: Int = 0, modifier: Modifier = Modifier) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Surface(color = RedAccent.copy(alpha = 0.16f), shape = RoundedCornerShape(6.dp)) {
             Text(
-                "LV $level",
+                tr(R.string.common_lv_1, level),
                 color = RedAccent,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Black,
@@ -553,10 +554,10 @@ fun XpBar(xp: Long, level: Int, cfg: com.deadfest.domain.XpConfig, modifier: Mod
             // "XP" and "1,240 / 5,000" are one fact, not two stops.
             modifier = Modifier.semantics(mergeDescendants = true) {}
         ) {
-            Text("XP", color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+            Text(tr(R.string.common_xp), color = TextMuted, fontSize = 9.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
             Spacer(Modifier.weight(1f))
             Text(
-                if (maxed) "MAX LEVEL · PRESTIGE READY" else "${formatNumber(xp)} / ${formatNumber(need)}",
+                if (maxed) tr(R.string.common_max_level_prestige_ready) else "${formatNumber(xp)} / ${formatNumber(need)}",
                 color = if (maxed) Gold else TextSecondary,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold
@@ -613,10 +614,10 @@ fun PenaltyStatusCard(bankruptcyLevel: Int, pendingSpins: Int, onClick: (() -> U
     if (bankruptcyLevel <= 0 && pendingSpins <= 0) return
     val (title, message) = when {
         bankruptcyLevel >= 2 -> "BANKRUPTCY LEVEL 2" to
-            "Clear every pending spin and get your balance above 0 to escape. Survival payouts are halved."
+            tr(R.string.common_clear_every_pending_spin_and_get)
         bankruptcyLevel == 1 -> "BANKRUPTCY LEVEL 1" to
-            "Balance hit 0. Survival payouts are halved. Another death means Level 2."
-        else -> "FORCED SPIN PROTOCOL" to "Penalty spins are waiting for you on the Wheel of Fate."
+            tr(R.string.common_balance_hit_0_survival_payouts_are)
+        else -> "FORCED SPIN PROTOCOL" to tr(R.string.common_penalty_spins_are_waiting_for_you)
     }
     val accent = if (bankruptcyLevel >= 1) Ember else Amber
     val critical = bankruptcyLevel >= 2
@@ -672,7 +673,7 @@ fun PendingSpinsChip(count: Int) {
     ) {
         Text("$count", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
         Text(
-            "PENDING\nSPINS",
+            tr(R.string.common_pending_spins),
             color = Color.White,
             fontWeight = FontWeight.Black,
             fontSize = 8.sp,
@@ -705,7 +706,7 @@ private val countdownFormat = SimpleDateFormat("EEE d MMM yyyy · HH:mm", Locale
 
 /** "3D 04H 12M" style label for anything that is not a full countdown tile row. */
 fun formatCountdown(ms: Long): String {
-    if (ms <= 0L) return "LIVE NOW"
+    if (ms <= 0L) return tr(R.string.common_live_now)
     val s = ms / 1000
     val d = s / 86_400
     val h = (s % 86_400) / 3_600
@@ -720,7 +721,7 @@ fun formatCountdown(ms: Long): String {
 }
 
 /** Friendly date/time for a scheduled event. Returns [fallback] when no time is set. */
-fun formatEventTime(millis: Long, fallback: String = "Date to be announced"): String =
+fun formatEventTime(millis: Long, fallback: String = tr(R.string.common_date_to_be_announced)): String =
     if (millis > 0L) countdownFormat.format(Date(millis)) else fallback
 
 /**
@@ -860,11 +861,11 @@ internal fun spokenCountdown(totalSeconds: Long): String {
     val hours = (safe % 86_400) / 3_600
     val minutes = (safe % 3_600) / 60
     val spoken = buildList {
-        if (days > 0) add(if (days == 1L) "1 day" else "$days days")
-        if (hours > 0) add(if (hours == 1L) "1 hour" else "$hours hours")
-        if (minutes > 0) add(if (minutes == 1L) "1 minute" else "$minutes minutes")
+        if (days > 0) add(if (days == 1L) tr(R.string.common_1_day) else tr(R.string.common_n_days, days))
+        if (hours > 0) add(if (hours == 1L) tr(R.string.common_1_hour) else tr(R.string.common_n_hours, hours))
+        if (minutes > 0) add(if (minutes == 1L) tr(R.string.common_1_minute) else tr(R.string.common_n_minutes, minutes))
     }
-    return if (spoken.isEmpty()) "Less than a minute to go" else "Starts in " + spoken.joinToString(" ")
+    return if (spoken.isEmpty()) tr(R.string.common_less_than_a_minute_to_go) else tr(R.string.common_starts_in) + spoken.joinToString(" ")
 }
 
 /**
@@ -938,7 +939,7 @@ fun NextEventHero(
     }
 
     HeroPanel(
-        eyebrow = "Next Dead-Fest",
+        eyebrow = tr(R.string.common_next_dead_fest),
         title = seasonName.uppercase(),
         icon = Icons.Default.Celebration,
         modifier = modifier,
@@ -952,7 +953,7 @@ fun NextEventHero(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.SportsEsports, contentDescription = null, tint = Ember, modifier = Modifier.size(14.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("IN THE LINE-UP", color = TextLow, style = DeadFestType.section)
+                Text(tr(R.string.common_in_the_line_up), color = TextLow, style = DeadFestType.section)
             }
             Spacer(Modifier.height(Spacing.xs))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -986,9 +987,9 @@ fun NextEventHero(
 @Composable
 private fun CountdownStatusPill(target: Long?, now: State<Long>) {
     when {
-        target == null -> StatusPill("TBA", TextLow)
-        now.value >= target -> StatusPill("LIVE NOW", OnlineGreen)
-        else -> StatusPill("UPCOMING", Amber)
+        target == null -> StatusPill(tr(R.string.common_tba), TextLow)
+        now.value >= target -> StatusPill(tr(R.string.common_live_now), OnlineGreen)
+        else -> StatusPill(tr(R.string.common_upcoming), Amber)
     }
 }
 
@@ -997,7 +998,7 @@ private fun CountdownStatusPill(target: Long?, now: State<Long>) {
 private fun CountdownReadout(target: Long?, now: State<Long>, startLabel: String?) {
     if (target == null) {
         Text(
-            "Start time hasn't been locked in yet.",
+            tr(R.string.common_start_time_hasn_t_been_locked),
             color = TextMid,
             fontSize = 13.sp
         )
@@ -1006,7 +1007,7 @@ private fun CountdownReadout(target: Long?, now: State<Long>, startLabel: String
     val remaining = target - now.value
     if (remaining <= 0L) {
         Text(
-            "It's on. Good luck out there.",
+            tr(R.string.common_it_s_on_good_luck_out),
             color = OnlineGreen,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp
@@ -1020,7 +1021,7 @@ private fun CountdownReadout(target: Long?, now: State<Long>, startLabel: String
             Icon(Icons.Default.Schedule, contentDescription = null, tint = TextLow, modifier = Modifier.size(13.dp))
             Spacer(Modifier.width(6.dp))
             Text(
-                if (remaining <= 0L) "Started $startLabel" else "Starts $startLabel",
+                if (remaining <= 0L) tr(R.string.common_started_1, startLabel) else tr(R.string.common_starts_1, startLabel),
                 color = TextMid,
                 fontSize = 12.sp
             )

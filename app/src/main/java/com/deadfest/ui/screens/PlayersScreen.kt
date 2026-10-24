@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,7 +56,7 @@ private val User.totalDeaths: Long get() = playerData.games.values.sumOf { it.de
 private fun PlayerAvatar(player: User, size: Int) {
     val online = player.playerData.onlineNow()
     // The green presence dot is colour-only, so state it: TalkBack hears "Online" with the row.
-    val presence = if (online) Modifier.semantics { contentDescription = "Online" } else Modifier
+    val presence = if (online) Modifier.semantics { contentDescription = tr(R.string.players_online) } else Modifier
     Box(presence) {
         FramedAvatar(player.playerData.avatar, player.playerData.avatarFrame, player.playerData.color, size, online)
     }
@@ -99,9 +101,9 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "SURVIVOR NETWORK",
-            subtitle = "${users.size} registered // leaderboard",
-            trailing = { StatusPill("$onlineCount ONLINE", OnlineGreen) }
+            title = tr(R.string.players_survivor_network),
+            subtitle = tr(R.string.players_1_registered_leaderboard, users.size),
+            trailing = { StatusPill(tr(R.string.home_1_online, onlineCount), OnlineGreen) }
         )
 
         LazyRow(
@@ -127,12 +129,12 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
             value = searchQuery,
             onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.gutter),
-            placeholder = { Text("Search survivors...", color = TextLow) },
+            placeholder = { Text(tr(R.string.players_search_survivors), color = TextLow) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextLow) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextLow)
+                        Icon(Icons.Default.Close, contentDescription = tr(R.string.players_clear), tint = TextLow)
                     }
                 }
             },
@@ -147,9 +149,9 @@ fun PlayersScreen(navController: NavController, viewModel: MainViewModel) {
         if (displayUsers.isEmpty()) {
             EmptyStateCard(
                 icon = Icons.Default.People,
-                title = if (users.isEmpty()) "Scanning the wasteland" else "No matches",
-                message = if (users.isEmpty()) "Survivors will appear here as they register."
-                else "No survivor matches \"$searchQuery\".",
+                title = if (users.isEmpty()) tr(R.string.players_scanning_the_wasteland) else tr(R.string.players_no_matches),
+                message = if (users.isEmpty()) tr(R.string.players_survivors_will_appear_here_as_they)
+                else tr(R.string.players_no_survivor_matches_1, searchQuery),
                 modifier = Modifier.padding(horizontal = Spacing.gutter)
             )
         } else {
@@ -190,9 +192,9 @@ fun SurvivorDetailsDialog(player: User, xpCfg: XpConfig, onDismiss: () -> Unit) 
                 PlayerAvatar(player, 48)
                 Spacer(Modifier.width(Spacing.sm))
                 Column {
-                    Text("SURVIVOR DOSSIER", color = Ember, style = DeadFestType.microLabel)
+                    Text(tr(R.string.players_survivor_dossier), color = Ember, style = DeadFestType.microLabel)
                     Text(
-                        player.displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
+                        player.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admineconomy_survivor),
                         color = TextHi,
                         fontWeight = FontWeight.Black,
                         fontSize = 16.sp,
@@ -203,7 +205,7 @@ fun SurvivorDetailsDialog(player: User, xpCfg: XpConfig, onDismiss: () -> Unit) 
                         LevelBadge(data.level, data.prestigeCount)
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            (data.title ?: "SURVIVOR").uppercase(),
+                            (data.title ?: tr(R.string.admin_survivor)).uppercase(),
                             color = Ember,
                             style = DeadFestType.microLabel
                         )
@@ -218,47 +220,47 @@ fun SurvivorDetailsDialog(player: User, xpCfg: XpConfig, onDismiss: () -> Unit) 
             ) {
                 XpBar(data.xp, data.level, xpCfg)
                 Spacer(Modifier.height(Spacing.xxs))
-                SectionLabel("Survival Stats")
-                KeyValueRow("Total deaths", formatNumber(player.totalDeaths), valueColor = Ember)
+                SectionLabel(tr(R.string.players_survival_stats))
+                KeyValueRow(tr(R.string.players_total_deaths), formatNumber(player.totalDeaths), valueColor = Ember)
                 data.games.toSortedMap().forEach { (game, stats) ->
                     KeyValueRow(game, "${formatNumber(stats.deaths)} deaths")
                 }
                 Spacer(Modifier.height(Spacing.xs))
                 GradientRule()
                 Spacer(Modifier.height(Spacing.xs))
-                SectionLabel("Standing")
-                KeyValueRow("Bank coins", formatNumber(data.coins), valueColor = Amber)
-                KeyValueRow("Shield", if (data.shield) "ACTIVE" else "NONE", valueColor = if (data.shield) Plasma else TextLow)
-                KeyValueRow("Insurance", if (data.insurance) "ARMED" else "NONE", valueColor = if (data.insurance) Plasma else TextLow)
+                SectionLabel(tr(R.string.players_standing))
+                KeyValueRow(tr(R.string.players_bank_coins), formatNumber(data.coins), valueColor = Amber)
+                KeyValueRow(tr(R.string.home_shield), if (data.shield) tr(R.string.home_active) else tr(R.string.home_none), valueColor = if (data.shield) Plasma else TextLow)
+                KeyValueRow(tr(R.string.home_insurance), if (data.insurance) tr(R.string.home_armed) else tr(R.string.home_none), valueColor = if (data.insurance) Plasma else TextLow)
                 KeyValueRow(
-                    "Insulation",
-                    if (data.insulationTier > 0) "TIER ${ShopItem.roman(data.insulationTier)}" else "NONE",
+                    tr(R.string.admin_insulation),
+                    if (data.insulationTier > 0) tr(R.string.admineconomy_tier_1, ShopItem.roman(data.insulationTier)) else tr(R.string.home_none),
                     valueColor = if (data.insulationTier > 0) Amber else TextLow
                 )
                 KeyValueRow(
-                    "Bankruptcy",
-                    if (data.bankruptcyLevel > 0) "LEVEL ${data.bankruptcyLevel}" else "SOLVENT",
+                    tr(R.string.admineconomy_bankruptcy),
+                    if (data.bankruptcyLevel > 0) tr(R.string.players_level_1, data.bankruptcyLevel) else tr(R.string.players_solvent),
                     valueColor = if (data.bankruptcyLevel > 0) Ember else OnlineGreen
                 )
                 KeyValueRow(
-                    "Pending spins",
+                    tr(R.string.players_pending_spins),
                     "${data.pendingSpins}",
                     valueColor = if (data.pendingSpins > 0) Ember else TextLow
                 )
                 KeyValueRow(
-                    "Prestige",
-                    if (data.prestigeCount > 0) "★ ${data.prestigeCount}" else "NONE",
+                    tr(R.string.admin_prestige),
+                    if (data.prestigeCount > 0) "★ ${data.prestigeCount}" else tr(R.string.home_none),
                     valueColor = if (data.prestigeCount > 0) Prestige else TextLow
                 )
                 val online = data.onlineNow()
                 KeyValueRow(
-                    "Status",
-                    if (online) "ONLINE" else "OFFLINE · ${Presence.lastSeenLabel(data.lastSeenMs, System.currentTimeMillis())}",
+                    tr(R.string.players_status),
+                    if (online) tr(R.string.players_online_2) else tr(R.string.players_offline_1, Presence.lastSeenLabel(data.lastSeenMs, System.currentTimeMillis())),
                     valueColor = if (online) OnlineGreen else TextLow
                 )
                 if (!data.bio.isNullOrBlank()) {
                     Spacer(Modifier.height(Spacing.xs))
-                    SectionLabel("Bio")
+                    SectionLabel(tr(R.string.players_bio))
                     Spacer(Modifier.height(Spacing.xxs))
                     Text(data.bio!!, color = TextMid, fontSize = 13.sp, lineHeight = 18.sp)
                 }
@@ -270,7 +272,7 @@ fun SurvivorDetailsDialog(player: User, xpCfg: XpConfig, onDismiss: () -> Unit) 
                 colors = ButtonDefaults.buttonColors(containerColor = Ember, contentColor = Color.White),
                 shape = RoundedCornerShape(Radius.md),
                 elevation = null
-            ) { Text("CLOSE", style = DeadFestType.chip) }
+            ) { Text(tr(R.string.updateprogressdialog_close), style = DeadFestType.chip) }
         }
     )
 }
@@ -290,8 +292,8 @@ fun SurvivorItem(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val name = player.displayName?.takeIf { it.isNotBlank() } ?: "Survivor"
-    val title = player.playerData.title?.takeIf { it.isNotBlank() } ?: "SURVIVOR"
+    val name = player.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admineconomy_survivor)
+    val title = player.playerData.title?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_survivor)
     val themeColor = remember(player.playerData.color) { parseThemeColor(player.playerData.color) }
     val medal = when (rank) {
         1 -> Amber
@@ -345,16 +347,16 @@ fun SurvivorItem(
                             .background(Ember.copy(alpha = Tint.fill))
                             .padding(horizontal = 5.dp, vertical = 1.dp)
                     ) {
-                        Text("YOU", color = Ember, style = DeadFestType.microLabel)
+                        Text(tr(R.string.players_you), color = Ember, style = DeadFestType.microLabel)
                     }
                 }
                 if (player.playerData.shield) {
                     Spacer(Modifier.width(5.dp))
-                    Icon(Icons.Default.Shield, contentDescription = "Shielded", tint = Plasma, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.Shield, contentDescription = tr(R.string.players_shielded), tint = Plasma, modifier = Modifier.size(13.dp))
                 }
                 if (player.playerData.bankruptcyLevel > 0) {
                     Spacer(Modifier.width(5.dp))
-                    Icon(Icons.Default.Whatshot, contentDescription = "Bankrupt", tint = Ember, modifier = Modifier.size(13.dp))
+                    Icon(Icons.Default.Whatshot, contentDescription = tr(R.string.players_bankrupt), tint = Ember, modifier = Modifier.size(13.dp))
                 }
             }
             Spacer(Modifier.height(3.dp))
@@ -368,10 +370,10 @@ fun SurvivorItem(
         Column(horizontalAlignment = Alignment.End) {
             if (emphasizeCoins) {
                 Text(formatNumber(player.playerData.coins), color = Amber, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                Text("${formatNumber(player.totalDeaths)} DEATHS", color = TextLow, style = DeadFestType.microLabel)
+                Text(tr(R.string.players_1_deaths, formatNumber(player.totalDeaths)), color = TextLow, style = DeadFestType.microLabel)
             } else {
                 Text(formatNumber(player.totalDeaths), color = Ember, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                Text("DEATHS", color = TextLow, style = DeadFestType.microLabel)
+                Text(tr(R.string.archives_deaths), color = TextLow, style = DeadFestType.microLabel)
             }
         }
     }

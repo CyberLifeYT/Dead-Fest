@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -85,21 +87,21 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "WHEEL OF FATE",
-            subtitle = "TEST YOUR LUCK, SURVIVOR",
+            title = tr(R.string.wheel_wheel_of_fate),
+            subtitle = tr(R.string.wheel_test_your_luck_survivor),
             trailing = { CoinBadge(user?.playerData?.coins ?: 0) }
         )
 
         when {
             globalState.lockdownActive -> NoticeCard(
                 icon = Icons.Default.Lock,
-                title = "SYSTEM LOCKDOWN ACTIVE",
-                message = "The Wheel of Fate protocol is currently locked down by an administrator."
+                title = tr(R.string.scratch_system_lockdown_active),
+                message = tr(R.string.wheel_the_wheel_of_fate_protocol_is)
             )
             !globalState.wheelEnabled -> NoticeCard(
                 icon = Icons.Default.Casino,
-                title = "WHEEL PROTOCOL CLOSED",
-                message = "Spinning is temporarily suspended by an admin until further notice."
+                title = tr(R.string.wheel_wheel_protocol_closed),
+                message = tr(R.string.wheel_spinning_is_temporarily_suspended_by_an)
             )
             wheelItems.isEmpty() -> Box(
                 modifier = Modifier.fillMaxSize().padding(Spacing.gutter),
@@ -107,8 +109,8 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
             ) {
                 EmptyStateCard(
                     icon = Icons.Default.Casino,
-                    title = "WHEEL IS EMPTY",
-                    message = "No rewards are loaded yet. An admin needs to add some slices."
+                    title = tr(R.string.wheel_wheel_is_empty),
+                    message = tr(R.string.wheel_no_rewards_are_loaded_yet_an)
                 )
             }
             else -> {
@@ -130,7 +132,7 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
 
                 if (user?.playerData?.luckyCoin == true) {
                     StatusPill(
-                        "LUCKY COIN ARMED: NEXT WIN x2",
+                        tr(R.string.wheel_lucky_coin_armed_next_win_x2),
                         Amber,
                         modifier = Modifier.align(Alignment.CenterHorizontally).enterOnMount(0)
                     )
@@ -139,12 +141,12 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
 
                 // The wheel is the screen's hero: panel, live state pill and result readout.
                 HeroPanel(
-                    eyebrow = "Fate Protocol",
+                    eyebrow = tr(R.string.wheel_fate_protocol),
                     title = when {
-                        spin.spinning -> "SPIN IN PROGRESS"
-                        spin.resultText != null -> "SPIN COMPLETE"
-                        penaltyMode -> "PENALTY SPINS QUEUED"
-                        else -> "READY TO SPIN"
+                        spin.spinning -> tr(R.string.wheel_spin_in_progress)
+                        spin.resultText != null -> tr(R.string.wheel_spin_complete)
+                        penaltyMode -> tr(R.string.wheel_penalty_spins_queued)
+                        else -> tr(R.string.wheel_ready_to_spin)
                     },
                     icon = Icons.Default.Casino,
                     modifier = Modifier
@@ -155,10 +157,10 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
                     badge = {
                         StatusPill(
                             text = when {
-                                spin.spinning -> "IN FLIGHT"
-                                resolved -> "RESOLVED"
-                                penaltyMode -> "$pending QUEUED"
-                                else -> "ARMED"
+                                spin.spinning -> tr(R.string.wheel_in_flight)
+                                resolved -> tr(R.string.wheel_resolved)
+                                penaltyMode -> tr(R.string.wheel_1_queued, pending)
+                                else -> tr(R.string.home_armed)
                             },
                             color = when {
                                 spin.spinning -> Ember
@@ -196,7 +198,7 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
                             val label = when {
                                 spin.spinning -> "SPINNING..."
                                 spin.resultText != null -> spin.resultText!!
-                                else -> "AWAITING PROTOCOL"
+                                else -> tr(R.string.wheel_awaiting_protocol)
                             }
                             AnimatedContent(
                                 targetState = if (!spin.spinning && spin.penaltyNote != null) "$label\n${spin.penaltyNote}" else label,
@@ -226,9 +228,9 @@ fun WheelScreen(navController: NavController, viewModel: MainViewModel) {
                 ) {
                     PrimaryAction(
                         text = when {
-                            spin.spinning -> "FATE IS DECIDING..."
-                            penaltyMode -> "EXECUTE PENALTY SPIN ($pending)"
-                            else -> "INITIATE SPIN"
+                            spin.spinning -> tr(R.string.wheel_fate_is_deciding)
+                            penaltyMode -> tr(R.string.wheel_execute_penalty_spin_1, pending)
+                            else -> tr(R.string.wheel_initiate_spin)
                         },
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -262,7 +264,7 @@ private fun FateWheel(items: List<com.deadfest.data.model.WheelItem>, modifier: 
     val wheelDescription = items.joinToString(", ") { it.label }
     Canvas(
         modifier = modifier
-            .semantics { contentDescription = "Prize wheel: $wheelDescription" }
+            .semantics { contentDescription = tr(R.string.wheel_prize_wheel_1, wheelDescription) }
             .drawWithCache {
                 val slice = 360f / items.size
                 val radius = size.minDimension / 2f

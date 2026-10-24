@@ -34,7 +34,16 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ## 🔄 What's New
 
-### v2.1.1 – The community update *(Latest)*
+### v2.1.2 – Stay in the loop *(Latest)*
+
+- **🔔 Real Android notifications** – Six categories you can mute separately (alerts, chat, levels & achievements, broadcasts, Black Market, updates), the Dead-Fest skull in the status bar, tap to open the right screen, quick Reply from chat notifications, and grouping so bursts don't flood the tray.
+- **⏱️ Background check-ins** – About every 15 minutes, Android's scheduler checks for new alerts, chat, broadcasts, flash sales and updates while the app is closed. No server or paid plan needed; can be switched off in Settings.
+- **🎯 Weekly challenges** – Four challenges every week ("Spin the Wheel 10 times", "Survive 3 days"...) paying coins and XP. More → Challenges.
+- **💬 Gallery reactions & comments** – React with 🔥 💀 😂 😮 ❤️ 👍 and comment on shared images; uploaders get an alert.
+- **🌍 Fully translatable** – All the older screens' text moved into `strings.xml` ([docs/TRANSLATING.md](docs/TRANSLATING.md)).
+- **Admins:** deploy the updated [`firestore.rules`](firestore.rules) for reactions and comments. Full notes: [release/v2.1.2](release/v2.1.2/RELEASE_NOTES.md).
+
+### v2.1.1 – The community update
 
 - **💬 Group chat** – One chat for every survivor (newest 100 messages, live), with photo attachments. Delete your own messages; admins can delete any.
 - **🔔 Personal alerts** – "You were cursed by X", "Your Shield blocked a curse", "Your image was removed", admin changes to your coins/deaths, approved game requests. Phone notifications while the app is open, plus an Alerts inbox (bell on the Dashboard).

@@ -1,5 +1,6 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.util.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
@@ -51,12 +52,14 @@ import androidx.compose.ui.semantics.contentDescription
 
 private data class TitleOffer(val title: String, val price: Long, val description: String)
 
-private val TITLES = listOf(
-    TitleOffer("SURVIVOR", 0L, "Default badge of survival"),
-    TitleOffer("UNDEAD LEGEND", 250L, "Feared across all dead zones"),
-    TitleOffer("WARLORD", 500L, "Master of wasteland combat"),
-    TitleOffer("SHADOW ASSASSIN", 750L, "Strikes unseen from the dark"),
-    TitleOffer("APOCALYPSE EMPEROR", 1500L, "Ruler of the fallen world")
+// A getter so the descriptions follow the current language; the titles are stored values.
+private val TITLES: List<TitleOffer>
+    get() = listOf(
+    TitleOffer("SURVIVOR", 0L, tr(R.string.shop_title_desc_survivor)),
+    TitleOffer("UNDEAD LEGEND", 250L, tr(R.string.shop_title_desc_undead_legend)),
+    TitleOffer("WARLORD", 500L, tr(R.string.shop_title_desc_warlord)),
+    TitleOffer("SHADOW ASSASSIN", 750L, tr(R.string.shop_title_desc_shadow_assassin)),
+    TitleOffer("APOCALYPSE EMPEROR", 1500L, tr(R.string.shop_title_desc_apocalypse_emperor))
 )
 
 private fun ShopItem.icon(): ImageVector = when (this) {
@@ -87,8 +90,8 @@ private fun ShopItem.accent(): Color = when (this) {
 
 /** Description with live admin-configured numbers filled in. */
 private fun ShopItem.liveDescription(cfg: EconomyConfig): String = when (this) {
-    ShopItem.INSURANCE -> "Absorbs ${cfg.insurancePct}% of your next casualty tax. One use."
-    ShopItem.RATION_UPGRADE -> "Daily rations ${formatNumber(cfg.dailyBase)} → ${formatNumber(cfg.dailyUpgraded)} coins. Permanent."
+    ShopItem.INSURANCE -> tr(R.string.shop_absorbs_1_of_your_next_casualty, cfg.insurancePct)
+    ShopItem.RATION_UPGRADE -> tr(R.string.shop_daily_rations_1_2_coins_permanent, formatNumber(cfg.dailyBase), formatNumber(cfg.dailyUpgraded))
     else -> description
 }
 
@@ -101,7 +104,7 @@ private const val TAB_TITLES = 4
 @Composable
 fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
     var selectedTab by rememberSaveableInt(0)
-    val tabs = listOf("All", "Combat", "Economy", "Insulation", "Titles")
+    val tabs = listOf("All", tr(R.string.shop_combat), tr(R.string.admineconomy_economy), tr(R.string.admin_insulation), tr(R.string.shop_titles))
     val user by viewModel.user.collectAsStateWithLifecycle()
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
@@ -125,21 +128,21 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "BLACK MARKET",
-            subtitle = "Illegal Gear & Curses",
+            title = tr(R.string.shop_black_market),
+            subtitle = tr(R.string.shop_illegal_gear_curses),
             trailing = { CoinBadge(coins) }
         )
 
         when {
             globalState.lockdownActive -> NoticeCard(
                 icon = Icons.Default.Lock,
-                title = "SYSTEM LOCKDOWN ACTIVE",
-                message = "The Black Market is currently locked down by an administrator."
+                title = tr(R.string.scratch_system_lockdown_active),
+                message = tr(R.string.shop_the_black_market_is_currently_locked)
             )
             !globalState.marketEnabled -> NoticeCard(
                 icon = Icons.Default.Storefront,
-                title = "SHOP CLOSED BY ADMIN",
-                message = "All transactions and illegal gear acquisitions are temporarily suspended."
+                title = tr(R.string.shop_shop_closed_by_admin),
+                message = tr(R.string.shop_all_transactions_and_illegal_gear_acquisitions)
             )
             else -> {
                 LazyRow(
@@ -212,11 +215,11 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
                         items(catalog, key = { it.id }) { item ->
                             val data = user?.playerData
                             val status: String? = when (item) {
-                                ShopItem.SHIELD -> if (data?.shield == true) "ACTIVE" else null
-                                ShopItem.LUCKY_COIN -> if (data?.luckyCoin == true) "ARMED" else null
-                                ShopItem.INSURANCE -> if (data?.insurance == true) "ARMED" else null
-                                ShopItem.RATION_UPGRADE -> if (data?.dailyUpgradeOwned == true) "ACTIVE" else null
-                                ShopItem.REVIVE -> if (!globalState.reviveEnabled) "DISABLED" else null
+                                ShopItem.SHIELD -> if (data?.shield == true) tr(R.string.home_active) else null
+                                ShopItem.LUCKY_COIN -> if (data?.luckyCoin == true) tr(R.string.home_armed) else null
+                                ShopItem.INSURANCE -> if (data?.insurance == true) tr(R.string.home_armed) else null
+                                ShopItem.RATION_UPGRADE -> if (data?.dailyUpgradeOwned == true) tr(R.string.home_active) else null
+                                ShopItem.REVIVE -> if (!globalState.reviveEnabled) tr(R.string.shop_disabled) else null
                                 else -> null
                             }
                             val price = item.priceIn(economy)
@@ -238,11 +241,11 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
 
     confirmItem?.let { item ->
         val price = item.priceIn(economy)
-        val permanent = if (item.oneTime) "\n\nThis is a permanent, one-time upgrade." else ""
+        val permanent = if (item.oneTime) tr(R.string.shop_this_is_a_permanent_one_time) else ""
         ConfirmDialog(
-            title = "BUY ${item.displayName}?",
-            message = "${item.liveDescription(economy)}$permanent\n\nCost: ${formatNumber(price)} coins. You'll have ${formatNumber(coins - price)} left.",
-            confirmText = "BUY",
+            title = tr(R.string.shop_buy_1, item.displayName),
+            message = tr(R.string.shop_1_2_cost_3_coins_you, item.liveDescription(economy), permanent, formatNumber(price), formatNumber(coins - price)),
+            confirmText = tr(R.string.shop_buy),
             onConfirm = { viewModel.buyShopItem(item) },
             onDismiss = { confirmItem = null }
         )
@@ -250,9 +253,9 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
 
     confirmTitle?.let { offer ->
         ConfirmDialog(
-            title = "UNLOCK ${offer.title}?",
-            message = "Cost: ${formatNumber(economy.flashSale.apply(offer.price))} coins. The title is equipped straight away.",
-            confirmText = "UNLOCK",
+            title = tr(R.string.shop_unlock_1, offer.title),
+            message = tr(R.string.shop_cost_1_coins_the_title_is, formatNumber(economy.flashSale.apply(offer.price))),
+            confirmText = tr(R.string.shop_unlock),
             onConfirm = { viewModel.buyTitle(offer.title, economy.flashSale.apply(offer.price)) },
             onDismiss = { confirmTitle = null }
         )
@@ -262,12 +265,12 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
         val price = tierItem.priceIn(economy)
         val current = user?.playerData?.insulationTier ?: 0
         val replaces = ShopItem.forInsulationTier(current)?.let {
-            "\n\nThis replaces ${it.displayName} (Tier ${ShopItem.roman(current)}). Lower tiers are consumed: no refund."
+            tr(R.string.shop_this_replaces_1_tier_2_lower, it.displayName, ShopItem.roman(current))
         } ?: ""
         ConfirmDialog(
-            title = "UPGRADE TO TIER ${ShopItem.roman(tierItem.tier)}?",
-            message = "${tierItem.displayName}: -${tierItem.reductionIn(economy)}% casualty tax, permanently.$replaces\n\nCost: ${formatNumber(price)} coins. You'll have ${formatNumber(coins - price)} left.",
-            confirmText = "UPGRADE",
+            title = tr(R.string.shop_upgrade_to_tier_1, ShopItem.roman(tierItem.tier)),
+            message = tr(R.string.shop_1_2_casualty_tax_permanently_3, tierItem.displayName, tierItem.reductionIn(economy), replaces, formatNumber(price), formatNumber(coins - price)),
+            confirmText = tr(R.string.shop_upgrade),
             onConfirm = { viewModel.buyShopItem(tierItem) },
             onDismiss = { confirmTier = null }
         )
@@ -316,10 +319,10 @@ private fun CurseTargetDialog(
         shape = RoundedCornerShape(Radius.xxl),
         title = {
             Column {
-                Text("CAST ${item.displayName}", color = Ember, fontWeight = FontWeight.Black, fontSize = 19.sp)
+                Text(tr(R.string.shop_cast_1, item.displayName), color = Ember, fontWeight = FontWeight.Black, fontSize = 19.sp)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "${item.description} · ${formatNumber(price)} coins",
+                    tr(R.string.shop_1_2_coins, item.description, formatNumber(price)),
                     color = TextMid,
                     fontSize = 12.sp
                 )
@@ -328,7 +331,7 @@ private fun CurseTargetDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 if (sectors.isNotEmpty()) {
-                    SectionLabel("Sector")
+                    SectionLabel(tr(R.string.shop_sector))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                         items(sectors) { s ->
                             PillChip(
@@ -344,9 +347,9 @@ private fun CurseTargetDialog(
                         }
                     }
                 }
-                SectionLabel("Target")
+                SectionLabel(tr(R.string.shop_target))
                 if (survivors.isEmpty()) {
-                    Text("No other survivors to curse.", color = TextMid, fontSize = 13.sp)
+                    Text(tr(R.string.shop_no_other_survivors_to_curse), color = TextMid, fontSize = 13.sp)
                 } else {
                     LazyColumn(
                         modifier = Modifier.heightIn(max = 280.dp),
@@ -375,7 +378,7 @@ private fun CurseTargetDialog(
                                 )
                                 Spacer(Modifier.width(Spacing.xs))
                                 Text(
-                                    s.displayName?.takeIf { it.isNotBlank() } ?: "Survivor",
+                                    s.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admineconomy_survivor),
                                     color = TextHi,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 14.sp,
@@ -386,7 +389,7 @@ private fun CurseTargetDialog(
                                 if (s.playerData.shield) {
                                     Icon(
                                         Icons.Default.Shield,
-                                        contentDescription = "Shielded",
+                                        contentDescription = tr(R.string.players_shielded),
                                         tint = Plasma,
                                         modifier = Modifier.size(17.dp)
                                     )
@@ -408,7 +411,7 @@ private fun CurseTargetDialog(
                             Icon(Icons.Default.HealthAndSafety, contentDescription = null, tint = Plasma, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                "${target?.displayName} has a Shield. It will block this curse and break — and you still pay.",
+                                tr(R.string.shop_1_has_a_shield_it_will, target?.displayName),
                                 color = Plasma,
                                 fontSize = 12.sp,
                                 lineHeight = 16.sp
@@ -430,10 +433,10 @@ private fun CurseTargetDialog(
                 ),
                 shape = RoundedCornerShape(Radius.md),
                 elevation = null
-            ) { Text("CURSE", style = DeadFestType.chip) }
+            ) { Text(tr(R.string.shop_curse), style = DeadFestType.chip) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("CANCEL", color = TextMid, style = DeadFestType.chip) }
+            TextButton(onClick = onDismiss) { Text(tr(R.string.common_cancel), color = TextMid, style = DeadFestType.chip) }
         }
     )
 }
@@ -478,8 +481,8 @@ private fun TitleShopRow(
         }
         Spacer(Modifier.width(Spacing.xs))
         when {
-            isEquipped -> StatusPill("EQUIPPED", Ember)
-            isOwned -> GhostAction("Equip", onEquip, accent = TextHi)
+            isEquipped -> StatusPill(tr(R.string.progression_equipped), Ember)
+            isOwned -> GhostAction(tr(R.string.progression_equip), onEquip, accent = TextHi)
             else -> BuyButton(affordable, onBuy)
         }
     }
@@ -530,7 +533,7 @@ private fun ShopItemRow(
             StatusPill(
                 status,
                 when {
-                    status == "DISABLED" -> TextLow
+                    status == tr(R.string.shop_disabled) -> TextLow
                     item == ShopItem.SHIELD || item == ShopItem.INSURANCE -> Plasma
                     else -> Amber
                 }
@@ -560,7 +563,7 @@ private fun BuyButton(affordable: Boolean, onBuy: () -> Unit, accent: Color = Em
         elevation = null,
         contentPadding = PaddingValues(horizontal = 18.dp)
     ) {
-        Text("BUY", style = DeadFestType.chip)
+        Text(tr(R.string.shop_buy), style = DeadFestType.chip)
     }
 }
 
@@ -572,8 +575,8 @@ private fun LazyListScope.insulationTab(data: PlayerData?, cfg: EconomyConfig, o
         item {
             EmptyStateCard(
                 icon = Icons.Default.Savings,
-                title = "Insulation disabled",
-                message = "Wealth Insulation is switched off by an admin.",
+                title = tr(R.string.shop_insulation_disabled),
+                message = tr(R.string.shop_wealth_insulation_is_switched_off_by),
                 modifier = Modifier.padding(top = Spacing.xs)
             )
         }
@@ -584,10 +587,10 @@ private fun LazyListScope.insulationTab(data: PlayerData?, cfg: EconomyConfig, o
     item(key = "insulation-header") { InsulationHeader(tier, coins, data?.insurance == true, cfg) }
     items(ShopItem.insulationTiers, key = { it.id }) { item ->
         val state = when {
-            item.tier < tier -> "OWNED"
-            item.tier == tier -> "ACTIVE"
+            item.tier < tier -> tr(R.string.shop_owned)
+            item.tier == tier -> tr(R.string.home_active)
             item.tier == tier + 1 -> null           // next in line: buyable
-            else -> "LOCKED"
+            else -> tr(R.string.home_locked)
         }
         val price = item.priceIn(cfg)
         val enabled = item.enabledIn(cfg)
@@ -595,7 +598,7 @@ private fun LazyListScope.insulationTab(data: PlayerData?, cfg: EconomyConfig, o
             item = item,
             reduction = item.reductionIn(cfg),
             price = price,
-            state = if (!enabled && state == null) "DISABLED" else state,
+            state = if (!enabled && state == null) tr(R.string.shop_disabled) else state,
             affordable = coins >= price,
             balance = coins,
             onBuy = { onUpgrade(item) }
@@ -609,8 +612,8 @@ private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: Econ
     val reduction = ShopItem.insulationReduction(tier, cfg)
     val bracket = TaxTier.forBalance(coins)
     HeroPanel(
-        eyebrow = "Wealth Insulation",
-        title = if (tier > 0) "TIER ${ShopItem.roman(tier)} OF IV" else "NO TIER YET",
+        eyebrow = tr(R.string.shop_wealth_insulation),
+        title = if (tier > 0) tr(R.string.shop_tier_1_of_iv, ShopItem.roman(tier)) else tr(R.string.shop_no_tier_yet),
         icon = Icons.Default.Savings,
         accent = Amber
     ) {
@@ -618,7 +621,7 @@ private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: Econ
         Spacer(Modifier.height(Spacing.md))
         // Plain-Text group label (the other group headers on this screen use SectionLabel).
         Text(
-            "CURRENT TAX RATE",
+            tr(R.string.shop_current_tax_rate),
             color = TextLow,
             style = DeadFestType.microLabel,
             modifier = Modifier.semantics { heading() }
@@ -632,9 +635,9 @@ private fun InsulationHeader(tier: Int, coins: Long, insured: Boolean, cfg: Econ
         )
         Spacer(Modifier.height(Spacing.xs))
         Text(
-            "${bracket.label} bracket at ${formatNumber(coins)} coins" +
-                (if (reduction > 0) " · insulation -$reduction%" else "") +
-                (if (insured) " · insurance armed (-${cfg.insurancePct}% of what's left)" else ""),
+            tr(R.string.shop_1_bracket_at_2_coins, bracket.label, formatNumber(coins)) +
+                (if (reduction > 0) tr(R.string.shop_insulation_1, reduction) else "") +
+                (if (insured) tr(R.string.shop_insurance_armed_1_of_what_s, cfg.insurancePct) else ""),
             color = TextMid,
             fontSize = 12.sp,
             lineHeight = 16.sp
@@ -651,7 +654,7 @@ private fun TierTracker(tier: Int) {
     Row(
         modifier = Modifier.semantics(mergeDescendants = true) {
             contentDescription =
-                if (tier > 0) "Wealth Insulation tier $tier of 4" else "Wealth Insulation: no tiers unlocked yet"
+                if (tier > 0) tr(R.string.shop_wealth_insulation_tier_1_of_4, tier) else tr(R.string.shop_wealth_insulation_no_tiers_unlocked_yet)
         },
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
     ) {
@@ -691,19 +694,19 @@ private fun InsulationTierCard(
     onBuy: () -> Unit
 ) {
     val accent = when (state) {
-        "ACTIVE" -> Amber
-        "OWNED" -> TextMid
+        tr(R.string.home_active) -> Amber
+        tr(R.string.shop_owned) -> TextMid
         null -> Ember
         else -> TextLow
     }
-    val dim = state == "LOCKED" || state == "DISABLED"
+    val dim = state == tr(R.string.home_locked) || state == tr(R.string.shop_disabled)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(Radius.lg))
             .background(Ink2)
             .then(
-                if (state == "ACTIVE") Modifier.background(
+                if (state == tr(R.string.home_active)) Modifier.background(
                     Brush.horizontalGradient(listOf(Amber.copy(alpha = 0.12f), Color.Transparent))
                 ) else Modifier
             )
@@ -745,9 +748,9 @@ private fun InsulationTierCard(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text("-$reduction% casualty tax", color = if (dim) TextLow else Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text(tr(R.string.shop_1_casualty_tax, reduction), color = if (dim) TextLow else Amber, fontSize = 12.sp, fontWeight = FontWeight.Bold)
             Text(
-                "At your balance: ${CasualtyTax.effectiveRateLabel(balance, reduction)}",
+                tr(R.string.shop_at_your_balance_1, CasualtyTax.effectiveRateLabel(balance, reduction)),
                 color = TextMid,
                 fontSize = 11.sp,
                 maxLines = 2,
@@ -761,10 +764,10 @@ private fun InsulationTierCard(
         Spacer(Modifier.width(Spacing.xs))
         when (state) {
             null -> BuyButton(affordable, onBuy, accent = Amber)
-            "ACTIVE" -> StatusPill("ACTIVE", Amber)
-            "OWNED" -> StatusPill("OWNED", TextMid)
-            "DISABLED" -> StatusPill("DISABLED", TextLow)
-            else -> Icon(Icons.Default.Lock, contentDescription = "Locked", tint = TextLow, modifier = Modifier.size(19.dp))
+            tr(R.string.home_active) -> StatusPill(tr(R.string.home_active), Amber)
+            tr(R.string.shop_owned) -> StatusPill(tr(R.string.shop_owned), TextMid)
+            tr(R.string.shop_disabled) -> StatusPill(tr(R.string.shop_disabled), TextLow)
+            else -> Icon(Icons.Default.Lock, contentDescription = tr(R.string.admin_locked), tint = TextLow, modifier = Modifier.size(19.dp))
         }
     }
 }
@@ -787,8 +790,8 @@ private fun ScratchEntryCard(cost: Long, onClick: () -> Unit) {
         ItemEmblem(Icons.Default.ConfirmationNumber, accent = Toxic, size = 54.dp)
         Spacer(Modifier.width(Spacing.sm))
         Column(Modifier.weight(1f)) {
-            Text("SCRATCH CARDS", color = TextHi, fontWeight = FontWeight.Black, fontSize = 15.sp)
-            Text("Instant prizes: coins, Shields, Lucky Coins", color = TextMid, fontSize = 12.sp, lineHeight = 16.sp)
+            Text(tr(R.string.more_scratch_cards), color = TextHi, fontWeight = FontWeight.Black, fontSize = 15.sp)
+            Text(tr(R.string.shop_instant_prizes_coins_shields_lucky_coins), color = TextMid, fontSize = 12.sp, lineHeight = 16.sp)
             Spacer(Modifier.height(Spacing.xxs))
             PriceTag(cost)
         }

@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,8 +70,8 @@ fun TeamProgressScreen(navController: NavController, viewModel: MainViewModel) {
         }
 
         ScreenHeader(
-            title = "TEAM PROGRESS",
-            subtitle = "LIVE SEASON & DEAD-FEST HISTORY",
+            title = tr(R.string.more_team_progress),
+            subtitle = tr(R.string.teamprogress_live_season_dead_fest_history),
             onBack = { navController.popBackStack() }
         )
 
@@ -87,13 +89,13 @@ fun TeamProgressScreen(navController: NavController, viewModel: MainViewModel) {
             item {
                 CurrentSeasonHero(globalState.currentSeasonName, stats, Modifier.enterOnMount(0))
             }
-            item { SectionLabel("Eliminations by sector", Modifier.enterOnMount(1)) }
+            item { SectionLabel(tr(R.string.archives_eliminations_by_sector), Modifier.enterOnMount(1)) }
             item {
                 if (stats.deathsPerSector.isEmpty()) {
                     EmptyStateCard(
                         icon = Icons.Default.Warning,
-                        title = "No eliminations recorded",
-                        message = "Deaths recorded this season appear here, broken down by sector.",
+                        title = tr(R.string.teamprogress_no_eliminations_recorded),
+                        message = tr(R.string.teamprogress_deaths_recorded_this_season_appear_here),
                         modifier = Modifier.enterOnMount(2)
                     )
                 } else {
@@ -101,18 +103,18 @@ fun TeamProgressScreen(navController: NavController, viewModel: MainViewModel) {
                 }
             }
 
-            item { SectionLabel("Current standings", Modifier.enterOnMount(3)) }
+            item { SectionLabel(tr(R.string.teamprogress_current_standings), Modifier.enterOnMount(3)) }
             item {
                 SurvivorLeaders(stats.deadliest, stats.richest, Modifier.enterOnMount(4))
             }
 
-            item { SectionLabel("Past Dead-Fests", Modifier.enterOnMount(5)) }
+            item { SectionLabel(tr(R.string.teamprogress_past_dead_fests), Modifier.enterOnMount(5)) }
             if (archives.isEmpty()) {
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.History,
-                        title = "No Dead-Fest archived",
-                        message = "Every past season will be listed here once it has been sealed."
+                        title = tr(R.string.teamprogress_no_dead_fest_archived),
+                        message = tr(R.string.teamprogress_every_past_season_will_be_listed)
                     )
                 }
             } else {
@@ -176,24 +178,24 @@ private data class LiveStats(
 @Composable
 private fun CurrentSeasonHero(seasonName: String, stats: LiveStats, modifier: Modifier = Modifier) {
     HeroPanel(
-        eyebrow = "Current Dead-Fest",
+        eyebrow = tr(R.string.teamprogress_current_dead_fest),
         title = seasonName,
         icon = Icons.Default.Groups,
         modifier = modifier,
         accent = Ember,
-        badge = { StatusPill("LIVE", Toxic) }
+        badge = { StatusPill(tr(R.string.home_live), Toxic) }
     ) {
         StatGrid(
             listOf(
-                StatSpec("SURVIVORS", formatNumber(stats.survivors)),
-                StatSpec("TOTAL DEATHS", formatNumber(stats.totalDeaths), Ember),
-                StatSpec("COINS IN PLAY", formatNumber(stats.totalCoins), Amber),
-                StatSpec("AVG LEVEL", "${stats.averageLevel}"),
-                StatSpec("TOP LEVEL", "${stats.topLevel}"),
-                StatSpec("PRESTIGES", "${stats.prestigeCount}", Prestige),
-                StatSpec("BANKRUPT", "${stats.bankrupt}", if (stats.bankrupt > 0) Ember else TextPrimary),
-                StatSpec("SPINS DUE", "${stats.pendingSpins}", if (stats.pendingSpins > 0) Ember else TextPrimary),
-                StatSpec("INSULATED", "${stats.insulations}", Plasma)
+                StatSpec(tr(R.string.archives_survivors), formatNumber(stats.survivors)),
+                StatSpec(tr(R.string.teamprogress_total_deaths), formatNumber(stats.totalDeaths), Ember),
+                StatSpec(tr(R.string.teamprogress_coins_in_play), formatNumber(stats.totalCoins), Amber),
+                StatSpec(tr(R.string.teamprogress_avg_level), "${stats.averageLevel}"),
+                StatSpec(tr(R.string.teamprogress_top_level), "${stats.topLevel}"),
+                StatSpec(tr(R.string.teamprogress_prestiges), "${stats.prestigeCount}", Prestige),
+                StatSpec(tr(R.string.teamprogress_bankrupt), "${stats.bankrupt}", if (stats.bankrupt > 0) Ember else TextPrimary),
+                StatSpec(tr(R.string.teamprogress_spins_due), "${stats.pendingSpins}", if (stats.pendingSpins > 0) Ember else TextPrimary),
+                StatSpec(tr(R.string.teamprogress_insulated), "${stats.insulations}", Plasma)
             )
         )
     }
@@ -233,22 +235,22 @@ private fun SurvivorLeaders(deadliest: List<User>, richest: List<User>, modifier
     if (deadliest.isEmpty() && richest.isEmpty()) {
         EmptyStateCard(
             icon = Icons.Default.Groups,
-            title = "No standings yet",
-            message = "Standings fill in as survivors record deaths and bank coins this season.",
+            title = tr(R.string.teamprogress_no_standings_yet),
+            message = tr(R.string.teamprogress_standings_fill_in_as_survivors_record),
             modifier = modifier
         )
         return
     }
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
         LeaderColumn(
-            title = "DEADLIEST",
+            title = tr(R.string.teamprogress_deadliest),
             accent = Ember,
             icon = Icons.Default.LocalFireDepartment,
             entries = deadliest.map { it to it.playerData.games.values.sumOf { s -> s.deaths } },
             modifier = Modifier.weight(1f)
         )
         LeaderColumn(
-            title = "RICHEST",
+            title = tr(R.string.teamprogress_richest),
             accent = Amber,
             icon = Icons.Default.Paid,
             entries = richest.map { it to it.playerData.coins },
@@ -273,7 +275,7 @@ private fun LeaderColumn(
         }
         Spacer(Modifier.height(Spacing.xs))
         if (entries.none { it.second > 0 }) {
-            Text("Nothing recorded yet.", color = TextLow, style = DeadFestType.body)
+            Text(tr(R.string.teamprogress_nothing_recorded_yet), color = TextLow, style = DeadFestType.body)
         } else {
             entries.forEachIndexed { index, (user, value) ->
                 if (index > 0) Spacer(Modifier.height(Spacing.xs))
@@ -287,7 +289,7 @@ private fun LeaderColumn(
                     // Two lines: half-width columns ellipsize a name + value on one line.
                     Column(Modifier.weight(1f)) {
                         Text(
-                            user.displayName?.takeIf { it.isNotBlank() } ?: "Unknown",
+                            user.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_unknown),
                             color = TextHi,
                             style = DeadFestType.chip,
                             maxLines = 1,
@@ -319,7 +321,7 @@ private fun PastSeasonCard(archive: Archive, dateFormat: SimpleDateFormat, onCli
                 )
                 Text(dateFormat.format(Date(archive.timestamp)), color = TextMid, style = DeadFestType.body)
                 Text(
-                    "${formatNumber(archive.totalDeaths)} deaths · ${formatNumber(archive.survivorCount)} survivors",
+                    tr(R.string.archives_1_deaths_2_survivors, formatNumber(archive.totalDeaths), formatNumber(archive.survivorCount)),
                     color = Ember,
                     style = DeadFestType.chip
                 )
@@ -333,7 +335,7 @@ private fun PastSeasonCard(archive: Archive, dateFormat: SimpleDateFormat, onCli
                     )
                 }
                 if (archive.schemaVersion < 2) {
-                    Text("Pre-v2.0.7 · levels not tracked", color = TextLow, style = DeadFestType.microLabel)
+                    Text(tr(R.string.archives_pre_v2_0_7_levels_not), color = TextLow, style = DeadFestType.microLabel)
                 }
             }
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextLow)
@@ -361,7 +363,7 @@ private fun SeasonDetail(
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
             title = archive.name.uppercase(),
-            subtitle = "DEAD-FEST ARCHIVE",
+            subtitle = tr(R.string.teamprogress_dead_fest_archive),
             onBack = onBack
         )
         LazyColumn(
@@ -376,7 +378,7 @@ private fun SeasonDetail(
             if (archives.size > 1) {
                 item {
                     Column {
-                        SectionLabel("Season index")
+                        SectionLabel(tr(R.string.archives_season_index))
                         Spacer(Modifier.height(Spacing.xs))
                         // Horizontal selector: jump between records without going back to the list.
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
@@ -397,23 +399,23 @@ private fun SeasonDetail(
 
             item {
                 SurfaceCard(accent = Ember, modifier = Modifier.enterOnMount(0)) {
-                    SectionLabel("Season summary", accent = Amber)
+                    SectionLabel(tr(R.string.archives_season_summary), accent = Amber)
                     Spacer(Modifier.height(Spacing.sm))
                     StatGrid(
                         listOf(
-                            StatSpec("SURVIVORS", formatNumber(archive.survivorCount)),
-                            StatSpec("TOTAL DEATHS", formatNumber(archive.totalDeaths), Ember),
-                            StatSpec("COINS AT CLOSE", formatNumber(archive.totalCoins), Amber),
-                            StatSpec("ELIMINATIONS", formatNumber(archive.grandTotalAtEnd)),
-                            StatSpec("ARCHIVED", dateFormat.format(Date(archive.timestamp)).substringBefore(" "))
+                            StatSpec(tr(R.string.archives_survivors), formatNumber(archive.survivorCount)),
+                            StatSpec(tr(R.string.teamprogress_total_deaths), formatNumber(archive.totalDeaths), Ember),
+                            StatSpec(tr(R.string.archives_coins_at_close), formatNumber(archive.totalCoins), Amber),
+                            StatSpec(tr(R.string.archives_eliminations), formatNumber(archive.grandTotalAtEnd)),
+                            StatSpec(tr(R.string.archives_archived), dateFormat.format(Date(archive.timestamp)).substringBefore(" "))
                         )
                     )
                     archive.champion?.let { champ ->
                         Spacer(Modifier.height(Spacing.xs))
                         // Label and value stay in one announcement, and this card is not clickable.
                         KeyValueRow(
-                            "Champion",
-                            champ.displayName?.takeIf { it.isNotBlank() } ?: "Unknown",
+                            tr(R.string.archives_champion),
+                            champ.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_unknown),
                             modifier = Modifier.semantics(mergeDescendants = true) {},
                             valueColor = Amber
                         )
@@ -425,7 +427,7 @@ private fun SeasonDetail(
                     if (archive.schemaVersion < 2) {
                         Spacer(Modifier.height(Spacing.sm))
                         Text(
-                            "Archived before v2.0.7: levels, XP and titles weren't captured for this season.",
+                            tr(R.string.archives_archived_before_v2_0_7_levels),
                             color = TextLow,
                             style = DeadFestType.body
                         )
@@ -434,7 +436,7 @@ private fun SeasonDetail(
             }
 
             if (sectors.isNotEmpty()) {
-                item { SectionLabel("Eliminations by sector", Modifier.enterOnMount(1)) }
+                item { SectionLabel(tr(R.string.archives_eliminations_by_sector), Modifier.enterOnMount(1)) }
                 item {
                     SurfaceCard(modifier = Modifier.enterOnMount(2)) {
                         sectors.forEachIndexed { index, (name, deaths) ->
@@ -463,13 +465,13 @@ private fun SeasonDetail(
                 }
             }
 
-            item { SectionLabel("Final standings", Modifier.enterOnMount(3)) }
+            item { SectionLabel(tr(R.string.archives_final_standings), Modifier.enterOnMount(3)) }
             if (standings.isEmpty()) {
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.History,
-                        title = "No roster recorded",
-                        message = "This season was sealed before any survivor data was captured.",
+                        title = tr(R.string.archives_no_roster_recorded),
+                        message = tr(R.string.archives_this_season_was_sealed_before_any),
                         modifier = Modifier.enterOnMount(4)
                     )
                 }
@@ -503,7 +505,7 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
             Spacer(Modifier.width(Spacing.xs))
             Column(Modifier.weight(1f)) {
                 Text(
-                    snapshot.displayName ?: "Unknown Survivor",
+                    snapshot.displayName ?: tr(R.string.archives_unknown_survivor),
                     color = TextHi,
                     style = DeadFestType.cardTitle,
                     maxLines = 1,
@@ -525,7 +527,7 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
                     }
                 } else {
                     Text(
-                        "LEVEL & TITLE NOT RECORDED",
+                        tr(R.string.archives_level_title_not_recorded),
                         color = TextLow,
                         style = DeadFestType.microLabel,
                         maxLines = 1,
@@ -536,14 +538,14 @@ private fun ArchiveStandingsRow(index: Int, snapshot: PlayerSnapshot) {
             PriceTag(snapshot.coins)
         }
         Spacer(Modifier.height(Spacing.xs))
-        KeyValueRow("Season deaths", formatNumber(snapshot.totalDeaths), valueColor = Ember)
+        KeyValueRow(tr(R.string.archives_season_deaths), formatNumber(snapshot.totalDeaths), valueColor = Ember)
         if (snapshot.gameDeaths.isNotEmpty()) {
             Text(
                 snapshot.gameDeaths.entries
                     .filter { it.value > 0 }
                     .sortedByDescending { it.value }
                     .joinToString(" · ") { "${it.key}: ${it.value}" }
-                    .ifBlank { "No deaths recorded" },
+                    .ifBlank { tr(R.string.teamprogress_no_deaths_recorded) },
                 color = TextLow,
                 style = DeadFestType.body
             )

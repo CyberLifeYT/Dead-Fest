@@ -22,6 +22,7 @@ import com.deadfest.domain.Challenges
 import com.deadfest.ui.components.*
 import com.deadfest.ui.theme.*
 import com.deadfest.ui.viewmodel.MainViewModel
+import com.deadfest.util.tr
 import kotlinx.coroutines.delay
 
 /** This week's four challenges: progress, rewards and claiming. Resets every Monday. */
@@ -93,7 +94,7 @@ private fun ChallengeCard(c: ChallengeDef, progress: Long, claimed: Boolean, onC
             IconTile(metricIcon(c.metric), tint = accent, size = 44)
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
-                Text(c.title, color = if (claimed) TextMid else TextHi, style = DeadFestType.cardTitle)
+                Text(c.localTitle(), color = if (claimed) TextMid else TextHi, style = DeadFestType.cardTitle)
                 Text(
                     stringResource(R.string.challenges_reward, formatNumber(c.coins), formatNumber(c.xp)),
                     color = Amber,
@@ -132,4 +133,20 @@ private fun durationLabel(ms: Long): String {
         h > 0 -> "${h}h ${m}m"
         else -> "${m}m"
     }
+}
+
+/** The challenge's title in the phone's language; [ChallengeDef.title] is the English fallback. */
+internal fun ChallengeDef.localTitle(): String = when (id) {
+    "spin_10" -> tr(R.string.challenge_spin_10)
+    "spin_25" -> tr(R.string.challenge_spin_25)
+    "scratch_5" -> tr(R.string.challenge_scratch_5)
+    "buy_3" -> tr(R.string.challenge_buy_3)
+    "curse_2" -> tr(R.string.challenge_curse_2)
+    "survive_3" -> tr(R.string.challenge_survive_3)
+    "rations_5" -> tr(R.string.challenge_rations_5)
+    "chat_15" -> tr(R.string.challenge_chat_15)
+    "image_2" -> tr(R.string.challenge_image_2)
+    "comment_5" -> tr(R.string.challenge_comment_5)
+    "react_10" -> tr(R.string.challenge_react_10)
+    else -> title
 }

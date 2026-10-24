@@ -5,15 +5,19 @@ import com.deadfest.ui.components.formatCountdown
 import com.deadfest.ui.components.spokenCountdown
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 /**
  * Pins the arithmetic behind the Next Dead-Fest countdown.
  *
  * These are the numbers a survivor actually reads off the More tab, so an off-by-one in the slice
- * boundaries would silently show a wrong time. Pure functions, no Android framework needed.
+ * boundaries would silently show a wrong time. Pure functions; labels come from strings.xml via
+ * [TestStrings], so no Android framework is needed.
  */
 class CountdownTest {
+
+    @Before fun strings() = TestStrings.install()
 
     // ------------------------------------------------------------ tile breakdown
 

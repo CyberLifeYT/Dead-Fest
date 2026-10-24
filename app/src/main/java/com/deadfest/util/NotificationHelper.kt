@@ -17,7 +17,7 @@ import com.deadfest.data.model.ChatMessage
 import com.deadfest.notifications.ChatReplyReceiver
 
 /**
- * Every system notification the app shows (v2.1.1).
+ * Every system notification the app shows (v2.1.2).
  *
  * - **Channels**: each kind of notification has its own channel, so survivors can mute chat but
  *   keep curses, or silence level-ups, from Android's own notification settings.

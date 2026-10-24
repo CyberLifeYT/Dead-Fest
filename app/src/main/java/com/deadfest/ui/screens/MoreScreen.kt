@@ -1,5 +1,6 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.util.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -67,7 +68,7 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
     } ?: 0
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenHeader(title = "UTILITY HUB", subtitle = "Advanced Terminal Systems")
+        ScreenHeader(title = tr(R.string.more_utility_hub), subtitle = tr(R.string.more_advanced_terminal_systems))
 
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 158.dp),
@@ -152,22 +153,22 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel("Season & History") }
+                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel(tr(R.string.more_season_history)) }
             }
             item {
                 HubButton(
-                    label = "TEAM PROGRESS",
-                    description = "Live season stats & every past Dead-Fest",
+                    label = tr(R.string.more_team_progress),
+                    description = tr(R.string.more_live_season_stats_every_past_dead),
                     icon = Icons.Default.Groups,
                     accent = Plasma,
-                    badge = "NEW",
+                    badge = tr(R.string.more_new),
                     onClick = { navController.navigate("team_progress") }
                 )
             }
             item {
                 HubButton(
-                    label = "ARCHIVES",
-                    description = "Season history & hall of fame",
+                    label = tr(R.string.more_archives),
+                    description = tr(R.string.more_season_history_hall_of_fame),
                     icon = Icons.Default.History,
                     accent = Amber,
                     onClick = { navController.navigate("archives") }
@@ -175,12 +176,12 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel("Profile & Rewards") }
+                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel(tr(R.string.more_profile_rewards)) }
             }
             item {
                 HubButton(
-                    label = "PROGRESSION",
-                    description = "Levels, rewards & prestige",
+                    label = tr(R.string.more_progression),
+                    description = tr(R.string.more_levels_rewards_prestige),
                     icon = Icons.Default.MilitaryTech,
                     accent = Prestige,
                     onClick = { navController.navigate("progression") }
@@ -188,8 +189,8 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
             }
             item {
                 HubButton(
-                    label = "SCRATCH CARDS",
-                    description = "Instant-win lottery",
+                    label = tr(R.string.more_scratch_cards),
+                    description = tr(R.string.more_instant_win_lottery),
                     icon = Icons.Default.ConfirmationNumber,
                     accent = Toxic,
                     onClick = { navController.navigate("scratch") }
@@ -198,7 +199,7 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
             item {
                 HubButton(
                     label = "IMAGES",
-                    description = "Photos shared by every survivor",
+                    description = tr(R.string.more_photos_shared_by_every_survivor),
                     icon = Icons.Default.PhotoLibrary,
                     accent = EmberGlow,
                     onClick = { navController.navigate("images") }
@@ -206,12 +207,12 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel("Intel") }
+                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel(tr(R.string.more_intel)) }
             }
             item {
                 HubButton(
-                    label = "SURVIVAL INTEL",
-                    description = "System mechanics & lore",
+                    label = tr(R.string.more_survival_intel),
+                    description = tr(R.string.more_system_mechanics_lore),
                     icon = Icons.Default.Info,
                     accent = Ember,
                     onClick = { navController.navigate("survival_intel") }
@@ -219,15 +220,15 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel("Community") }
+                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel(tr(R.string.more_community)) }
             }
             item {
                 HubButton(
-                    label = "REQUEST GAME",
-                    description = "Ask for a game to become a sector",
+                    label = tr(R.string.more_request_game),
+                    description = tr(R.string.more_ask_for_a_game_to_become),
                     icon = Icons.Default.SportsEsports,
                     accent = Prestige,
-                    badge = "NEW",
+                    badge = tr(R.string.more_new),
                     onClick = { navController.navigate("request_game") }
                 )
             }
@@ -243,10 +244,10 @@ private fun SetupEventCard(onClick: () -> Unit) {
             IconTile(Icons.Default.Add, tint = Amber, size = 44)
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
-                Text("SET UP NEXT DEAD-FEST", color = TextHi, style = DeadFestType.cardTitle)
+                Text(tr(R.string.more_set_up_next_dead_fest), color = TextHi, style = DeadFestType.cardTitle)
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    "Admin → Event: name the season, set the start time and queue the games.",
+                    tr(R.string.more_admin_event_name_the_season_set),
                     color = TextMid,
                     style = DeadFestType.body
                 )

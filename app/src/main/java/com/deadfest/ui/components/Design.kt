@@ -1,5 +1,6 @@
 package com.deadfest.ui.components
 
+import com.deadfest.util.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -593,11 +594,11 @@ fun ErrorState(
         ) {
             Icon(Icons.Default.CloudOff, contentDescription = null, tint = Ember, modifier = Modifier.size(26.dp))
         }
-        Text("SIGNAL LOST", color = TextHi, fontWeight = FontWeight.Black, fontSize = 14.sp)
+        Text(tr(R.string.design_signal_lost), color = TextHi, fontWeight = FontWeight.Black, fontSize = 14.sp)
         Text(message, color = TextMid, fontSize = 12.sp, textAlign = TextAlign.Center, lineHeight = 17.sp)
         if (onRetry != null) {
             Spacer(Modifier.height(Spacing.xxs))
-            GhostAction("Retry", onRetry)
+            GhostAction(tr(R.string.design_retry), onRetry)
         }
     }
 }

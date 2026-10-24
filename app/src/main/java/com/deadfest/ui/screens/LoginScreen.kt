@@ -1,5 +1,6 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.util.tr
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -111,7 +112,7 @@ fun LoginScreen(viewModel: MainViewModel) {
             }
             Spacer(Modifier.height(Spacing.md))
             Text(
-                "DEAD-FEST",
+                tr(R.string.login_dead_fest),
                 style = TextStyle(
                     brush = Brush.linearGradient(listOf(EmberGlow, Ember, EmberDeep)),
                     fontWeight = FontWeight.Black,
@@ -121,7 +122,7 @@ fun LoginScreen(viewModel: MainViewModel) {
             )
             Spacer(Modifier.height(Spacing.xxs))
             Text(
-                "VERSION ${BuildConfig.VERSION_NAME} // SECURE TERMINAL",
+                tr(R.string.login_version_1_secure_terminal, BuildConfig.VERSION_NAME),
                 color = TextLow,
                 style = DeadFestType.microLabel,
                 textAlign = TextAlign.Center
@@ -149,7 +150,7 @@ fun LoginScreen(viewModel: MainViewModel) {
                 // mode is announced rather than being signalled by colour alone.
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     PillChip(
-                        "Log in",
+                        tr(R.string.login_log_in),
                         isLogin,
                         { isLogin = true; viewModel.resetAuthState() },
                         modifier = Modifier
@@ -157,7 +158,7 @@ fun LoginScreen(viewModel: MainViewModel) {
                             .semantics { selected = isLogin }
                     )
                     PillChip(
-                        "Sign up",
+                        tr(R.string.login_sign_up),
                         !isLogin,
                         { isLogin = false; viewModel.resetAuthState() },
                         modifier = Modifier
@@ -173,7 +174,7 @@ fun LoginScreen(viewModel: MainViewModel) {
                             value = name,
                             onValueChange = { name = it; viewModel.resetAuthState() },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Display Name") },
+                            label = { Text(tr(R.string.login_display_name)) },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                             shape = RoundedCornerShape(Radius.md),
                             singleLine = true,
@@ -188,7 +189,7 @@ fun LoginScreen(viewModel: MainViewModel) {
                     value = email,
                     onValueChange = { email = it; viewModel.resetAuthState() },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Email") },
+                    label = { Text(tr(R.string.login_email)) },
                     leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                     shape = RoundedCornerShape(Radius.md),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
@@ -202,13 +203,13 @@ fun LoginScreen(viewModel: MainViewModel) {
                     value = password,
                     onValueChange = { password = it; viewModel.resetAuthState() },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Password") },
+                    label = { Text(tr(R.string.login_password)) },
                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
                     trailingIcon = {
                         IconButton(onClick = { passwordVisible = !passwordVisible }) {
                             Icon(
                                 if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
-                                contentDescription = if (passwordVisible) "Hide password" else "Show password"
+                                contentDescription = if (passwordVisible) tr(R.string.login_hide_password) else tr(R.string.login_show_password)
                             )
                         }
                     },
@@ -260,7 +261,7 @@ fun LoginScreen(viewModel: MainViewModel) {
                         CircularProgressIndicator(color = Color.White, strokeWidth = 2.5.dp, modifier = Modifier.size(20.dp))
                     } else {
                         Text(
-                            if (isLogin) "ENTER THE WASTELAND" else "JOIN SURVIVORS",
+                            if (isLogin) tr(R.string.login_enter_the_wasteland) else tr(R.string.login_join_survivors),
                             style = DeadFestType.action
                         )
                     }
@@ -269,7 +270,7 @@ fun LoginScreen(viewModel: MainViewModel) {
 
             Spacer(Modifier.height(Spacing.lg))
             Text(
-                "Friends & family only. Unauthorised access is logged.",
+                tr(R.string.login_friends_family_only_unauthorised_access_is),
                 color = TextLow,
                 fontSize = 11.sp,
                 textAlign = TextAlign.Center

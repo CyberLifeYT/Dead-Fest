@@ -1,5 +1,7 @@
 package com.deadfest.ui.components
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -61,15 +63,15 @@ fun DeathReportDialog(report: DeathReport, onDismiss: () -> Unit) {
     val tax = o.tax
     Dialog(onDismissRequest = onDismiss) {
         ResultDialogFrame(RedAccent) {
-            Text("CASUALTY TAX", color = RedAccent, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
+            Text(tr(R.string.resultdialogs_casualty_tax), color = RedAccent, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 2.sp)
             Text(
-                "${formatNumber(tax.finalTax)} coins lost",
+                tr(R.string.resultdialogs_1_coins_lost, formatNumber(tax.finalTax)),
                 color = TextPrimary,
                 fontWeight = FontWeight.Black,
                 fontSize = 26.sp
             )
             Text(
-                "Died in ${report.result.game} · ${tax.tier.label} tier · balance ${formatNumber(o.coinsBefore)} → ${formatNumber(o.coinsAfter)}",
+                tr(R.string.resultdialogs_died_in_1_2_tier_balance, report.result.game, tax.tier.label, formatNumber(o.coinsBefore), formatNumber(o.coinsAfter)),
                 color = TextSecondary,
                 fontSize = 12.sp
             )
@@ -89,30 +91,30 @@ fun DeathReportDialog(report: DeathReport, onDismiss: () -> Unit) {
             if (tax.insulationSaved > 0) {
                 ReportLine(
                     Icons.Default.Savings,
-                    "TAX REDUCED: Insulation Tier ${ShopItem.roman(tax.insulationTier)} saved you ${formatNumber(tax.insulationSaved)} coins",
+                    tr(R.string.resultdialogs_tax_reduced_insulation_tier_1_saved, ShopItem.roman(tax.insulationTier), formatNumber(tax.insulationSaved)),
                     Gold
                 )
             }
             if (tax.insuranceUsed) {
                 ReportLine(
                     Icons.Default.HealthAndSafety,
-                    "INSURANCE CLAIMED: ${tax.insurancePct}% of tax absorbed (${formatNumber(tax.insuranceSaved)} coins)",
+                    tr(R.string.resultdialogs_insurance_claimed_1_of_tax_absorbed, tax.insurancePct, formatNumber(tax.insuranceSaved)),
                     ShieldCyan
                 )
             }
-            ReportLine(Icons.Default.Casino, "+${o.spinsAdded} pending spin(s) · ${o.pendingAfter} total", Gold)
+            ReportLine(Icons.Default.Casino, tr(R.string.resultdialogs_1_pending_spin_s_2_total, o.spinsAdded, o.pendingAfter), Gold)
             when {
                 o.levelAfter >= Bankruptcy.LEVEL_2 && o.levelBefore < Bankruptcy.LEVEL_2 ->
-                    ReportLine(Icons.Default.MoneyOff, "BANKRUPTCY LEVEL 2: clear your penalty spins to escape", RedAccent)
+                    ReportLine(Icons.Default.MoneyOff, tr(R.string.resultdialogs_bankruptcy_level_2_clear_your_penalty), RedAccent)
                 o.levelAfter == Bankruptcy.LEVEL_1 && o.levelBefore == Bankruptcy.NONE ->
-                    ReportLine(Icons.Default.MoneyOff, "BANKRUPTCY LEVEL 1: survival payouts halved", RedAccent)
+                    ReportLine(Icons.Default.MoneyOff, tr(R.string.resultdialogs_bankruptcy_level_1_survival_payouts_halved), RedAccent)
             }
-            report.result.xp?.let { ReportLine(Icons.Default.Star, "+${it.gained} XP", TextSecondary) }
+            report.result.xp?.let { ReportLine(Icons.Default.Star, tr(R.string.resultdialogs_1_xp, it.gained), TextSecondary) }
             if (report.reward > 0) {
                 val payoutText = when (val paid = report.survivorsPaid) {
-                    null -> "Paying the Mutual Survival Reward..."
-                    -1 -> "Mutual Survival Reward couldn't be paid out"
-                    else -> "$paid survivor(s) collected ${formatNumber(report.reward)} coins from your fall"
+                    null -> tr(R.string.resultdialogs_paying_the_mutual_survival_reward)
+                    -1 -> tr(R.string.resultdialogs_mutual_survival_reward_couldn_t_be)
+                    else -> tr(R.string.resultdialogs_1_survivor_s_collected_2_coins, paid, formatNumber(report.reward))
                 }
                 ReportLine(Icons.Default.Groups, payoutText, TextSecondary)
             }
@@ -122,7 +124,7 @@ fun DeathReportDialog(report: DeathReport, onDismiss: () -> Unit) {
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("ACKNOWLEDGED", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.resultdialogs_acknowledged), fontWeight = FontWeight.Black) }
         }
     }
 }
@@ -135,21 +137,21 @@ fun DailyClaimDialog(result: DailyResult, onDismiss: () -> Unit) {
                 IconTile(Icons.Default.Inventory2, tint = OnlineGreen, size = 48)
                 Spacer(Modifier.width(14.dp))
                 Column {
-                    Text("RATIONS RECEIVED", color = OnlineGreen, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.5.sp)
-                    Text("+${formatNumber(result.amount)} coins", color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                    Text(tr(R.string.resultdialogs_rations_received), color = OnlineGreen, fontWeight = FontWeight.Black, fontSize = 13.sp, letterSpacing = 1.5.sp)
+                    Text(tr(R.string.resultdialogs_1_coins, formatNumber(result.amount)), color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 24.sp)
                 }
             }
-            Text("New balance: ${formatNumber(result.newBalance)} coins", color = TextSecondary, fontSize = 13.sp)
-            if (result.upgraded) ReportLine(Icons.Default.Upgrade, "Ration Upgrade active", Gold)
+            Text(tr(R.string.resultdialogs_new_balance_1_coins, formatNumber(result.newBalance)), color = TextSecondary, fontSize = 13.sp)
+            if (result.upgraded) ReportLine(Icons.Default.Upgrade, tr(R.string.resultdialogs_ration_upgrade_active), Gold)
             if (result.survivalBonusXp > 0) {
-                ReportLine(Icons.Default.Shield, "Survived a full day without dying: +${result.survivalBonusXp} XP", ShieldCyan)
+                ReportLine(Icons.Default.Shield, tr(R.string.resultdialogs_survived_a_full_day_without_dying, result.survivalBonusXp), ShieldCyan)
             }
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("COLLECT", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.resultdialogs_collect), fontWeight = FontWeight.Black) }
         }
     }
 }
@@ -162,24 +164,24 @@ fun BatteryOptimizationDialog(onAllow: () -> Unit, onLater: () -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconTile(Icons.Default.BatteryChargingFull, tint = Gold, size = 48)
                 Spacer(Modifier.width(14.dp))
-                Text("KEEP DEAD-FEST AWAKE?", color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 17.sp)
+                Text(tr(R.string.resultdialogs_keep_dead_fest_awake), color = TextPrimary, fontWeight = FontWeight.Black, fontSize = 17.sp)
             }
             Text(
-                "Some phones put apps to sleep to save battery. That can delay or block broadcasts, level-up alerts and firmware updates.",
+                tr(R.string.resultdialogs_some_phones_put_apps_to_sleep),
                 color = TextSecondary,
                 fontSize = 13.sp
             )
-            ReportLine(Icons.Default.NotificationsActive, "Alerts arrive on time", OnlineGreen)
-            ReportLine(Icons.Default.SystemUpdate, "Updates finish downloading", OnlineGreen)
-            ReportLine(Icons.Default.BatteryStd, "No extra drain: Dead-Fest runs no background service", TextSecondary)
+            ReportLine(Icons.Default.NotificationsActive, tr(R.string.resultdialogs_alerts_arrive_on_time), OnlineGreen)
+            ReportLine(Icons.Default.SystemUpdate, tr(R.string.resultdialogs_updates_finish_downloading), OnlineGreen)
+            ReportLine(Icons.Default.BatteryStd, tr(R.string.resultdialogs_no_extra_drain_dead_fest_runs), TextSecondary)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onLater) { Text("NOT NOW", color = TextSecondary, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = onLater) { Text(tr(R.string.resultdialogs_not_now), color = TextSecondary, fontWeight = FontWeight.Bold) }
                 Spacer(Modifier.width(8.dp))
                 Button(
                     onClick = onAllow,
                     colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
                     shape = RoundedCornerShape(12.dp)
-                ) { Text("ALLOW", fontWeight = FontWeight.Black) }
+                ) { Text(tr(R.string.resultdialogs_allow), fontWeight = FontWeight.Black) }
             }
         }
     }
@@ -195,7 +197,7 @@ fun LevelUpDialog(event: LevelUpEvent, onDismiss: () -> Unit) {
     Dialog(onDismissRequest = onDismiss) {
         ResultDialogFrame(Gold) {
             Text(
-                "LEVEL UP",
+                tr(R.string.resultdialogs_level_up),
                 color = Gold,
                 fontWeight = FontWeight.Black,
                 fontSize = 13.sp,
@@ -214,14 +216,14 @@ fun LevelUpDialog(event: LevelUpEvent, onDismiss: () -> Unit) {
             }
             if (event.rewards.isEmpty()) {
                 Text(
-                    "Keep surviving. More rewards ahead.",
+                    tr(R.string.resultdialogs_keep_surviving_more_rewards_ahead),
                     color = TextSecondary,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth()
                 )
             } else {
-                SectionLabel("UNLOCKED")
+                SectionLabel(tr(R.string.resultdialogs_unlocked))
                 event.rewards.forEach { r ->
                     ReportLine(
                         when (r.type) {
@@ -233,14 +235,14 @@ fun LevelUpDialog(event: LevelUpEvent, onDismiss: () -> Unit) {
                         Gold
                     )
                 }
-                Text("Equip it from Utility Hub → Progression.", color = TextMuted, fontSize = 11.sp)
+                Text(tr(R.string.resultdialogs_equip_it_from_utility_hub_progression), color = TextMuted, fontSize = 11.sp)
             }
             Button(
                 onClick = onDismiss,
                 modifier = Modifier.fillMaxWidth().height(48.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("CONTINUE", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.resultdialogs_continue), fontWeight = FontWeight.Black) }
         }
     }
 }

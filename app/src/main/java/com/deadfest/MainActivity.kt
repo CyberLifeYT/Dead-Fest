@@ -1,5 +1,6 @@
 package com.deadfest
 
+import com.deadfest.util.tr
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -251,7 +252,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
     val alerts by viewModel.alerts.collectAsStateWithLifecycle()
     LaunchedEffect(alerts) { viewModel.onAlertsChanged(alerts) }
 
-    // ---- v2.1.1: chat notifications, background check-ins, notification deep links ----
+    // ---- v2.1.2: chat notifications, background check-ins, notification deep links ----
     val latestChat by viewModel.latestChat.collectAsStateWithLifecycle()
     LaunchedEffect(latestChat) { viewModel.onLatestChat(latestChat) }
     val backgroundSync by viewModel.prefs.backgroundSync.collectAsStateWithLifecycle()
@@ -275,13 +276,13 @@ fun DeadFestApp(viewModel: MainViewModel) {
                     viewModel.prefs.batteryPromptShown = true
                     showBatteryPrompt = false
                     if (!BatteryOptimization.requestExemption(context)) {
-                        viewModel.showMessage("Couldn't open battery settings. Try Settings → System.")
+                        viewModel.showMessage(tr(R.string.app_couldn_t_open_battery_settings_try))
                     }
                 },
                 onLater = {
                     viewModel.prefs.batteryPromptShown = true
                     showBatteryPrompt = false
-                    viewModel.showMessage("You can change this any time in Settings → System.")
+                    viewModel.showMessage(tr(R.string.app_you_can_change_this_any_time))
                 }
             )
     }
@@ -375,8 +376,8 @@ fun DeadFestApp(viewModel: MainViewModel) {
                 } else {
                     NoticeCard(
                         icon = Icons.Default.Lock,
-                        title = "ACCESS DENIED",
-                        message = "SECURITY OVERRIDE REQUIRED. Administrator privileges are needed to access this sector."
+                        title = tr(R.string.app_access_denied),
+                        message = tr(R.string.app_security_override_required_administrator_privile)
                     )
                 }
             }

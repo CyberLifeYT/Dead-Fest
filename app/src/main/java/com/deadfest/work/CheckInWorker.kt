@@ -20,7 +20,7 @@ import kotlinx.coroutines.withTimeout
 import java.util.concurrent.TimeUnit
 
 /**
- * Background check-in (v2.1.1): about every 15 minutes, while the app is closed, Android's own
+ * Background check-in (v2.1.2): about every 15 minutes, while the app is closed, Android's own
  * scheduler (WorkManager) wakes this up for a few seconds to look for anything new — personal
  * alerts, chat messages, admin broadcasts, a flash sale, an app update — and shows it as a
  * normal notification.

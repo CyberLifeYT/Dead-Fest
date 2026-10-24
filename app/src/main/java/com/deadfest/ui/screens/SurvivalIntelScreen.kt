@@ -1,5 +1,7 @@
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -55,138 +57,140 @@ private data class IntelSection(
 
 /**
  * The manual itself, in the original reading order. Numeric rules whose text was a list of
- * "threshold = rate" pairs are the only entries split onto [IntelRule.stats] rows.
+ * "threshold = rate" pairs are the only entries split onto [IntelRule.stats] rows. A getter rather
+ * than a stored list, so the copy follows the current language.
  */
-private val intelSections = listOf(
+private val intelSections: List<IntelSection>
+    get() = listOf(
     IntelSection(
-        title = "Origin & Rebuild",
-        logId = "DISASTER RECOVERY LOG // 001",
+        title = tr(R.string.intel_origin_rebuild),
+        logId = tr(R.string.intel_disaster_recovery_log_001),
         icon = Icons.Default.Storage,
         accent = Ember,
         rules = listOf(
             IntelRule(
-                title = "Catastrophic Failure",
-                body = "The original source code of Dead-Fest was stored exclusively on a single Hard Disk Drive (HDD) that suffered catastrophic hardware failure."
+                title = tr(R.string.intel_catastrophic_failure),
+                body = tr(R.string.intel_the_original_source_code_of)
             ),
             IntelRule(
-                title = "Total Loss Protocol",
-                body = "All legacy project archives, version histories, and uncommitted modules were permanently lost to the wasteland static."
+                title = tr(R.string.intel_total_loss_protocol),
+                body = tr(R.string.intel_all_legacy_project_archives_version)
             ),
             IntelRule(
-                title = "Ground-Up Phoenix Protocol",
-                body = "Rather than abandoning the survivors, Dead-Fest was rebuilt entirely from scratch, engineering a more resilient, scalable, and powerful core architecture."
+                title = tr(R.string.intel_ground_up_phoenix_protocol),
+                body = tr(R.string.intel_rather_than_abandoning_the_survivors)
             )
         )
     ),
     IntelSection(
-        title = "Next-Gen Architecture",
-        logId = "SYSTEM SPECIFICATIONS // 002",
+        title = tr(R.string.intel_next_gen_architecture),
+        logId = tr(R.string.intel_system_specifications_002),
         icon = Icons.Default.Build,
         accent = Plasma,
         rules = listOf(
             IntelRule(
-                title = "Material 3 Cyberpunk Design",
-                body = "Crafted with modern UI components, sleek surfaces, high-contrast typography, and signature crimson atmospheric accents."
+                title = tr(R.string.intel_material_3_cyberpunk_design),
+                body = tr(R.string.intel_crafted_with_modern_ui_components)
             ),
             IntelRule(
-                title = "Enhanced Stability",
-                body = "Rebuilt with strict reactive state management to eliminate memory leaks and runtime crashes under heavy network load."
+                title = tr(R.string.intel_enhanced_stability),
+                body = tr(R.string.intel_rebuilt_with_strict_reactive_state)
             ),
             IntelRule(
-                title = "Streamlined Layouts",
-                body = "Redesigned navigation flows and touch targets optimized for high-stress tactical environments and quick operator decisions."
+                title = tr(R.string.intel_streamlined_layouts),
+                body = tr(R.string.intel_redesigned_navigation_flows_and_touch)
             )
         )
     ),
     IntelSection(
-        title = "Wasteland Optimizations",
-        logId = "HARDWARE EFFICIENCY // 003",
+        title = tr(R.string.intel_wasteland_optimizations),
+        logId = tr(R.string.intel_hardware_efficiency_003),
         icon = Icons.Default.PhoneAndroid,
         accent = Toxic,
         rules = listOf(
             IntelRule(
-                title = "Performance Mode",
-                body = "Cuts transitions and speeds up the wheel on older, battered wasteland hardware. Switches on automatically for low-RAM devices (Settings → System)."
+                title = tr(R.string.intel_performance_mode),
+                body = tr(R.string.intel_cuts_transitions_and_speeds_up)
             ),
             IntelRule(
-                title = "Battery Saver Integration",
-                body = "Live data feeds disconnect a few seconds after the terminal is backgrounded and reconnect instantly on return."
+                title = tr(R.string.intel_battery_saver_integration),
+                body = tr(R.string.intel_live_data_feeds_disconnect_a)
             ),
             IntelRule(
-                title = "Fast Startup Protocol",
-                body = "Bypasses unnecessary initialization checks to drop operators directly into active feeds with minimal latency."
+                title = tr(R.string.intel_fast_startup_protocol),
+                body = tr(R.string.intel_bypasses_unnecessary_initialization_checks_to)
             )
         )
     ),
     IntelSection(
-        title = "Economy Protocols",
-        logId = "SURVIVAL FINANCE // 005",
+        title = tr(R.string.intel_economy_protocols),
+        logId = tr(R.string.intel_survival_finance_005),
         icon = Icons.Default.Security,
         accent = Amber,
         rules = listOf(
             IntelRule(
-                title = "Casualty Tax",
-                body = "Every recorded death costs coins.",
+                title = tr(R.string.intel_casualty_tax),
+                body = tr(R.string.intel_every_recorded_death_costs_coins),
                 stats = listOf(
-                    "Over 5,000" to "30%",
-                    "Over 1,000" to "20%",
-                    "Over 500" to "15%",
-                    "Otherwise" to "a flat 25"
+                    tr(R.string.intel_over_5_000) to tr(R.string.intel_30),
+                    tr(R.string.intel_over_1_000) to tr(R.string.intel_20),
+                    tr(R.string.intel_over_500) to tr(R.string.intel_15),
+                    tr(R.string.intel_otherwise) to tr(R.string.intel_a_flat_25)
                 ),
-                trailer = "Your balance never goes below 0."
+                trailer = tr(R.string.intel_your_balance_never_goes_below)
             ),
             IntelRule(
-                title = "Wealth Insulation (Black Market)",
-                body = "Cuts the tax rate permanently.",
+                title = tr(R.string.intel_wealth_insulation_black_market),
+                body = tr(R.string.intel_cuts_the_tax_rate_permanently),
                 stats = listOf(
-                    "Tier I" to "-10%",
-                    "Tier II" to "-25%",
-                    "Tier III" to "-50%",
-                    "Tier IV" to "-100%"
+                    tr(R.string.intel_tier_i) to tr(R.string.intel_10),
+                    tr(R.string.intel_tier_ii) to tr(R.string.intel_25),
+                    tr(R.string.intel_tier_iii) to tr(R.string.intel_50),
+                    tr(R.string.intel_tier_iv) to tr(R.string.intel_100)
                 ),
-                trailer = "Insurance then absorbs part of whatever tax is left, once."
+                trailer = tr(R.string.intel_insurance_then_absorbs_part_of)
             ),
             IntelRule(
-                title = "Forced Spin Protocol",
-                body = "Each death adds a pending penalty spin. Clear them on the Wheel of Fate.",
+                title = tr(R.string.intel_forced_spin_protocol),
+                body = tr(R.string.intel_each_death_adds_a_pending),
                 warnIcon = Icons.Default.Casino
             ),
             IntelRule(
-                title = "Bankruptcy",
-                body = "Hit 0 coins and you're Level 1 (survival payouts halved). Die again while bankrupt and it's Level 2 (+2 extra spins). Clear every spin with coins above 0 to escape.",
+                title = tr(R.string.intel_bankruptcy),
+                body = tr(R.string.intel_hit_0_coins_and_you),
                 warnIcon = Icons.Default.MoneyOff
             ),
             IntelRule(
-                title = "Mutual Survival Reward",
-                body = "When anyone dies, everyone else collects a few coins."
+                title = tr(R.string.intel_mutual_survival_reward),
+                body = tr(R.string.intel_when_anyone_dies_everyone_else)
             ),
             IntelRule(
-                title = "Daily Rations",
-                body = "Claim free coins once per day on the Dashboard. A Ration Upgrade doubles them for good."
+                title = tr(R.string.intel_daily_rations),
+                body = tr(R.string.intel_claim_free_coins_once_per)
             ),
             IntelRule(
-                title = "XP & Levels",
-                body = "Deaths, purchases, spins, scratch cards and surviving a full day all earn XP. Levels unlock badge colours, frames and titles. Hit the cap to Prestige."
+                title = tr(R.string.intel_xp_levels),
+                body = tr(R.string.intel_deaths_purchases_spins_scratch_cards)
             )
         )
     ),
     IntelSection(
-        title = "Community & Future",
-        logId = "OPERATIONAL HORIZON // 004",
+        title = tr(R.string.intel_community_future),
+        logId = tr(R.string.intel_operational_horizon_004),
         icon = Icons.Default.Groups,
         accent = Prestige,
         rules = listOf(
             IntelRule(
-                title = "Community-Driven Features",
-                body = "Built directly around survivor feedback, feature requests, and combat telemetry reports."
+                title = tr(R.string.intel_community_driven_features),
+                body = tr(R.string.intel_built_directly_around_survivor_feedback)
             ),
             IntelRule(
-                title = "Real-Time Firestore Sync",
-                body = "Instantaneous cloud updates ensuring all operatives receive intel, alerts, and schedule changes simultaneously."
+                title = tr(R.string.intel_real_time_firestore_sync),
+                body = tr(R.string.intel_instantaneous_cloud_updates_ensuring_all)
             ),
             IntelRule(
-                title = "Custom Admin Overrides",
-                body = "Direct command channel integration allowing emergency broadcasts and rapid tactical updates from headquarters."
+                title = tr(R.string.intel_custom_admin_overrides),
+                body = tr(R.string.intel_direct_command_channel_integration_allowing)
             )
         )
     )
@@ -197,8 +201,8 @@ fun SurvivalIntelScreen(navController: NavController) {
     // No background of its own: DeadFestBackground is applied once behind the whole NavHost.
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = "SURVIVAL INTEL",
-            subtitle = "CLASSIFIED TERMINAL DATA // V${com.deadfest.BuildConfig.VERSION_NAME}",
+            title = tr(R.string.more_survival_intel),
+            subtitle = tr(R.string.survivalintel_classified_terminal_data_v_1, com.deadfest.BuildConfig.VERSION_NAME),
             onBack = { navController.popBackStack() }
         )
 
@@ -215,15 +219,15 @@ fun SurvivalIntelScreen(navController: NavController) {
         ) {
             item {
                 HeroPanel(
-                    eyebrow = "Field Manual",
-                    title = "OPERATOR BRIEFING",
+                    eyebrow = tr(R.string.survivalintel_field_manual),
+                    title = tr(R.string.survivalintel_operator_briefing),
                     icon = Icons.Default.Security,
                     modifier = Modifier.enterOnMount(0),
                     accent = Ember,
-                    badge = { StatusPill("PRIORITY", Ember) }
+                    badge = { StatusPill(tr(R.string.survivalintel_priority), Ember) }
                 ) {
                     Text(
-                        "What was lost, what was rebuilt, and the protocols that decide who survives.",
+                        tr(R.string.survivalintel_what_was_lost_what_was_rebuilt),
                         color = TextMid,
                         style = DeadFestType.body
                     )

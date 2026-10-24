@@ -2,6 +2,8 @@
 
 package com.deadfest.ui.screens
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -89,7 +91,7 @@ fun AdminScreen(navController: NavController, viewModel: MainViewModel) {
             return@Column
         }
 
-        ScreenHeader(title = "ADMIN OVERRIDE", subtitle = "ROOT ACCESS // HANDLE WITH CARE")
+        ScreenHeader(title = tr(R.string.admin_admin_override), subtitle = tr(R.string.admin_root_access_handle_with_care))
 
         // Module switcher: a wrapping chip grid keeps every module visible and one tap away,
         // and the active chip carries that module's accent so its state is unambiguous.
@@ -147,7 +149,7 @@ private fun PlayerAdmin(viewModel: MainViewModel, onPlayerClick: (String) -> Uni
             value = query,
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Find survivor...", color = TextLow) },
+            placeholder = { Text(tr(R.string.admin_find_survivor), color = TextLow) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextMid) },
             singleLine = true,
             shape = RoundedCornerShape(Radius.md),
@@ -162,9 +164,9 @@ private fun PlayerAdmin(viewModel: MainViewModel, onPlayerClick: (String) -> Uni
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.PersonOff,
-                        title = "No survivors found",
-                        message = if (query.isBlank()) "No player records have loaded yet."
-                        else "Nobody matches \"${query.trim()}\"."
+                        title = tr(R.string.admin_no_survivors_found),
+                        message = if (query.isBlank()) tr(R.string.admin_no_player_records_have_loaded_yet)
+                        else tr(R.string.admin_nobody_matches_1, query.trim())
                     )
                 }
             } else {
@@ -189,19 +191,19 @@ private fun PlayerRow(user: User, onClick: () -> Unit) {
             Spacer(Modifier.width(Spacing.sm))
             Column(Modifier.weight(1f)) {
                 Text(
-                    user.displayName?.takeIf { it.isNotBlank() } ?: "Unknown",
+                    user.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_unknown),
                     color = TextHi,
                     style = DeadFestType.cardTitle,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "${formatNumber(user.playerData.coins)} coins · ${formatNumber(user.playerData.games.values.sumOf { it.deaths })} deaths",
+                    tr(R.string.admin_1_coins_2_deaths, formatNumber(user.playerData.coins), formatNumber(user.playerData.games.values.sumOf { it.deaths })),
                     color = TextMid,
                     style = DeadFestType.body
                 )
             }
-            if (user.admin) StatusPill("ADMIN", Ember)
+            if (user.admin) StatusPill(tr(R.string.admin_admin), Ember)
             Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextLow)
         }
     }
@@ -221,9 +223,9 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
 
     if (confirmClear) {
         ConfirmDialog(
-            title = "CLEAR PENALTIES?",
-            message = "Wipes this survivor's pending spins and lifts bankruptcy (they stay at Level 1 if their balance is 0).",
-            confirmText = "CLEAR",
+            title = tr(R.string.admin_clear_penalties),
+            message = tr(R.string.admin_wipes_this_survivor_s_pending_spins),
+            confirmText = tr(R.string.admin_clear),
             onConfirm = { viewModel.clearPenalties(uid) },
             onDismiss = { confirmClear = false }
         )
@@ -231,12 +233,12 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
 
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(
-            title = user?.displayName?.takeIf { it.isNotBlank() } ?: "SURVIVOR",
-            subtitle = "PLAYER NETWORK CONTROL",
+            title = user?.displayName?.takeIf { it.isNotBlank() } ?: tr(R.string.admin_survivor),
+            subtitle = tr(R.string.admin_player_network_control),
             onBack = onBack
         )
         if (user == null) {
-            EmptyState(Icons.Default.PersonOff, "Loading survivor record...")
+            EmptyState(Icons.Default.PersonOff, tr(R.string.admin_loading_survivor_record))
             return@Column
         }
 
@@ -249,10 +251,10 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
             verticalArrangement = Arrangement.spacedBy(Spacing.sm)
         ) {
             AdminActionCard(
-                title = "Coin balance",
-                subtitle = "Adjust by a fixed amount or set an exact balance. Every change is logged."
+                title = tr(R.string.admin_coin_balance),
+                subtitle = tr(R.string.admin_adjust_by_a_fixed_amount_or)
             ) {
-                KeyValueRow("Current balance", formatNumber(user.playerData.coins))
+                KeyValueRow(tr(R.string.admin_current_balance), formatNumber(user.playerData.coins))
                 Spacer(Modifier.height(Spacing.xs))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     listOf(-100L, -10L, 10L, 100L).forEach { delta ->
@@ -269,7 +271,7 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
                     OutlinedTextField(
                         value = coinInput,
                         onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 9) coinInput = v },
-                        label = { Text("Set exact coins") },
+                        label = { Text(tr(R.string.admin_set_exact_coins)) },
                         modifier = Modifier.weight(1f),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -277,7 +279,7 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
                         colors = deadFestFieldColors()
                     )
                     PrimaryAction(
-                        text = "Set",
+                        text = tr(R.string.admin_set),
                         onClick = { coinInput.toLongOrNull()?.let { viewModel.setPlayerCoins(uid, it) } },
                         enabled = coinInput.toLongOrNull() != null,
                         modifier = Modifier.weight(0.45f)
@@ -286,12 +288,12 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
             }
 
             AdminActionCard(
-                title = "Death record",
-                subtitle = "Deaths per sector. Injecting also applies tax and a penalty spin; removal is for correcting mistakes."
+                title = tr(R.string.admin_death_record),
+                subtitle = tr(R.string.admin_deaths_per_sector_injecting_also_applies)
             ) {
                 val games = user.playerData.games.toSortedMap()
                 if (games.isEmpty()) {
-                    EmptyState(Icons.Default.SportsEsports, "No deaths recorded for this survivor.")
+                    EmptyState(Icons.Default.SportsEsports, tr(R.string.admin_no_deaths_recorded_for_this_survivor))
                 } else {
                     games.forEach { (game, stats) ->
                         KeyValueRow(game, formatNumber(stats.deaths))
@@ -300,24 +302,24 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
                 Spacer(Modifier.height(Spacing.sm))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     PrimaryAction(
-                        text = "Inject death",
+                        text = tr(R.string.admin_inject_death),
                         onClick = { sectorDialog = 1 },
                         modifier = Modifier.weight(1f)
                     )
                     GhostAction(
-                        text = "Remove death",
+                        text = tr(R.string.admin_remove_death),
                         onClick = { sectorDialog = -1 },
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            AdminActionCard(title = "Admin status") {
+            AdminActionCard(title = tr(R.string.admin_admin_status)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Admin rights", color = TextHi, style = DeadFestType.cardTitle)
+                        Text(tr(R.string.admin_admin_rights), color = TextHi, style = DeadFestType.cardTitle)
                         Text(
-                            if (uid == me?.uid) "You can't revoke your own access" else "Grants full access to this panel",
+                            if (uid == me?.uid) tr(R.string.admin_you_can_t_revoke_your_own) else tr(R.string.admin_grants_full_access_to_this_panel),
                             color = TextMid,
                             style = DeadFestType.body
                         )
@@ -338,38 +340,38 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
                     val shield = user.playerData.shield
                     val lucky = user.playerData.luckyCoin
                     val insured = user.playerData.insurance
-                    StatusPill(if (shield) "Shield armed" else "No shield", if (shield) Plasma else TextLow)
-                    StatusPill(if (lucky) "Lucky coin armed" else "No lucky coin", if (lucky) Amber else TextLow)
-                    StatusPill(if (insured) "Insurance armed" else "No insurance", if (insured) Toxic else TextLow)
+                    StatusPill(if (shield) tr(R.string.admin_shield_armed) else tr(R.string.admin_no_shield), if (shield) Plasma else TextLow)
+                    StatusPill(if (lucky) tr(R.string.admin_lucky_coin_armed) else tr(R.string.admin_no_lucky_coin), if (lucky) Amber else TextLow)
+                    StatusPill(if (insured) tr(R.string.admin_insurance_armed) else tr(R.string.admin_no_insurance), if (insured) Toxic else TextLow)
                 }
             }
 
             AdminActionCard(
-                title = "Progression & penalties",
-                subtitle = "Level state, bankruptcy and pending spins. Clearing penalties wipes pending spins and lifts bankruptcy."
+                title = tr(R.string.admin_progression_penalties),
+                subtitle = tr(R.string.admin_level_state_bankruptcy_and_pending_spins)
             ) {
                 val d = user.playerData
-                KeyValueRow("Level", d.level.toString())
-                KeyValueRow("XP", formatNumber(d.xp))
+                KeyValueRow(tr(R.string.admin_level), d.level.toString())
+                KeyValueRow(tr(R.string.common_xp), formatNumber(d.xp))
                 if (d.prestigeCount > 0) {
-                    KeyValueRow("Prestige", d.prestigeCount.toString())
+                    KeyValueRow(tr(R.string.admin_prestige), d.prestigeCount.toString())
                 }
                 KeyValueRow(
-                    "Insulation",
-                    if (d.insulationTier > 0) "Tier ${com.deadfest.data.model.ShopItem.roman(d.insulationTier)}" else "None"
+                    tr(R.string.admin_insulation),
+                    if (d.insulationTier > 0) tr(R.string.admineconomy_tier_1_2, com.deadfest.data.model.ShopItem.roman(d.insulationTier)) else tr(R.string.admin_none)
                 )
-                KeyValueRow("Ration upgrade", if (d.dailyUpgradeOwned) "Owned" else "None")
+                KeyValueRow(tr(R.string.admin_ration_upgrade), if (d.dailyUpgradeOwned) tr(R.string.admin_owned) else tr(R.string.admin_none))
                 Spacer(Modifier.height(Spacing.sm))
                 StatusPill(
-                    if (d.bankruptcyLevel > 0) "Bankruptcy level ${d.bankruptcyLevel}" else "Solvent",
+                    if (d.bankruptcyLevel > 0) tr(R.string.admin_bankruptcy_level_1, d.bankruptcyLevel) else tr(R.string.admin_solvent),
                     if (d.bankruptcyLevel > 0) Ember else Toxic
                 )
                 Spacer(Modifier.height(Spacing.xxs))
-                Text("${d.pendingSpins} pending spin(s)", color = TextMid, style = DeadFestType.body)
+                Text(tr(R.string.admin_1_pending_spin_s, d.pendingSpins), color = TextMid, style = DeadFestType.body)
                 Spacer(Modifier.height(Spacing.sm))
                 // Destructive: kept last in its section and gated by the confirm dialog above.
                 GhostAction(
-                    text = "Clear penalties",
+                    text = tr(R.string.admin_clear_penalties_2),
                     onClick = { confirmClear = true },
                     enabled = d.bankruptcyLevel > 0 || d.pendingSpins > 0,
                     accent = Ember,
@@ -389,14 +391,14 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
             shape = RoundedCornerShape(Radius.xxl),
             title = {
                 Text(
-                    if (delta > 0) "INJECT DEATH (TAX + SPIN APPLY)" else "REMOVE DEATH FROM",
+                    if (delta > 0) tr(R.string.admin_inject_death_tax_spin_apply) else tr(R.string.admin_remove_death_from),
                     color = TextHi,
                     style = DeadFestType.cardTitle
                 )
             },
             text = {
                 if (sectors.isEmpty()) {
-                    Text(if (delta > 0) "No sectors configured." else "This survivor has no deaths.", color = TextMid, style = DeadFestType.body)
+                    Text(if (delta > 0) tr(R.string.admin_no_sectors_configured) else tr(R.string.admin_this_survivor_has_no_deaths), color = TextMid, style = DeadFestType.body)
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.xs), modifier = Modifier.heightIn(max = 320.dp)) {
                         items(sectors) { game ->
@@ -408,7 +410,7 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(game.uppercase(), color = TextHi, style = DeadFestType.cardTitle, modifier = Modifier.weight(1f))
-                                    if (game in globalState.lockedGames) StatusPill("Locked", TextLow)
+                                    if (game in globalState.lockedGames) StatusPill(tr(R.string.admin_locked), TextLow)
                                 }
                             }
                         }
@@ -416,7 +418,7 @@ private fun PlayerDetailView(uid: String, viewModel: MainViewModel, onBack: () -
                 }
             },
             confirmButton = {
-                TextButton(onClick = { sectorDialog = null }) { Text("CANCEL", color = TextMid) }
+                TextButton(onClick = { sectorDialog = null }) { Text(tr(R.string.common_cancel), color = TextMid) }
             }
         )
     }
@@ -461,7 +463,7 @@ private fun WheelAdmin(viewModel: MainViewModel) {
             onSave = { updated ->
                 val exists = wheelItems.any { it.id == updated.id }
                 val newItems = if (exists) wheelItems.map { if (it.id == updated.id) updated else it } else wheelItems + updated
-                viewModel.updateGlobalState(mapOf("wheelItems" to newItems), success = "Wheel updated")
+                viewModel.updateGlobalState(mapOf("wheelItems" to newItems), success = tr(R.string.admin_wheel_updated))
                 editingItem = null
             },
             onCancel = { editingItem = null }
@@ -469,11 +471,11 @@ private fun WheelAdmin(viewModel: MainViewModel) {
     }
     deleting?.let { item ->
         ConfirmDialog(
-            title = "DELETE SLICE?",
-            message = "Remove \"${item.label}\" from the Wheel of Fate?",
-            confirmText = "DELETE",
+            title = tr(R.string.admin_delete_slice),
+            message = tr(R.string.admin_remove_1_from_the_wheel_of, item.label),
+            confirmText = tr(R.string.admineconomy_delete),
             destructive = true,
-            onConfirm = { viewModel.updateGlobalState(mapOf("wheelItems" to wheelItems.filter { it.id != item.id }), success = "Slice removed") },
+            onConfirm = { viewModel.updateGlobalState(mapOf("wheelItems" to wheelItems.filter { it.id != item.id }), success = tr(R.string.admin_slice_removed)) },
             onDismiss = { deleting = null }
         )
     }
@@ -483,9 +485,9 @@ private fun WheelAdmin(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         PrimaryAction(
-            text = "Add slice",
+            text = tr(R.string.admin_add_slice),
             icon = Icons.Default.Add,
-            onClick = { editingItem = WheelItem(id = System.currentTimeMillis().toString(), label = "New Item", weight = 1.0) }
+            onClick = { editingItem = WheelItem(id = System.currentTimeMillis().toString(), label = tr(R.string.admin_new_item), weight = 1.0) }
         )
 
         LazyColumn(
@@ -497,8 +499,8 @@ private fun WheelAdmin(viewModel: MainViewModel) {
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.Casino,
-                        title = "No slices yet",
-                        message = "The Wheel of Fate can't spin without slices. Add one above."
+                        title = tr(R.string.admin_no_slices_yet),
+                        message = tr(R.string.admin_the_wheel_of_fate_can_t)
                     )
                 }
             } else {
@@ -518,7 +520,7 @@ private fun WheelAdmin(viewModel: MainViewModel) {
                                 )
                                 Spacer(Modifier.height(2.dp))
                                 if (!item.enabled) {
-                                    StatusPill("Disabled", TextLow)
+                                    StatusPill(tr(R.string.admineconomy_disabled), TextLow)
                                 } else {
                                     Text(
                                         "${item.actionType.uppercase()} ${item.value.ifBlank { "-" }} · w ${trimDouble(item.weight)} · ${"%.1f".format(chance)}%",
@@ -528,7 +530,7 @@ private fun WheelAdmin(viewModel: MainViewModel) {
                                 }
                             }
                             IconButton(onClick = { deleting = item }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Ember)
+                                Icon(Icons.Default.Delete, contentDescription = tr(R.string.admineconomy_delete_2), tint = Ember)
                             }
                         }
                     }
@@ -555,13 +557,13 @@ private fun WheelItemDialog(item: WheelItem, onSave: (WheelItem) -> Unit, onCanc
         onDismissRequest = onCancel,
         containerColor = Ink2,
         shape = RoundedCornerShape(Radius.xxl),
-        title = { Text("EDIT SLICE", color = TextHi, style = DeadFestType.cardTitle) },
+        title = { Text(tr(R.string.admin_edit_slice), color = TextHi, style = DeadFestType.cardTitle) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Label") },
+                    label = { Text(tr(R.string.admineconomy_label)) },
                     singleLine = true,
                     colors = deadFestFieldColors(),
                     shape = RoundedCornerShape(Radius.md),
@@ -571,7 +573,7 @@ private fun WheelItemDialog(item: WheelItem, onSave: (WheelItem) -> Unit, onCanc
                     OutlinedTextField(
                         value = value,
                         onValueChange = { value = it },
-                        label = { Text("Coins / value") },
+                        label = { Text(tr(R.string.admin_coins_value)) },
                         singleLine = true,
                         colors = deadFestFieldColors(),
                         shape = RoundedCornerShape(Radius.md),
@@ -580,7 +582,7 @@ private fun WheelItemDialog(item: WheelItem, onSave: (WheelItem) -> Unit, onCanc
                     OutlinedTextField(
                         value = weight,
                         onValueChange = { v -> if (v.count { it == '.' } <= 1 && v.all { it.isDigit() || it == '.' }) weight = v },
-                        label = { Text("Weight") },
+                        label = { Text(tr(R.string.admineconomy_weight)) },
                         singleLine = true,
                         isError = weightValue == null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -589,17 +591,17 @@ private fun WheelItemDialog(item: WheelItem, onSave: (WheelItem) -> Unit, onCanc
                         modifier = Modifier.weight(1f)
                     )
                 }
-                Text("Weights can be decimals, e.g. 0.25 for ultra-rare loot.", color = TextLow, style = DeadFestType.body)
+                Text(tr(R.string.admin_weights_can_be_decimals_e_g), color = TextLow, style = DeadFestType.body)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    PillChip(text = "Give", selected = actionType == "give", accent = Toxic, onClick = { actionType = "give" })
+                    PillChip(text = tr(R.string.admin_give), selected = actionType == "give", accent = Toxic, onClick = { actionType = "give" })
                     Spacer(Modifier.width(Spacing.xs))
-                    PillChip(text = "Take", selected = actionType == "take", accent = Ember, onClick = { actionType = "take" })
+                    PillChip(text = tr(R.string.admin_take), selected = actionType == "take", accent = Ember, onClick = { actionType = "take" })
                     Spacer(Modifier.weight(1f))
-                    Text("On", color = TextMid, style = DeadFestType.body)
+                    Text(tr(R.string.admin_on), color = TextMid, style = DeadFestType.body)
                     Spacer(Modifier.width(Spacing.xs))
                     Switch(checked = enabled, onCheckedChange = { enabled = it }, colors = SwitchDefaults.colors(checkedTrackColor = Ember))
                 }
-                SectionLabel("Colour")
+                SectionLabel(tr(R.string.admineconomy_colour))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     items(palette) { hex ->
                         val selected = color.equals(hex, ignoreCase = true)
@@ -622,9 +624,9 @@ private fun WheelItemDialog(item: WheelItem, onSave: (WheelItem) -> Unit, onCanc
                 enabled = valid,
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
                 shape = RoundedCornerShape(Radius.sm)
-            ) { Text("SAVE", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.admineconomy_save_2), fontWeight = FontWeight.Black) }
         },
-        dismissButton = { TextButton(onClick = onCancel) { Text("CANCEL", color = TextMid) } }
+        dismissButton = { TextButton(onClick = onCancel) { Text(tr(R.string.common_cancel), color = TextMid) } }
     )
 }
 
@@ -647,11 +649,11 @@ private fun SectorAdmin(viewModel: MainViewModel) {
                 val newName = raw.trim()
                 when {
                     newName.isEmpty() || newName == sector -> Unit
-                    isDuplicate(newName) -> viewModel.showMessage("A sector called \"$newName\" already exists.")
+                    isDuplicate(newName) -> viewModel.showMessage(tr(R.string.admin_a_sector_called_1_already_exists, newName))
                     else -> {
                         val updatedGames = globalState.games.map { if (it == sector) newName else it }
                         val updatedLocked = globalState.lockedGames.map { if (it == sector) newName else it }
-                        viewModel.updateGlobalState(mapOf("games" to updatedGames, "lockedGames" to updatedLocked), success = "Sector renamed")
+                        viewModel.updateGlobalState(mapOf("games" to updatedGames, "lockedGames" to updatedLocked), success = tr(R.string.admin_sector_renamed))
                     }
                 }
                 selectedSector = null
@@ -676,7 +678,7 @@ private fun SectorAdmin(viewModel: MainViewModel) {
         val name = newGameName.trim()
         when {
             name.isEmpty() -> Unit
-            isDuplicate(name) -> viewModel.showMessage("That sector already exists.")
+            isDuplicate(name) -> viewModel.showMessage(tr(R.string.admin_that_sector_already_exists))
             else -> {
                 viewModel.updateGlobalState(mapOf("games" to (globalState.games + name)), success = "$name added")
                 newGameName = ""
@@ -692,13 +694,13 @@ private fun SectorAdmin(viewModel: MainViewModel) {
             value = newGameName,
             onValueChange = { newGameName = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("New sector designation") },
+            label = { Text(tr(R.string.admin_new_sector_designation)) },
             singleLine = true,
             shape = RoundedCornerShape(Radius.md),
             colors = deadFestFieldColors(),
             trailingIcon = {
                 IconButton(onClick = { addSector() }, enabled = newGameName.isNotBlank()) {
-                    Icon(Icons.Default.AddCircle, contentDescription = "Add sector", tint = if (newGameName.isNotBlank()) Ember else TextLow)
+                    Icon(Icons.Default.AddCircle, contentDescription = tr(R.string.admin_add_sector), tint = if (newGameName.isNotBlank()) Ember else TextLow)
                 }
             }
         )
@@ -712,8 +714,8 @@ private fun SectorAdmin(viewModel: MainViewModel) {
                 item {
                     EmptyStateCard(
                         icon = Icons.Default.Map,
-                        title = "No sectors yet",
-                        message = "Add the first sector above. Survivors record deaths against these."
+                        title = tr(R.string.admin_no_sectors_yet),
+                        message = tr(R.string.admin_add_the_first_sector_above_survivors)
                     )
                 }
             }
@@ -724,21 +726,21 @@ private fun SectorAdmin(viewModel: MainViewModel) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(game, color = if (isLocked) TextLow else TextHi, style = DeadFestType.cardTitle)
                             Spacer(Modifier.height(Spacing.xxs))
-                            StatusPill(if (isLocked) "Locked" else "Active", if (isLocked) TextLow else Toxic)
+                            StatusPill(if (isLocked) tr(R.string.admin_locked) else tr(R.string.admin_active), if (isLocked) TextLow else Toxic)
                         }
                         IconButton(onClick = {
                             val list = globalState.games.toMutableList()
                             list.add(index - 1, list.removeAt(index))
                             viewModel.updateGlobalState(mapOf("games" to list))
                         }, enabled = index > 0) {
-                            Icon(Icons.Default.ArrowUpward, "Move up", tint = if (index > 0) Ember else TextLow)
+                            Icon(Icons.Default.ArrowUpward, tr(R.string.admin_move_up), tint = if (index > 0) Ember else TextLow)
                         }
                         IconButton(onClick = {
                             val list = globalState.games.toMutableList()
                             list.add(index + 1, list.removeAt(index))
                             viewModel.updateGlobalState(mapOf("games" to list))
                         }, enabled = index < globalState.games.lastIndex) {
-                            Icon(Icons.Default.ArrowDownward, "Move down", tint = if (index < globalState.games.lastIndex) Ember else TextLow)
+                            Icon(Icons.Default.ArrowDownward, tr(R.string.admin_move_down), tint = if (index < globalState.games.lastIndex) Ember else TextLow)
                         }
                     }
                 }
@@ -761,9 +763,9 @@ private fun SectorActionDialog(
 
     if (confirmRemove) {
         ConfirmDialog(
-            title = "REMOVE SECTOR?",
-            message = "\"$name\" will disappear from the sector list. Player death records are kept.",
-            confirmText = "REMOVE",
+            title = tr(R.string.admin_remove_sector),
+            message = tr(R.string.admin_1_will_disappear_from_the_sector, name),
+            confirmText = tr(R.string.admin_remove),
             destructive = true,
             onConfirm = onRemove,
             onDismiss = { confirmRemove = false }
@@ -780,20 +782,20 @@ private fun SectorActionDialog(
                 OutlinedTextField(
                     value = newName,
                     onValueChange = { newName = it },
-                    label = { Text("Rename sector") },
+                    label = { Text(tr(R.string.admin_rename_sector)) },
                     singleLine = true,
                     shape = RoundedCornerShape(Radius.md),
                     colors = deadFestFieldColors()
                 )
                 GhostAction(
-                    text = if (isLocked) "Unlock sector" else "Lock sector",
+                    text = if (isLocked) tr(R.string.admin_unlock_sector) else tr(R.string.admin_lock_sector),
                     icon = if (isLocked) Icons.Default.LockOpen else Icons.Default.Lock,
                     onClick = onToggleLock,
                     modifier = Modifier.fillMaxWidth()
                 )
                 // Destructive, last, and still confirmed before it is applied.
                 GhostAction(
-                    text = "Remove sector",
+                    text = tr(R.string.admin_remove_sector_2),
                     icon = Icons.Default.Delete,
                     accent = Ember,
                     onClick = { confirmRemove = true },
@@ -806,9 +808,9 @@ private fun SectorActionDialog(
                 onClick = { onRename(newName) },
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
                 shape = RoundedCornerShape(Radius.sm)
-            ) { Text("SAVE", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.admineconomy_save_2), fontWeight = FontWeight.Black) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("CANCEL", color = TextMid) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.common_cancel), color = TextMid) } }
     )
 }
 
@@ -831,24 +833,24 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         AdminActionCard(
-            title = "Overload status",
-            subtitle = "An overload multiplies coin rewards in one sector until it expires or is terminated.",
+            title = tr(R.string.admin_overload_status),
+            subtitle = tr(R.string.admin_an_overload_multiplies_coin_rewards_in),
             accent = if (globalState.overloadActive(now.value)) Amber else null
         ) {
             if (globalState.overloadActive(now.value)) {
-                val left = if (globalState.overloadEndsAt > 0) " · ${remainingLabel(globalState.overloadEndsAt, now.value)} LEFT" else ""
-                StatusPill("OVERLOAD ACTIVE: ${globalState.overloadedSector.uppercase()} x${trimDouble(globalState.multiplier)}$left", Amber)
+                val left = if (globalState.overloadEndsAt > 0) tr(R.string.admin_1_left, remainingLabel(globalState.overloadEndsAt, now.value)) else ""
+                StatusPill(tr(R.string.admin_overload_active_1_x_2_3, globalState.overloadedSector.uppercase(), trimDouble(globalState.multiplier), left), Amber)
             } else {
-                Text("No sector is overloaded.", color = TextMid, style = DeadFestType.body)
+                Text(tr(R.string.admineconomy_no_sector_is_overloaded), color = TextMid, style = DeadFestType.body)
             }
         }
 
         AdminActionCard(
-            title = "Target sector",
-            subtitle = "Only unlocked sectors can be overloaded."
+            title = tr(R.string.admin_target_sector),
+            subtitle = tr(R.string.admin_only_unlocked_sectors_can_be_overloaded)
         ) {
             if (games.isEmpty()) {
-                EmptyState(Icons.Default.Map, "No unlocked sectors available. Unlock one in Sectors first.")
+                EmptyState(Icons.Default.Map, tr(R.string.admin_no_unlocked_sectors_available_unlock_one))
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     games.forEach { game ->
@@ -866,14 +868,14 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
         }
 
         AdminActionCard(
-            title = "Multiplier & duration",
-            subtitle = "Set the coin multiplier and how long the overload runs. 0 minutes means until terminated."
+            title = tr(R.string.admin_multiplier_duration),
+            subtitle = tr(R.string.admin_set_the_coin_multiplier_and_how)
         ) {
             OutlinedTextField(
                 value = multiplier,
                 onValueChange = { v -> if (v.count { it == '.' } <= 1 && v.all { it.isDigit() || it == '.' }) multiplier = v },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Coin multiplier") },
+                label = { Text(tr(R.string.admin_coin_multiplier)) },
                 prefix = { Text("x ", color = Ember) },
                 singleLine = true,
                 isError = multiplierValue == null,
@@ -886,7 +888,7 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
                 value = durationMin,
                 onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 5) durationMin = v },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Duration in minutes (0 = until terminated)") },
+                label = { Text(tr(R.string.admin_duration_in_minutes_0_until_terminated)) },
                 singleLine = true,
                 isError = durationValue == null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -895,7 +897,7 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
             )
             Spacer(Modifier.height(Spacing.sm))
             PrimaryAction(
-                text = "Initiate overload",
+                text = tr(R.string.admin_initiate_overload),
                 onClick = {
                     val mins = durationValue ?: 0L
                     viewModel.updateGlobalState(
@@ -905,7 +907,7 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
                             "multiplier" to (multiplierValue ?: 1.0),
                             "overloadEndsAt" to if (mins > 0) System.currentTimeMillis() + mins * 60_000L else 0L
                         ),
-                        success = "Overload initiated on $selectedGame"
+                        success = tr(R.string.admin_overload_initiated_on_1, selectedGame)
                     )
                 },
                 enabled = selectedGame != null && multiplierValue != null && durationValue != null
@@ -914,8 +916,8 @@ private fun OverloadAdmin(viewModel: MainViewModel) {
             if (globalState.sectorOverload) {
                 Spacer(Modifier.height(Spacing.xs))
                 GhostAction(
-                    text = "Terminate overload protocol",
-                    onClick = { viewModel.updateGlobalState(mapOf("sectorOverload" to false, "overloadedSector" to "", "overloadEndsAt" to 0L), success = "Overload terminated") },
+                    text = tr(R.string.admin_terminate_overload_protocol),
+                    onClick = { viewModel.updateGlobalState(mapOf("sectorOverload" to false, "overloadedSector" to "", "overloadEndsAt" to 0L), success = tr(R.string.admin_overload_terminated)) },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -944,12 +946,12 @@ private fun GameRequestsAdmin(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         AdminActionCard(
-            title = "Pending requests",
-            subtitle = "${pending.size} waiting. Approving makes a game a candidate sector.",
+            title = tr(R.string.admin_pending_requests),
+            subtitle = tr(R.string.admin_1_waiting_approving_makes_a_game, pending.size),
             accent = if (pending.isNotEmpty()) Amber else null
         ) {
             if (pending.isEmpty()) {
-                EmptyState(Icons.Default.CheckCircle, "The queue is clear.")
+                EmptyState(Icons.Default.CheckCircle, tr(R.string.admin_the_queue_is_clear))
             } else {
                 pending.forEach { request ->
                     GameRequestAdminRow(
@@ -962,11 +964,11 @@ private fun GameRequestsAdmin(viewModel: MainViewModel) {
         }
 
         AdminActionCard(
-            title = "Approved games",
-            subtitle = "${approved.size} approved. Remove one to drop it from the list."
+            title = tr(R.string.admin_approved_games),
+            subtitle = tr(R.string.admin_1_approved_remove_one_to_drop, approved.size)
         ) {
             if (approved.isEmpty()) {
-                EmptyState(Icons.Default.SportsEsports, "Nothing approved yet.")
+                EmptyState(Icons.Default.SportsEsports, tr(R.string.admin_nothing_approved_yet))
             } else {
                 approved.forEach { request ->
                     GameRequestAdminRow(
@@ -998,15 +1000,15 @@ private fun GameRequestAdminRow(
                     overflow = TextOverflow.Ellipsis
                 )
                 StatusPill(
-                    if (request.isApproved) "APPROVED" else "PENDING",
+                    if (request.isApproved) tr(R.string.admin_approved) else tr(R.string.admin_pending),
                     if (request.isApproved) Toxic else Amber
                 )
             }
             Spacer(Modifier.height(Spacing.xxs))
             Text(
                 buildString {
-                    append("Asked by ${request.requestedByName}")
-                    if (request.decidedByName.isNotBlank()) append(" · decided by ${request.decidedByName}")
+                    append(tr(R.string.admin_asked_by_1, request.requestedByName))
+                    if (request.decidedByName.isNotBlank()) append(tr(R.string.admin_decided_by_1, request.decidedByName))
                 },
                 color = TextMid,
                 fontSize = 11.sp
@@ -1014,9 +1016,9 @@ private fun GameRequestAdminRow(
             Spacer(Modifier.height(Spacing.sm))
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 if (onApprove != null) {
-                    PrimaryAction(text = "Approve", onClick = onApprove, modifier = Modifier.weight(1f))
+                    PrimaryAction(text = tr(R.string.admin_approve), onClick = onApprove, modifier = Modifier.weight(1f))
                 }
-                GhostAction(text = "Remove", accent = Ember, onClick = onRemove, modifier = Modifier.weight(1f))
+                GhostAction(text = tr(R.string.admin_remove_2), accent = Ember, onClick = onRemove, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -1049,20 +1051,20 @@ private fun GlobalAdmin(viewModel: MainViewModel) {
                         "updateNotes" to publish.notes,
                         "forceUpdate" to publish.force
                     ),
-                    success = "Firmware v${publish.versionName} published"
+                    success = tr(R.string.admin_firmware_v_1_published, publish.versionName)
                 )
-                viewModel.logEvent("FIRMWARE_UPDATE", "Firmware v${publish.versionName} is now available. Update from Settings.")
+                viewModel.logEvent("FIRMWARE_UPDATE", tr(R.string.admin_firmware_v_1_is_now_available, publish.versionName))
                 showFirmwareDialog = false
             }
         )
     }
     if (confirmLockdown) {
         ConfirmDialog(
-            title = "ENGAGE LOCKDOWN?",
-            message = "The shop, the wheel and death recording will be frozen for every survivor until you lift it.",
-            confirmText = "LOCK DOWN",
+            title = tr(R.string.admin_engage_lockdown),
+            message = tr(R.string.admin_the_shop_the_wheel_and_death),
+            confirmText = tr(R.string.admin_lock_down),
             destructive = true,
-            onConfirm = { viewModel.updateGlobalState(mapOf("lockdownActive" to true), success = "Lockdown engaged") },
+            onConfirm = { viewModel.updateGlobalState(mapOf("lockdownActive" to true), success = tr(R.string.admin_lockdown_engaged)) },
             onDismiss = { confirmLockdown = false }
         )
     }
@@ -1076,9 +1078,9 @@ private fun GlobalAdmin(viewModel: MainViewModel) {
                 IconTile(Icons.Default.SystemUpdate, tint = Plasma, size = 48)
                 Spacer(Modifier.width(Spacing.sm))
                 Column(Modifier.weight(1f)) {
-                    Text("PUBLISH FIRMWARE", color = TextHi, style = DeadFestType.cardTitle)
+                    Text(tr(R.string.admin_publish_firmware), color = TextHi, style = DeadFestType.cardTitle)
                     Spacer(Modifier.height(2.dp))
-                    Text("Live: v${globalState.latestVersionName} (build ${globalState.latestVersionCode})", color = TextMid, style = DeadFestType.body)
+                    Text(tr(R.string.admin_live_v_1_build_2, globalState.latestVersionName, globalState.latestVersionCode), color = TextMid, style = DeadFestType.body)
                     Spacer(Modifier.height(2.dp))
                     Text(publishedBuildsLabel(globalState), color = TextLow, style = DeadFestType.body)
                 }
@@ -1087,41 +1089,41 @@ private fun GlobalAdmin(viewModel: MainViewModel) {
         }
 
         AdminActionCard(
-            title = "System switches",
-            subtitle = "Global toggles. Lockdown freezes the shop, the wheel and death recording for everyone."
+            title = tr(R.string.admin_system_switches),
+            subtitle = tr(R.string.admin_global_toggles_lockdown_freezes_the_shop)
         ) {
-            AdminSwitch("Black Market access", "Enable or disable shop purchases", globalState.marketEnabled) {
+            AdminSwitch(tr(R.string.admin_black_market_access), tr(R.string.admin_enable_or_disable_shop_purchases), globalState.marketEnabled) {
                 viewModel.updateGlobalState(mapOf("marketEnabled" to it))
             }
             HorizontalDivider(color = InkLine)
-            AdminSwitch("Wheel of Fate", "Enable or disable wheel spinning", globalState.wheelEnabled) {
+            AdminSwitch(tr(R.string.admin_wheel_of_fate), tr(R.string.admin_enable_or_disable_wheel_spinning), globalState.wheelEnabled) {
                 viewModel.updateGlobalState(mapOf("wheelEnabled" to it))
             }
             HorizontalDivider(color = InkLine)
-            AdminSwitch("Revives", "Allow survivors to buy Revives", globalState.reviveEnabled) {
+            AdminSwitch(tr(R.string.admin_revives), tr(R.string.admin_allow_survivors_to_buy_revives), globalState.reviveEnabled) {
                 viewModel.updateGlobalState(mapOf("reviveEnabled" to it))
             }
             HorizontalDivider(color = InkLine)
-            AdminSwitch("Lockdown protocol", "Freeze core features & death recording", globalState.lockdownActive, danger = true) { on ->
+            AdminSwitch(tr(R.string.admin_lockdown_protocol), tr(R.string.admin_freeze_core_features_death_recording), globalState.lockdownActive, danger = true) { on ->
                 if (on) confirmLockdown = true
-                else viewModel.updateGlobalState(mapOf("lockdownActive" to false), success = "Lockdown lifted")
+                else viewModel.updateGlobalState(mapOf("lockdownActive" to false), success = tr(R.string.admin_lockdown_lifted))
             }
             HorizontalDivider(color = InkLine)
             AdminSwitch(
-                title = "Forced Spin Protocol",
-                subtitle = "Every death adds a penalty spin to the Wheel of Fate",
+                title = tr(R.string.admin_forced_spin_protocol),
+                subtitle = tr(R.string.admin_every_death_adds_a_penalty_spin),
                 checked = globalState.forceSpinProtocol
             ) { on ->
                 viewModel.updateGlobalState(
                     mapOf("forceSpinProtocol" to on),
-                    success = "Forced Spin Protocol ${if (on) "enabled" else "disabled"}"
+                    success = tr(R.string.admin_forced_spin_protocol_1, if (on) "enabled" else "disabled")
                 )
-                viewModel.logEvent("ADMIN_TOGGLE", "Forced Spin Protocol ${if (on) "enabled" else "disabled"} for everyone")
+                viewModel.logEvent("ADMIN_TOGGLE", tr(R.string.admin_forced_spin_protocol_1_for_everyone, if (on) "enabled" else "disabled"))
             }
         }
 
         XpConfigCard(globalState.economy.xp) { key, value ->
-            viewModel.updateGlobalState(mapOf("xpConfig" to mapOf(key to value)), success = "XP settings saved")
+            viewModel.updateGlobalState(mapOf("xpConfig" to mapOf(key to value)), success = tr(R.string.admin_xp_settings_saved))
         }
         Spacer(Modifier.height(Spacing.md))
     }
@@ -1174,10 +1176,10 @@ private fun publishedBuildsLabel(state: GlobalState): String {
     val full = state.updateUrl.isNotBlank()
     val r8 = state.updateUrlR8.isNotBlank()
     return when {
-        full && r8 -> "Both builds linked"
-        r8 -> "Only the R8 build is linked — everyone falls back to it"
-        full -> "Only the full build is linked — everyone falls back to it"
-        else -> "No download linked yet"
+        full && r8 -> tr(R.string.admin_both_builds_linked)
+        r8 -> tr(R.string.admin_only_the_r8_build_is_linked)
+        full -> tr(R.string.admin_only_the_full_build_is_linked)
+        else -> tr(R.string.admin_no_download_linked_yet)
     }
 }
 
@@ -1210,14 +1212,14 @@ private fun PublishFirmwareDialog(
         onDismissRequest = onDismiss,
         containerColor = Ink2,
         shape = RoundedCornerShape(Radius.xxl),
-        title = { Text("PUBLISH FIRMWARE", color = TextHi, style = DeadFestType.cardTitle) },
+        title = { Text(tr(R.string.admin_publish_firmware), color = TextHi, style = DeadFestType.cardTitle) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     OutlinedTextField(
                         value = versionCode,
                         onValueChange = { if (it.all { c -> c.isDigit() }) versionCode = it },
-                        label = { Text("Code") },
+                        label = { Text(tr(R.string.admin_code)) },
                         singleLine = true,
                         isError = codeValue == null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -1228,7 +1230,7 @@ private fun PublishFirmwareDialog(
                     OutlinedTextField(
                         value = versionName,
                         onValueChange = { versionName = it },
-                        label = { Text("Version name") },
+                        label = { Text(tr(R.string.admin_version_name)) },
                         singleLine = true,
                         modifier = Modifier.weight(0.6f),
                         shape = RoundedCornerShape(Radius.md),
@@ -1238,7 +1240,7 @@ private fun PublishFirmwareDialog(
                 OutlinedTextField(
                     value = apkUrl,
                     onValueChange = { apkUrl = it },
-                    label = { Text("APK URL — Dead-Fest") },
+                    label = { Text(tr(R.string.admin_apk_url_dead_fest)) },
                     singleLine = true,
                     isError = !urlValid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -1249,7 +1251,7 @@ private fun PublishFirmwareDialog(
                 OutlinedTextField(
                     value = apkUrlR8,
                     onValueChange = { apkUrlR8 = it },
-                    label = { Text("APK URL — Dead-Fest R8") },
+                    label = { Text(tr(R.string.admin_apk_url_dead_fest_r8)) },
                     singleLine = true,
                     isError = !urlR8Valid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
@@ -1258,16 +1260,16 @@ private fun PublishFirmwareDialog(
                     colors = deadFestFieldColors()
                 )
                 Text(
-                    "Both builds are the same version. Survivors choose which one they want in " +
-                        "Settings → Update, and anyone whose build has no URL here falls back to " +
-                        "the other one.",
+                    tr(R.string.admin_both_builds_are_the_same_version) +
+                        tr(R.string.admin_settings_update_and_anyone_whose_build) +
+                        tr(R.string.admin_the_other_one),
                     color = TextLow,
                     style = DeadFestType.body
                 )
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Protocol logs (notes)") },
+                    label = { Text(tr(R.string.admin_protocol_logs_notes)) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp),
                     shape = RoundedCornerShape(Radius.md),
                     colors = deadFestFieldColors()
@@ -1282,8 +1284,8 @@ private fun PublishFirmwareDialog(
                         colors = CheckboxDefaults.colors(checkedColor = Ember, checkmarkColor = Color.White)
                     )
                     Column {
-                        Text("FORCE PROTOCOL UPGRADE", color = TextHi, style = DeadFestType.body, fontWeight = FontWeight.Bold)
-                        Text("Survivors can't dismiss the update prompt", color = TextLow, style = DeadFestType.body)
+                        Text(tr(R.string.admin_force_protocol_upgrade), color = TextHi, style = DeadFestType.body, fontWeight = FontWeight.Bold)
+                        Text(tr(R.string.admin_survivors_can_t_dismiss_the_update), color = TextLow, style = DeadFestType.body)
                     }
                 }
             }
@@ -1305,9 +1307,9 @@ private fun PublishFirmwareDialog(
                 enabled = valid,
                 colors = ButtonDefaults.buttonColors(containerColor = Ember),
                 shape = RoundedCornerShape(Radius.sm)
-            ) { Text("PUBLISH", fontWeight = FontWeight.Black) }
+            ) { Text(tr(R.string.admin_publish), fontWeight = FontWeight.Black) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("ABORT", color = TextMid, fontWeight = FontWeight.Bold) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr(R.string.admin_abort), color = TextMid, fontWeight = FontWeight.Bold) } }
     )
 }
 
@@ -1318,7 +1320,7 @@ private fun BackupAdmin(viewModel: MainViewModel) {
     val archives by viewModel.archives.collectAsStateWithLifecycle()
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
     var showWarningAlert by remember { mutableStateOf(false) }
-    var archiveNameToCreate by remember { mutableStateOf("Season Final Archive") }
+    var archiveNameToCreate by remember { mutableStateOf(tr(R.string.admin_season_final_archive)) }
     var archiveToRestore by remember { mutableStateOf<Archive?>(null) }
     val dateFormat = remember { SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()) }
 
@@ -1327,18 +1329,18 @@ private fun BackupAdmin(viewModel: MainViewModel) {
             onDismissRequest = { showWarningAlert = false },
             containerColor = Ink2,
             shape = RoundedCornerShape(Radius.xxl),
-            title = { Text("⚠️ RESET SEASON", color = Ember, style = DeadFestType.cardTitle) },
+            title = { Text(tr(R.string.admin_reset_season), color = Ember, style = DeadFestType.cardTitle) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                     Text(
-                        "This snapshots every survivor's stats, then resets all deaths to 0 and all coins to 250.",
+                        tr(R.string.admin_this_snapshots_every_survivor_s_stats),
                         color = TextHi,
                         style = DeadFestType.body
                     )
                     OutlinedTextField(
                         value = archiveNameToCreate,
                         onValueChange = { archiveNameToCreate = it },
-                        label = { Text("Archive name") },
+                        label = { Text(tr(R.string.admin_archive_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(Radius.md),
@@ -1350,7 +1352,7 @@ private fun BackupAdmin(viewModel: MainViewModel) {
                 Button(
                     onClick = {
                         viewModel.createArchive(
-                            archiveName = archiveNameToCreate.trim().ifEmpty { "Season Archive" },
+                            archiveName = archiveNameToCreate.trim().ifEmpty { tr(R.string.admin_season_archive) },
                             notes = globalState.currentSeasonName,
                             roster = globalState.games
                         )
@@ -1358,17 +1360,17 @@ private fun BackupAdmin(viewModel: MainViewModel) {
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Ember),
                     shape = RoundedCornerShape(Radius.sm)
-                ) { Text("CONFIRM & RESET", fontWeight = FontWeight.Black) }
+                ) { Text(tr(R.string.admin_confirm_reset), fontWeight = FontWeight.Black) }
             },
-            dismissButton = { TextButton(onClick = { showWarningAlert = false }) { Text("CANCEL", color = TextMid) } }
+            dismissButton = { TextButton(onClick = { showWarningAlert = false }) { Text(tr(R.string.common_cancel), color = TextMid) } }
         )
     }
 
     archiveToRestore?.let { archive ->
         ConfirmDialog(
-            title = "⚠️ RESTORE ARCHIVE?",
-            message = "This overwrites current coins, names and deaths with the snapshot from \"${archive.name}\".",
-            confirmText = "RESTORE",
+            title = tr(R.string.admin_restore_archive),
+            message = tr(R.string.admin_this_overwrites_current_coins_names_and, archive.name),
+            confirmText = tr(R.string.admin_restore),
             destructive = true,
             onConfirm = { viewModel.restoreArchive(archive.id) },
             onDismiss = { archiveToRestore = null }
@@ -1384,29 +1386,29 @@ private fun BackupAdmin(viewModel: MainViewModel) {
             // Destructive module action, kept first here as its own ember-tinted section with
             // the confirmation dialog as the gate.
             AdminActionCard(
-                title = "Season reset",
+                title = tr(R.string.admin_season_reset),
                 accent = Ember,
-                subtitle = "Snapshots every survivor, then zeroes all deaths and resets all coins to 250."
+                subtitle = tr(R.string.admin_snapshots_every_survivor_then_zeroes_all)
             ) {
                 PrimaryAction(
-                    text = "Create archive & reset season",
+                    text = tr(R.string.admin_create_archive_reset_season),
                     onClick = { showWarningAlert = true }
                 )
             }
         }
         item {
             Column {
-                SectionLabel("Existing archives")
+                SectionLabel(tr(R.string.admin_existing_archives))
                 Spacer(Modifier.height(Spacing.xxs))
-                Text("Restoring overwrites current coins, names and deaths with the snapshot.", color = TextMid, style = DeadFestType.body)
+                Text(tr(R.string.admin_restoring_overwrites_current_coins_names_and), color = TextMid, style = DeadFestType.body)
             }
         }
         if (archives.isEmpty()) {
             item {
                 EmptyStateCard(
                     icon = Icons.Default.Archive,
-                    title = "No archives yet",
-                    message = "Create a season snapshot above to freeze the current standings."
+                    title = tr(R.string.admin_no_archives_yet),
+                    message = tr(R.string.admin_create_a_season_snapshot_above_to)
                 )
             }
         }
@@ -1416,12 +1418,12 @@ private fun BackupAdmin(viewModel: MainViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(archive.name, color = TextHi, style = DeadFestType.cardTitle)
                         Spacer(Modifier.height(2.dp))
-                        Text("Saved ${dateFormat.format(Date(archive.timestamp))}", color = TextMid, style = DeadFestType.body)
+                        Text(tr(R.string.admin_saved_1, dateFormat.format(Date(archive.timestamp))), color = TextMid, style = DeadFestType.body)
                         Text("${archive.playerSnapshots.size} survivors", color = Amber, style = DeadFestType.body, fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.width(Spacing.sm))
                     GhostAction(
-                        text = "Restore",
+                        text = tr(R.string.admin_restore_2),
                         accent = Ember,
                         onClick = { archiveToRestore = archive }
                     )
@@ -1458,38 +1460,38 @@ private fun EventAdmin(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         AdminActionCard(
-            title = "Current season",
-            subtitle = "Shown on Team Progress as the season everyone is playing right now."
+            title = tr(R.string.admin_current_season),
+            subtitle = tr(R.string.admin_shown_on_team_progress_as_the)
         ) {
             OutlinedTextField(
                 value = seasonName,
                 onValueChange = { seasonName = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Season name") },
-                placeholder = { Text("Dead-Fest Season 1", color = TextLow) },
+                label = { Text(tr(R.string.admin_season_name)) },
+                placeholder = { Text(tr(R.string.admin_dead_fest_season_1), color = TextLow) },
                 singleLine = true,
                 shape = RoundedCornerShape(Radius.md),
                 colors = deadFestFieldColors()
             )
             Spacer(Modifier.height(Spacing.sm))
             PrimaryAction(
-                text = "Save season name",
+                text = tr(R.string.admin_save_season_name),
                 onClick = {
                     viewModel.updateGlobalState(
-                        mapOf("currentSeasonName" to seasonName.trim().ifEmpty { "Dead-Fest Season 1" }),
-                        success = "Current season renamed"
+                        mapOf("currentSeasonName" to seasonName.trim().ifEmpty { tr(R.string.admin_dead_fest_season_1) }),
+                        success = tr(R.string.admin_current_season_renamed)
                     )
                 }
             )
         }
 
         AdminActionCard(
-            title = "Next Dead-Fest",
-            subtitle = "The countdown and line-up every survivor sees on the More tab."
+            title = tr(R.string.common_next_dead_fest),
+            subtitle = tr(R.string.admin_the_countdown_and_line_up_every)
         ) {
             AdminSwitch(
-                title = "Show on the More tab",
-                subtitle = "Displays the countdown and game line-up to every survivor",
+                title = tr(R.string.admin_show_on_the_more_tab),
+                subtitle = tr(R.string.admin_displays_the_countdown_and_game_line),
                 checked = enabled,
                 onChange = { enabled = it }
             )
@@ -1500,8 +1502,8 @@ private fun EventAdmin(viewModel: MainViewModel) {
                 value = eventName,
                 onValueChange = { eventName = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Next season name") },
-                placeholder = { Text("Dead-Fest Season 2", color = TextLow) },
+                label = { Text(tr(R.string.admin_next_season_name)) },
+                placeholder = { Text(tr(R.string.admin_dead_fest_season_2), color = TextLow) },
                 singleLine = true,
                 shape = RoundedCornerShape(Radius.md),
                 colors = deadFestFieldColors()
@@ -1519,7 +1521,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
                 Icon(Icons.Default.Event, contentDescription = null, tint = if (startsAt > 0) Ember else TextMid)
                 Spacer(Modifier.width(Spacing.xs))
                 Column(Modifier.weight(1f)) {
-                    Text("START DATE & TIME", color = TextMid, style = DeadFestType.microLabel)
+                    Text(tr(R.string.admin_start_date_time), color = TextMid, style = DeadFestType.microLabel)
                     Spacer(Modifier.height(2.dp))
                     Text(
                         formatEventTime(startsAt),
@@ -1534,7 +1536,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusPill(formatCountdown(startsAt - System.currentTimeMillis()), Amber)
                     Spacer(Modifier.width(Spacing.xs))
-                    TextButton(onClick = { startsAt = 0L }) { Text("CLEAR DATE", color = TextMid) }
+                    TextButton(onClick = { startsAt = 0L }) { Text(tr(R.string.admin_clear_date), color = TextMid) }
                 }
             }
 
@@ -1543,19 +1545,19 @@ private fun EventAdmin(viewModel: MainViewModel) {
                 value = notes,
                 onValueChange = { notes = it },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 90.dp),
-                label = { Text("Blurb (optional)") },
-                placeholder = { Text("Rules, theme, prizes...", color = TextLow) },
+                label = { Text(tr(R.string.admin_blurb_optional)) },
+                placeholder = { Text(tr(R.string.admin_rules_theme_prizes), color = TextLow) },
                 shape = RoundedCornerShape(Radius.md),
                 colors = deadFestFieldColors()
             )
         }
 
         AdminActionCard(
-            title = "Game line-up",
-            subtitle = "The games queued for the next Dead-Fest, in play order."
+            title = tr(R.string.admin_game_line_up),
+            subtitle = tr(R.string.admin_the_games_queued_for_the_next)
         ) {
             if (games.isEmpty()) {
-                EmptyState(Icons.Default.SportsEsports, "Nothing queued yet. Add games below or pull one in from your sectors.")
+                EmptyState(Icons.Default.SportsEsports, tr(R.string.admin_nothing_queued_yet_add_games_below))
             } else {
                 games.forEachIndexed { index, game ->
                     Surface(
@@ -1580,17 +1582,17 @@ private fun EventAdmin(viewModel: MainViewModel) {
                                 list.add(index - 1, list.removeAt(index))
                                 games = list
                             }, enabled = index > 0) {
-                                Icon(Icons.Default.ArrowUpward, "Move up", tint = if (index > 0) Ember else TextLow)
+                                Icon(Icons.Default.ArrowUpward, tr(R.string.admin_move_up), tint = if (index > 0) Ember else TextLow)
                             }
                             IconButton(onClick = {
                                 val list = games.toMutableList()
                                 list.add(index + 1, list.removeAt(index))
                                 games = list
                             }, enabled = index < games.lastIndex) {
-                                Icon(Icons.Default.ArrowDownward, "Move down", tint = if (index < games.lastIndex) Ember else TextLow)
+                                Icon(Icons.Default.ArrowDownward, tr(R.string.admin_move_down), tint = if (index < games.lastIndex) Ember else TextLow)
                             }
                             IconButton(onClick = { games = games.filterIndexed { i, _ -> i != index } }) {
-                                Icon(Icons.Default.Delete, "Remove", tint = Ember)
+                                Icon(Icons.Default.Delete, tr(R.string.admin_remove_2), tint = Ember)
                             }
                         }
                     }
@@ -1602,7 +1604,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
                 value = newGame,
                 onValueChange = { newGame = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Add a game") },
+                label = { Text(tr(R.string.admin_add_a_game)) },
                 singleLine = true,
                 shape = RoundedCornerShape(Radius.md),
                 colors = deadFestFieldColors(),
@@ -1613,7 +1615,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
                     ) {
                         Icon(
                             Icons.Default.AddCircle,
-                            contentDescription = "Add game",
+                            contentDescription = tr(R.string.admin_add_game),
                             tint = if (newGame.isNotBlank()) Ember else TextLow
                         )
                     }
@@ -1623,7 +1625,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
             val suggestions = globalState.games.filter { candidate -> games.none { it.equals(candidate, ignoreCase = true) } }
             if (suggestions.isNotEmpty()) {
                 Spacer(Modifier.height(Spacing.sm))
-                SectionLabel("Add from sectors")
+                SectionLabel(tr(R.string.admin_add_from_sectors))
                 Spacer(Modifier.height(Spacing.xs))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     items(suggestions) { sector ->
@@ -1634,7 +1636,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
         }
 
         PrimaryAction(
-            text = "Save next Dead-Fest",
+            text = tr(R.string.admin_save_next_dead_fest),
             onClick = {
                 viewModel.updateGlobalState(
                     mapOf(
@@ -1644,7 +1646,7 @@ private fun EventAdmin(viewModel: MainViewModel) {
                         "nextEventGames" to games,
                         "nextEventNotes" to notes.trim()
                     ),
-                    success = "Next Dead-Fest saved"
+                    success = tr(R.string.admin_next_dead_fest_saved)
                 )
             }
         )
@@ -1664,13 +1666,13 @@ private fun NotificationsAdmin(viewModel: MainViewModel) {
         verticalArrangement = Arrangement.spacedBy(Spacing.sm)
     ) {
         AdminActionCard(
-            title = "Broadcast to survivors",
-            subtitle = "Appears in the live ticker on every survivor's dashboard."
+            title = tr(R.string.admin_broadcast_to_survivors),
+            subtitle = tr(R.string.admin_appears_in_the_live_ticker_on)
         ) {
             OutlinedTextField(
                 value = messageText,
                 onValueChange = { if (it.length <= 280) messageText = it },
-                label = { Text("Message") },
+                label = { Text(tr(R.string.admin_message)) },
                 supportingText = { Text("${messageText.length}/280", color = TextLow) },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                 shape = RoundedCornerShape(Radius.md),
@@ -1678,12 +1680,12 @@ private fun NotificationsAdmin(viewModel: MainViewModel) {
             )
             Spacer(Modifier.height(Spacing.sm))
             PrimaryAction(
-                text = "Broadcast now",
+                text = tr(R.string.admin_broadcast_now),
                 icon = Icons.Default.Campaign,
                 enabled = messageText.isNotBlank(),
                 onClick = {
                     viewModel.logEvent("ADMIN_BROADCAST", messageText.trim())
-                    viewModel.showMessage("Broadcast transmitted to the wasteland!")
+                    viewModel.showMessage(tr(R.string.admin_broadcast_transmitted_to_the_wasteland))
                     messageText = ""
                 }
             )

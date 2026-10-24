@@ -51,7 +51,7 @@
                 android:resource="@xml/deadfest_widget_info" />
         </receiver>
 
-        <!-- Quick Reply from chat notifications (v2.1.1). -->
+        <!-- Quick Reply from chat notifications (v2.1.2). -->
         <receiver
             android:name=".notifications.ChatReplyReceiver"
             android:exported="false" />

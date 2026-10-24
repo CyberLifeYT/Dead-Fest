@@ -296,7 +296,7 @@ service cloud.firestore {
       allow delete: if isAdmin() || (signedIn() && uploadedBy(request.auth.uid));
 
       /**
-       * Reactions (v2.1.1): one per survivor per image, keyed by uid, from a fixed emoji set.
+       * Reactions (v2.1.2): one per survivor per image, keyed by uid, from a fixed emoji set.
        * The image's uploader may clear them when deleting the image.
        */
       match /reactions/{reactorUid} {
@@ -308,7 +308,7 @@ service cloud.firestore {
       }
 
       /**
-       * Comments (v2.1.1): posted in your own name, capped at 300 characters. The author, the
+       * Comments (v2.1.2): posted in your own name, capped at 300 characters. The author, the
        * image's uploader or an admin can delete one.
        */
       match /comments/{commentId} {

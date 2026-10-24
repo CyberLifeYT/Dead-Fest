@@ -1,5 +1,7 @@
 package com.deadfest.ui.components
 
+import com.deadfest.R
+import com.deadfest.util.tr
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -58,9 +60,9 @@ fun UpdateProgressDialog(
                 IconTile(Icons.Default.SystemUpdate)
                 Text(
                     text = when {
-                        status.isFailed -> "UPDATE FAILED"
-                        status.isCompleted -> "FIRMWARE RECEIVED"
-                        else -> "DOWNLOADING FIRMWARE"
+                        status.isFailed -> tr(R.string.updateprogressdialog_update_failed)
+                        status.isCompleted -> tr(R.string.updateprogressdialog_firmware_received)
+                        else -> tr(R.string.updateprogressdialog_downloading_firmware)
                     },
                     color = TextPrimary,
                     fontSize = 19.sp,
@@ -70,7 +72,7 @@ fun UpdateProgressDialog(
 
                 if (status.isFailed) {
                     Text(
-                        text = status.error ?: "Download failed.",
+                        text = status.error ?: tr(R.string.updateprogressdialog_download_failed),
                         color = TextSecondary,
                         fontSize = 13.sp
                     )
@@ -79,7 +81,7 @@ fun UpdateProgressDialog(
                         colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("CLOSE", fontWeight = FontWeight.Black)
+                        Text(tr(R.string.updateprogressdialog_close), fontWeight = FontWeight.Black)
                     }
                 } else {
                     // Cyber-terminal style progress bar.
@@ -104,13 +106,13 @@ fun UpdateProgressDialog(
                         fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        text = if (status.isCompleted) "Launching installer..." else "Keep the app open while the update downloads.",
+                        text = if (status.isCompleted) tr(R.string.updateprogressdialog_launching_installer) else tr(R.string.updateprogressdialog_keep_the_app_open_while_the),
                         color = if (status.isCompleted) OnlineGreen else TextSecondary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold
                     )
                     if (status.isCompleted) {
-                        TextButton(onClick = onDismiss) { Text("CLOSE", color = TextSecondary) }
+                        TextButton(onClick = onDismiss) { Text(tr(R.string.updateprogressdialog_close), color = TextSecondary) }
                     }
                 }
             }
@@ -146,7 +148,7 @@ fun UpdateAvailableDialog(
                     Spacer(Modifier.width(14.dp))
                     Column {
                         Text(
-                            if (forced) "UPDATE REQUIRED" else "UPDATE AVAILABLE",
+                            if (forced) tr(R.string.updateprogressdialog_update_required) else tr(R.string.updateprogressdialog_update_available),
                             color = TextPrimary,
                             fontWeight = FontWeight.Black,
                             fontSize = 18.sp
@@ -165,21 +167,21 @@ fun UpdateAvailableDialog(
                 }
                 if (forced) {
                     Text(
-                        "This version is required to keep accessing the terminal.",
+                        tr(R.string.updateprogressdialog_this_version_is_required_to_keep),
                         color = TextMuted,
                         fontSize = 12.sp
                     )
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                     if (!forced) {
-                        TextButton(onClick = onLater) { Text("LATER", color = TextSecondary, fontWeight = FontWeight.Bold) }
+                        TextButton(onClick = onLater) { Text(tr(R.string.updateprogressdialog_later), color = TextSecondary, fontWeight = FontWeight.Bold) }
                         Spacer(Modifier.width(8.dp))
                     }
                     Button(
                         onClick = onUpdate,
                         colors = ButtonDefaults.buttonColors(containerColor = RedAccent),
                         shape = RoundedCornerShape(12.dp)
-                    ) { Text("UPDATE NOW", fontWeight = FontWeight.Black) }
+                    ) { Text(tr(R.string.updateprogressdialog_update_now), fontWeight = FontWeight.Black) }
                 }
             }
         }
