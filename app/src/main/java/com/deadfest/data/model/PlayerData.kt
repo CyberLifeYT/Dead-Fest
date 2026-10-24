@@ -36,6 +36,16 @@ data class PlayerData(
     @get:PropertyName("prestigeCount") @set:PropertyName("prestigeCount") var prestigeCount: Int = 0,
     @get:PropertyName("avatarFrame") @set:PropertyName("avatarFrame") var avatarFrame: String? = "none",
 
+    // ---- v2.1.0 ----
+    /** Consecutive ration claims with no death in between (reset by a recorded death). */
+    @get:PropertyName("survivalStreak") @set:PropertyName("survivalStreak") var survivalStreak: Int = 0,
+    /** Has ever been bankrupt: needed for the "Bankrupt and Back" achievement. */
+    @get:PropertyName("everBankrupt") @set:PropertyName("everBankrupt") var everBankrupt: Boolean = false,
+    /** Personal stats: coin balance sampled once a day, keyed "yyyy-MM-dd" (last 60 days). */
+    @get:PropertyName("coinHistory") @set:PropertyName("coinHistory") var coinHistory: Map<String, Long> = emptyMap(),
+    /** Personal stats: recorded deaths per day, keyed "yyyy-MM-dd" (last 60 days). */
+    @get:PropertyName("deathsByDay") @set:PropertyName("deathsByDay") var deathsByDay: Map<String, Long> = emptyMap(),
+
     /**
      * `playerData.lastSeen` is written as a server timestamp by the heartbeat. It's parsed by
      * hand in the repository (older data may hold a number), so it's excluded from mapping.

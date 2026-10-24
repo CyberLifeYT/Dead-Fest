@@ -35,6 +35,11 @@ class AppPrefs(context: Context) {
         get() = prefs.getBoolean(KEY_BATTERY_PROMPT, false)
         set(value) = prefs.edit { putBoolean(KEY_BATTERY_PROMPT, value) }
 
+    /** createdAt of the newest personal alert already shown as a phone notification. */
+    var lastAlertNotifiedAt: Long
+        get() = prefs.getLong("last_alert_notified_at", 0L)
+        set(value) = prefs.edit { putLong("last_alert_notified_at", value) }
+
     /**
      * Which published build to update to.
      *
@@ -48,6 +53,12 @@ class AppPrefs(context: Context) {
             ?: if (BuildConfig.DEBUG) UpdateVariant.Standard else UpdateVariant.R8
     )
     val updateVariant: StateFlow<UpdateVariant> = _updateVariant.asStateFlow()
+
+    /** Personal alerts (cursed, shield blocked, image removed...) as phone notifications. */
+    private val _personalAlerts = MutableStateFlow(prefs.getBoolean(KEY_PERSONAL_ALERTS, true))
+    val personalAlerts: StateFlow<Boolean> = _personalAlerts.asStateFlow()
+    val alertNotificationsEnabled: Boolean get() = _personalAlerts.value
+    fun setPersonalAlerts(on: Boolean) = save(KEY_PERSONAL_ALERTS, on, _personalAlerts)
 
     fun setWheelAlerts(on: Boolean) = save(KEY_WHEEL, on, _wheelAlerts)
     fun setMarketAlerts(on: Boolean) = save(KEY_MARKET, on, _marketAlerts)
@@ -92,6 +103,8 @@ class AppPrefs(context: Context) {
         const val KEY_UPDATE_VARIANT = "pref_update_variant"
         /** Added in 2.0.8. Absent on earlier installs, so the theme falls back to the default. */
         const val KEY_THEME = "pref_app_theme"
+        /** Added in 2.1.0. */
+        const val KEY_PERSONAL_ALERTS = "pref_personal_alerts"
 
         fun isLowEndDevice(context: Context): Boolean {
             val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager

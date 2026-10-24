@@ -1,6 +1,7 @@
 package com.deadfest.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 
 /**
  * Dead-Fest colour system (v2.0.7.1, themed in v2.0.8).
@@ -81,3 +82,13 @@ val Silver: Color get() = DeadFestTheme.palette.silver
 val Bronze: Color get() = DeadFestTheme.palette.bronze
 val OnlineGreen: Color get() = DeadFestTheme.palette.toxic
 val ShieldCyan: Color get() = DeadFestTheme.palette.plasma
+
+/**
+ * Label colour for text drawn on a solid [background] (buttons, badges).
+ *
+ * White wherever it reaches 3:1 — the WCAG minimum for bold labels — so the default red keeps
+ * its white buttons; near-black otherwise. Without this, the Halloween orange (2.6:1) and Toxic
+ * Storm lime (2.0:1) themes rendered white button text that was hard to read.
+ */
+fun readableOn(background: Color): Color =
+    if (1.05 / (background.luminance() + 0.05) >= 3.0) Color.White else Color(0xFF0B0B0E)

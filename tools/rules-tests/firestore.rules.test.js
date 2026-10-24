@@ -412,3 +412,79 @@ test('a survivor cannot delete somebody else\'s image', async () => {
 
 
 
+
+// ==================================================================== v2.1.0: profile, alerts, chat
+
+test('a survivor can edit their own profile (avatar, bio, badge colour, achievements)', async () => {
+  await assertSucceeds(updateDoc(doc(asBob(), `users/${BOB}`), {
+    'playerData.avatar': 'zombie',
+    'playerData.bio': 'Still breathing.',
+    'playerData.color': '#4CE07F',
+    'playerData.achievements': ['first_blood']
+  }));
+});
+
+test('a survivor cannot edit somebody else\'s bio', async () => {
+  await assertFails(updateDoc(doc(asBob(), `users/${ALICE}`), { 'playerData.bio': 'hacked' }));
+});
+
+const alertFrom = (uid) => ({
+  type: 'cursed', title: 'You were cursed', body: 'by somebody', fromUid: uid,
+  fromName: 'Somebody', createdAt: Date.now(), read: false
+});
+
+test('a survivor can send another survivor an alert in their own name', async () => {
+  await assertSucceeds(addDoc(collection(asBob(), `users/${ALICE}/alerts`), alertFrom(BOB)));
+});
+
+test('an alert cannot be forged in somebody else\'s name', async () => {
+  await assertFails(addDoc(collection(asBob(), `users/${ALICE}/alerts`), alertFrom(CAROL)));
+});
+
+test('an alert cannot arrive already read or with extra fields', async () => {
+  await assertFails(addDoc(collection(asBob(), `users/${ALICE}/alerts`), { ...alertFrom(BOB), read: true }));
+  await assertFails(addDoc(collection(asBob(), `users/${ALICE}/alerts`), { ...alertFrom(BOB), coins: 999 }));
+});
+
+test('only the owner can read, mark and clear their alerts', async () => {
+  await env.withSecurityRulesDisabled(async (context) => {
+    await setDoc(doc(context.firestore(), `users/${ALICE}/alerts/a1`), alertFrom(BOB));
+  });
+  await assertFails(getDocs(collection(asBob(), `users/${ALICE}/alerts`)));
+  await assertSucceeds(getDocs(collection(asAlice(), `users/${ALICE}/alerts`)));
+  await assertFails(updateDoc(doc(asBob(), `users/${ALICE}/alerts/a1`), { read: true }));
+  await assertFails(updateDoc(doc(asAlice(), `users/${ALICE}/alerts/a1`), { title: 'edited' }));
+  await assertSucceeds(updateDoc(doc(asAlice(), `users/${ALICE}/alerts/a1`), { read: true }));
+  await assertFails(deleteDoc(doc(asBob(), `users/${ALICE}/alerts/a1`)));
+  await assertSucceeds(deleteDoc(doc(asAlice(), `users/${ALICE}/alerts/a1`)));
+});
+
+const chatFrom = (uid, extra = {}) => ({
+  id: 'm', senderUid: uid, senderName: 'Bob', senderAvatar: '', senderColor: '',
+  text: 'hello wasteland', timestamp: serverTimestamp(), ...extra
+});
+
+test('a survivor can post a chat message in their own name', async () => {
+  await assertSucceeds(setDoc(doc(asBob(), 'messages/m1'), chatFrom(BOB)));
+});
+
+test('a chat message cannot be posted in somebody else\'s name or be too long', async () => {
+  await assertFails(setDoc(doc(asBob(), 'messages/m2'), chatFrom(ALICE)));
+  await assertFails(setDoc(doc(asBob(), 'messages/m3'), chatFrom(BOB, { text: 'x'.repeat(501) })));
+});
+
+test('a chat photo thumbnail must stay small', async () => {
+  await assertFails(setDoc(doc(asBob(), 'messages/m4'), chatFrom(BOB, { thumb: 'x'.repeat(200 * 1024) })));
+});
+
+test('the sender or an admin can delete a chat message, nobody else', async () => {
+  await assertSucceeds(setDoc(doc(asAlice(), 'messages/m5'), chatFrom(ALICE)));
+  await assertFails(deleteDoc(doc(asBob(), 'messages/m5')));
+  await assertSucceeds(deleteDoc(doc(asAlice(), 'messages/m5')));
+  await assertSucceeds(deleteDoc(doc(asBob(), 'messages/m1')));
+});
+
+test('only an admin can start a flash sale', async () => {
+  await assertFails(updateDoc(doc(asBob(), 'gameState/global'), { flashSaleActive: true, flashSalePct: 90 }));
+  await assertSucceeds(updateDoc(doc(asAlice(), 'gameState/global'), { flashSaleActive: true, flashSalePct: 30, flashSaleEndsAt: 0 }));
+});

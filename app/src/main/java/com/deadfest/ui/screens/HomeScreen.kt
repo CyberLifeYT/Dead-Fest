@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.compose.ui.semantics.contentDescription
+import com.deadfest.domain.OverloadRules
+import androidx.compose.ui.res.stringResource
 import com.deadfest.R
 import com.deadfest.data.model.PlayerData
 import com.deadfest.data.model.ShopItem
@@ -64,6 +67,8 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
     val userState by viewModel.user.collectAsStateWithLifecycle()
     val eventLogs by viewModel.eventLogs.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
+    val alerts by viewModel.alerts.collectAsStateWithLifecycle()
+    val unreadAlerts = alerts.count { !it.read }
     val onlineCount = remember(users) { users.count { it.playerData.onlineNow() } }
     val wheelPref by viewModel.prefs.wheelAlerts.collectAsStateWithLifecycle()
     val marketPref by viewModel.prefs.marketAlerts.collectAsStateWithLifecycle()
@@ -100,7 +105,12 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
             ScreenHeader(
                 title = "COMMAND CENTER",
                 subtitle = "Sector Net // Live Feed",
-                trailing = { StatusPill("$onlineCount ONLINE", OnlineGreen) }
+                trailing = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AlertsBell(unreadAlerts) { navController.navigate("alerts") }
+                        StatusPill("$onlineCount ONLINE", OnlineGreen)
+                    }
+                }
             )
 
             Column(
@@ -129,7 +139,8 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     AlertBanner(
                         icon = Icons.Default.Bolt,
                         title = "SECTOR OVERLOAD: ${globalState.overloadedSector.uppercase()}",
-                        message = "x${trimDouble(globalState.multiplier)} multiplier is active in this sector$left.",
+                        message = "x${trimDouble(globalState.multiplier)} multiplier is active in this sector$left. " +
+                            stringResource(R.string.overload_payout, trimDouble(globalState.multiplier.coerceAtMost(OverloadRules.MAX_MULTIPLIER))),
                         accent = Gold
                     )
                 }
@@ -148,7 +159,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
 
                 Spacer(Modifier.height(Spacing.xxs))
                 SectionLabel("Survivor Profile")
-                SurvivorProfileCard(userState?.displayName, player, economy, totalDeaths)
+                SurvivorProfileCard(userState?.displayName, player, economy, totalDeaths, onEdit = { navController.navigate("edit_profile") })
 
                 Spacer(Modifier.height(Spacing.xxs))
                 SectionLabel("Active Sectors")
@@ -407,9 +418,10 @@ private fun SurvivorProfileCard(
     displayName: String?,
     player: PlayerData?,
     economy: EconomyConfig,
-    totalDeaths: Long
+    totalDeaths: Long,
+    onEdit: () -> Unit = {}
 ) {
-    SurfaceCard {
+    SurfaceCard(onClick = onEdit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             FramedAvatar(player?.avatar, player?.avatarFrame, player?.color, 52)
             Spacer(Modifier.width(Spacing.sm))
@@ -646,3 +658,18 @@ internal fun remainingLabel(endsAt: Long, now: Long = System.currentTimeMillis()
 
 internal fun trimDouble(d: Double): String =
     if (d % 1.0 == 0.0) d.toLong().toString() else d.toString()
+
+/** Bell with an unread count; 48dp touch target and a spoken count for screen readers. */
+@Composable
+private fun AlertsBell(unread: Int, onClick: () -> Unit) {
+    val cd = if (unread > 0) stringResource(R.string.cd_alerts_unread, unread) else stringResource(R.string.cd_alerts)
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = cd }) {
+        BadgedBox(badge = { if (unread > 0) Badge(containerColor = Ember) { Text(if (unread > 9) "9+" else "$unread") } }) {
+            Icon(
+                if (unread > 0) Icons.Default.NotificationsActive else Icons.Default.Notifications,
+                contentDescription = null,
+                tint = if (unread > 0) Ember else TextMid
+            )
+        }
+    }
+}

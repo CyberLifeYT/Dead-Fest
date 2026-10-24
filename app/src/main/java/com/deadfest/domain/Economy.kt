@@ -44,7 +44,9 @@ data class EconomyConfig(
     val scratchEnabled: Boolean = true,
     val scratchCost: Long = 25,
     val shop: Map<String, ShopOverride> = emptyMap(),
-    val xp: XpConfig = XpConfig()
+    val xp: XpConfig = XpConfig(),
+    /** Timed Black Market discount (v2.1.0). Applied by [com.deadfest.data.model.ShopItem.priceIn]. */
+    val flashSale: FlashSale = FlashSale()
 )
 
 // ------------------------------------------------------------------ weighted RNG

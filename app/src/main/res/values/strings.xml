@@ -1,3 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dead-Fest UI text.
+
+  To translate the app, copy this file to values-xx/strings.xml (xx = language code, e.g.
+  values-es, values-de) and translate the values; Android picks the phone's language
+  automatically. Keep the %1$s / %1$d placeholders. Strings marked translatable="false"
+  are names that must stay as they are.
+
+  v2.1.0 moved every new screen and the shared navigation into this file. Older screens are
+  being migrated screen by screen; see docs/TRANSLATING.md.
+-->
 <resources>
     <string name="app_name" translatable="false">Dead-Fest</string>
+
+    <!-- ===================================================== common -->
+    <string name="action_save">Save</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_back">Back</string>
+    <string name="action_send">Send</string>
+    <string name="action_clear_all">Clear all</string>
+    <string name="action_mark_read">Mark all read</string>
+    <string name="cd_back">Go back</string>
+    <string name="cd_coins">%1$s coins</string>
+
+    <!-- ===================================================== bottom navigation -->
+    <string name="nav_dash">Dash</string>
+    <string name="nav_players">Players</string>
+    <string name="nav_shop">Shop</string>
+    <string name="nav_wheel">Wheel</string>
+    <string name="nav_more">More</string>
+    <string name="nav_admin">Admin</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- ===================================================== utility hub tiles -->
+    <string name="hub_section_social">Social</string>
+    <string name="hub_chat">GROUP CHAT</string>
+    <string name="hub_chat_desc">Talk to every survivor</string>
+    <string name="hub_stats">MY STATS</string>
+    <string name="hub_stats_desc">Your deaths &amp; coins, charted</string>
+    <string name="hub_profile">EDIT PROFILE</string>
+    <string name="hub_profile_desc">Avatar, bio &amp; badge colour</string>
+    <string name="hub_alerts">ALERTS</string>
+    <string name="hub_alerts_desc">Curses, shields &amp; admin notices</string>
+    <string name="badge_new">NEW</string>
+
+    <!-- ===================================================== edit profile -->
+    <string name="profile_title">EDIT PROFILE</string>
+    <string name="profile_subtitle">How other survivors see you</string>
+    <string name="profile_preview">PREVIEW</string>
+    <string name="profile_avatar">AVATAR</string>
+    <string name="profile_bio">BIO</string>
+    <string name="profile_bio_hint">A line about you (optional)</string>
+    <string name="profile_bio_counter">%1$d / %2$d</string>
+    <string name="profile_colour">BADGE COLOUR</string>
+    <string name="profile_colour_locked_hint">More colours unlock as you level up (Progression).</string>
+    <string name="profile_frames_hint">Avatar frames and titles are in Progression.</string>
+    <string name="profile_saved_unchanged">Nothing changed.</string>
+    <string name="cd_avatar_option">Avatar %1$s</string>
+    <string name="cd_colour_option">Badge colour %1$s</string>
+    <string name="cd_selected">selected</string>
+
+    <!-- ===================================================== alerts -->
+    <string name="alerts_title">ALERTS</string>
+    <string name="alerts_subtitle">What happened to you</string>
+    <string name="alerts_empty_title">No alerts</string>
+    <string name="alerts_empty_message">Curses, blocked curses, removed images and admin changes will show up here.</string>
+    <string name="alerts_from">from %1$s</string>
+    <string name="cd_alerts">Alerts</string>
+    <string name="cd_alerts_unread">Alerts, %1$d unread</string>
+    <string name="alerts_unread_label">UNREAD</string>
+
+    <!-- ===================================================== group chat -->
+    <string name="chat_title">GROUP CHAT</string>
+    <string name="chat_subtitle">Last 100 messages</string>
+    <string name="chat_empty_title">It\'s quiet out here</string>
+    <string name="chat_empty_message">Say something to every survivor.</string>
+    <string name="chat_hint">Message the wasteland…</string>
+    <string name="chat_you">You</string>
+    <string name="chat_photo">Photo</string>
+    <string name="chat_preparing">Preparing photo…</string>
+    <string name="chat_delete_title">Delete message?</string>
+    <string name="chat_delete_message">This removes it for every survivor.</string>
+    <string name="cd_chat_attach">Attach a photo</string>
+    <string name="cd_chat_send">Send message</string>
+    <string name="cd_chat_remove_photo">Remove photo</string>
+    <string name="cd_chat_open_photo">Photo from %1$s, open full size</string>
+
+    <!-- ===================================================== personal stats -->
+    <string name="stats_title">MY STATS</string>
+    <string name="stats_subtitle">Your survival record</string>
+    <string name="stats_deaths">Deaths</string>
+    <string name="stats_coins">Coins</string>
+    <string name="stats_level">Level</string>
+    <string name="stats_streak">Streak</string>
+    <string name="stats_streak_days">%1$d days</string>
+    <string name="stats_achievements">Achievements</string>
+    <string name="stats_deaths_by_sector">DEATHS BY SECTOR</string>
+    <string name="stats_coins_over_time">COINS OVER TIME</string>
+    <string name="stats_deaths_per_day">DEATHS PER DAY (LAST 14 DAYS)</string>
+    <string name="stats_no_deaths">No deaths recorded yet. Impressive.</string>
+    <string name="stats_no_history">Your coin history starts today. Check back tomorrow for a trend.</string>
+    <string name="stats_low_high">Low %1$s · High %2$s</string>
+    <string name="cd_chart_sector">%1$s: %2$d deaths</string>
+    <string name="cd_chart_coins">Coin balance over %1$d days, from %2$s to %3$s</string>
+    <string name="cd_chart_day">%1$s: %2$d deaths</string>
+
+    <!-- ===================================================== achievements -->
+    <string name="achievements_title">ACHIEVEMENTS</string>
+    <string name="achievements_progress">%1$d of %2$d unlocked</string>
+    <string name="achievement_unlocked">ACHIEVEMENT UNLOCKED</string>
+    <string name="achievement_locked">Locked</string>
+    <string name="cd_achievement">%1$s, %2$s</string>
+
+    <!-- ===================================================== flash sale -->
+    <string name="flash_title">FLASH SALE</string>
+    <string name="flash_banner">%1$d%% OFF EVERYTHING</string>
+    <string name="flash_until_ended">Until an admin ends it</string>
+    <string name="flash_off">-%1$d%%</string>
+    <string name="cd_flash_price">%1$s coins, was %2$s</string>
+    <string name="admin_flash_title">FLASH SALE</string>
+    <string name="admin_flash_desc">A timed discount on every Black Market item. Everyone sees a countdown banner in the shop.</string>
+    <string name="admin_flash_pct">Discount %</string>
+    <string name="admin_flash_minutes">Duration in minutes (0 = until ended)</string>
+    <string name="admin_flash_start">Start flash sale</string>
+    <string name="admin_flash_end">End flash sale</string>
+    <string name="admin_flash_live">LIVE: %1$d%% off</string>
+
+    <!-- ===================================================== overload -->
+    <string name="overload_payout">Deaths here pay every survivor x%1$s and earn x%1$s XP.</string>
+    <string name="report_overload">SECTOR OVERLOAD x%1$s: boosted XP and survival payout</string>
+
+    <!-- ===================================================== settings -->
+    <string name="settings_personal_alerts">Personal alerts</string>
+    <string name="settings_personal_alerts_desc">Notify me when I\'m cursed, my Shield blocks a curse, or an admin changes my stuff</string>
 </resources>

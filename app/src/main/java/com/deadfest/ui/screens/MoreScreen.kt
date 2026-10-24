@@ -10,6 +10,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.ui.res.stringResource
+import com.deadfest.R
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Groups
@@ -51,6 +57,8 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
     val user by viewModel.user.collectAsStateWithLifecycle()
     val isAdmin = user?.admin == true
+    val alerts by viewModel.alerts.collectAsStateWithLifecycle()
+    val unreadAlerts = alerts.count { !it.read }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(title = "UTILITY HUB", subtitle = "Advanced Terminal Systems")
@@ -81,6 +89,50 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     SetupEventCard { navController.navigate("admin") { launchSingleTop = true } }
                 }
+            }
+
+            // ---- Social (v2.1.0)
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Box(Modifier.padding(top = Spacing.xxs)) { SectionLabel(stringResource(R.string.hub_section_social)) }
+            }
+            item {
+                HubButton(
+                    label = stringResource(R.string.hub_chat),
+                    description = stringResource(R.string.hub_chat_desc),
+                    icon = Icons.Default.Forum,
+                    accent = Plasma,
+                    badge = stringResource(R.string.badge_new),
+                    onClick = { navController.navigate("chat") }
+                )
+            }
+            item {
+                HubButton(
+                    label = stringResource(R.string.hub_alerts),
+                    description = stringResource(R.string.hub_alerts_desc),
+                    icon = Icons.Default.Notifications,
+                    accent = Ember,
+                    badge = if (unreadAlerts > 0) "$unreadAlerts" else null,
+                    onClick = { navController.navigate("alerts") }
+                )
+            }
+            item {
+                HubButton(
+                    label = stringResource(R.string.hub_stats),
+                    description = stringResource(R.string.hub_stats_desc),
+                    icon = Icons.Default.BarChart,
+                    accent = Amber,
+                    badge = stringResource(R.string.badge_new),
+                    onClick = { navController.navigate("stats") }
+                )
+            }
+            item {
+                HubButton(
+                    label = stringResource(R.string.hub_profile),
+                    description = stringResource(R.string.hub_profile_desc),
+                    icon = Icons.Default.Face,
+                    accent = Toxic,
+                    onClick = { navController.navigate("edit_profile") }
+                )
             }
 
             item(span = { GridItemSpan(maxLineSpan) }) {

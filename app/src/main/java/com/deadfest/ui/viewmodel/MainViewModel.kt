@@ -110,6 +110,23 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _imageUpload = MutableStateFlow(ImageUploadState())
     val imageUpload: StateFlow<ImageUploadState> = _imageUpload.asStateFlow()
 
+    /** Your personal alerts inbox. Follows the signed-in account; only listens while visible. */
+    val alerts: StateFlow<List<AlertItem>> = authUid
+        .flatMapLatest { uid -> if (uid == null) flowOf(emptyList()) else repository.getAlerts(uid) }
+        .catch { logError("alerts", it) }
+        .stateIn(viewModelScope, whileVisible, emptyList())
+
+    /** Group chat: newest 100 messages. Only listens while the chat screen is open. */
+    val chat: StateFlow<List<ChatMessage>> = repository.getChat()
+        .catch { logError("chat", it) }
+        .stateIn(viewModelScope, whileVisible, emptyList())
+
+    private val _chatImage = MutableStateFlow(ImageUploadState())
+    val chatImage: StateFlow<ImageUploadState> = _chatImage.asStateFlow()
+
+    private val _chatSending = MutableStateFlow(false)
+    val chatSending: StateFlow<Boolean> = _chatSending.asStateFlow()
+
     // Not shown anywhere yet, so these cost nothing until a screen collects them.
     val messages: StateFlow<List<Message>> = repository.getMessages()
         .catch { logError("messages", it) }
@@ -287,14 +304,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         launchSafe("Couldn't record death") {
             // The Forced Spin Protocol switch is read live, so an admin turning it off takes
             // effect on the very next death rather than after an app restart.
+            val gs = globalState.value
+            // Sector Overload: deaths in the overloaded sector earn boosted XP and pay everyone more.
+            val overload = OverloadRules.multiplierFor(game, gs.overloadedSector, gs.overloadActive(), gs.multiplier)
             val result = repository.recordDeath(
-                uid, game, config, System.currentTimeMillis(), globalState.value.forceSpinProtocol
+                uid, game, config, System.currentTimeMillis(), gs.forceSpinProtocol, overload
             ) ?: throw IllegalStateException("Survivor record not found")
             val o = result.outcome
             val tax = o.tax
 
             if (showReport) {
-                _deathReport.value = DeathReport(result, config.survivalReward)
+                _deathReport.value = DeathReport(result, OverloadRules.boost(config.survivalReward, overload))
             } else {
                 // Only mention spins when some were actually added: with the protocol off the
                 // count is zero and "+0 pending spin(s)" reads like a bug.
@@ -315,11 +335,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (tax.insuranceUsed) {
                 repository.logEvent("BLACK_MARKET", "$name's Insurance absorbed the casualty tax", uid)
             }
-            if (uid == authUid.value) handleXp(result.xp)
+            if (overload > 1.0) {
+                repository.logEvent("DEATH", "OVERLOAD x${trimMultiplier(overload)}: $name's fall in $game pays every survivor extra.", uid)
+            }
+            if (uid == authUid.value) {
+                handleXp(result.xp)
+                if (tax.insuranceUsed) grantAchievements(setOf(AchievementEvent.INSURANCE_CLAIMED))
+            } else {
+                notifyPlayer(uid, AlertItem.TYPE_ADMIN, "A death was recorded for you",
+                    "An admin injected a death in $game (casualty tax ${fmt(tax.finalTax)} coins).")
+            }
 
             // Mutual Survival Reward: best effort, never undoes the death record.
             val paid = try {
-                repository.payMutualReward(uid, config)
+                repository.payMutualReward(uid, config, overload)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -405,11 +434,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _events.tryEmit(toast)
                     repository.logEvent("BLACK_MARKET", log, currentUser.uid, target?.uid)
                     handleXp(result.xp)
+                    if (item.isCurse && target != null) {
+                        notifyPlayer(target.uid, AlertItem.TYPE_CURSED, "You were cursed by $buyerName",
+                            "${item.displayName.lowercase().replaceFirstChar { it.uppercase() }}: +${item.curseDeaths} death(s)$where.")
+                        grantAchievements(setOf(AchievementEvent.CURSE_LANDED))
+                    }
                 }
                 ShopOutcome.BLOCKED_BY_SHIELD -> {
                     _events.tryEmit("$targetName's Shield blocked your curse. The Shield is gone now.")
                     repository.logEvent("BLACK_MARKET", "$targetName's Shield blocked a curse from $buyerName!", currentUser.uid, target?.uid)
                     handleXp(result.xp)
+                    target?.let {
+                        notifyPlayer(it.uid, AlertItem.TYPE_SHIELD_BLOCKED, "Your Shield blocked a curse",
+                            "$buyerName tried to curse you. Your Shield took the hit and is now gone.")
+                    }
                 }
                 ShopOutcome.INSUFFICIENT_FUNDS -> _events.tryEmit("Not enough coins for ${item.displayName}.")
                 ShopOutcome.ALREADY_ACTIVE -> _events.tryEmit(
@@ -524,6 +562,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     currentUser.uid
                 )
                 handleXp(payout.xp)
+                grantAchievements(buildSet {
+                    if (payout.delta >= Achievements.JACKPOT_COINS) add(AchievementEvent.JACKPOT)
+                    if (payout.luckyCoinUsed && payout.delta > 0) add(AchievementEvent.LUCKY_STRIKE)
+                })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -561,6 +603,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 repository.logEvent("BLACK_MARKET", log, me.uid)
                 handleXp(result.xp)
+                if (result.coinsWon >= Achievements.JACKPOT_COINS) grantAchievements(setOf(AchievementEvent.JACKPOT))
             } finally {
                 if (_scratch.value.busy) _scratch.value = _scratch.value.copy(busy = false)
             }
@@ -612,6 +655,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     if (cleanCaption.isBlank()) "$name shared an image." else "$name shared an image: \"$cleanCaption\"",
                     me.uid
                 )
+                grantAchievements(setOf(AchievementEvent.IMAGE_SHARED))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -643,7 +687,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _events.tryEmit("Only the uploader or an admin can delete this image.")
             return
         }
-        launchSafe("Couldn't delete image", success = "Image deleted") { repository.deleteImage(image.id) }
+        launchSafe("Couldn't delete image", success = "Image deleted") {
+            repository.deleteImage(image.id)
+            if (image.uploaderUid != me.uid) {
+                val what = if (image.caption.isBlank()) "one of your images" else "your image \"${image.caption}\""
+                notifyPlayer(image.uploaderUid, AlertItem.TYPE_IMAGE_REMOVED, "Your image was removed",
+                    "An admin removed $what from the gallery.")
+            }
+        }
     }
 
     // ---------------------------------------------------------------- progression
@@ -677,10 +728,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // ---------------------------------------------------------------- admin
 
     fun setPlayerCoins(uid: String, coins: Long) =
-        launchSafe("Coin update failed", success = "Coins set to ${fmt(coins)}") { repository.setCoins(uid, coins) }
+        launchSafe("Coin update failed", success = "Coins set to ${fmt(coins)}") {
+            repository.setCoins(uid, coins)
+            notifyPlayer(uid, AlertItem.TYPE_ADMIN, "An admin set your coins", "Your balance is now ${fmt(coins)} coins.")
+        }
 
     fun updatePlayerCoins(uid: String, delta: Long) =
-        launchSafe("Coin update failed") { repository.adjustCoins(uid, delta) }
+        launchSafe("Coin update failed") {
+            repository.adjustCoins(uid, delta)
+            val change = if (delta >= 0) "+${fmt(delta)}" else "-${fmt(-delta)}"
+            notifyPlayer(uid, AlertItem.TYPE_ADMIN, "An admin adjusted your coins", "$change coins.")
+        }
 
     /** +1 injects a death through the full death pipeline; -1 just removes one (no refund). */
     fun updatePlayerDeaths(uid: String, delta: Long, gameName: String) {
@@ -690,12 +748,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } else {
             launchSafe("Death update failed", success = "Death removed from $gameName") {
                 repository.updateDeaths(uid, delta, gameName)
+                notifyPlayer(uid, AlertItem.TYPE_ADMIN, "A death was removed", "An admin removed one of your deaths in $gameName.")
             }
         }
     }
 
     fun clearPenalties(uid: String) =
-        launchSafe("Couldn't clear penalties", success = "Pending spins and bankruptcy cleared") { repository.clearPenalties(uid) }
+        launchSafe("Couldn't clear penalties", success = "Pending spins and bankruptcy cleared") {
+            repository.clearPenalties(uid)
+            notifyPlayer(uid, AlertItem.TYPE_ADMIN, "Penalties cleared", "An admin cleared your pending spins and bankruptcy.")
+        }
 
     fun togglePlayerAdmin(uid: String, isAdmin: Boolean) {
         if (uid == user.value?.uid && !isAdmin) {
@@ -806,12 +868,199 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun approveGameRequest(id: String) {
         launchSafe("Couldn't approve request") {
             repository.setGameRequestStatus(id, true, user.value?.handle ?: "Admin")
+            gameRequests.value.firstOrNull { it.id == id }?.let { req ->
+                notifyPlayer(req.requestedBy, AlertItem.TYPE_GAME_REQUEST, "Game request approved",
+                    "\"${req.name}\" was approved as a candidate sector.")
+            }
         }
     }
 
     /** Admin: remove a request from the queue. */
     fun removeGameRequest(id: String) =
         launchSafe("Couldn't remove request") { repository.removeGameRequest(id) }
+
+    // ---------------------------------------------------------------- profile (v2.1.0)
+
+    fun updateProfile(avatar: String, bio: String, color: String) {
+        val uid = user.value?.uid ?: return
+        val cleanBio = bio.trim().take(MAX_BIO)
+        val cleanAvatar = avatar.trim().ifBlank { "☠" }
+        launchSafe("Couldn't save profile", success = "Profile saved") {
+            repository.updateProfile(uid, cleanAvatar, cleanBio, color)
+        }
+    }
+
+    // ---------------------------------------------------------------- achievements & stats (v2.1.0)
+
+    /** Achievements unlocked this session, newest last, for the in-app toast queue. */
+    private val _achievementUnlocked = MutableStateFlow<Achievement?>(null)
+    val achievementUnlocked: StateFlow<Achievement?> = _achievementUnlocked.asStateFlow()
+    fun dismissAchievement() { _achievementUnlocked.value = null }
+
+    /** Guards against double-granting while a write is still in flight. */
+    private val grantedThisSession = mutableSetOf<String>()
+
+    /**
+     * Runs whenever your own profile changes while the app is open: records the daily coin sample
+     * for Personal Stats, remembers bankruptcy, and unlocks any profile-driven achievements.
+     */
+    fun onProfileChanged() {
+        val me = user.value ?: return
+        val d = me.playerData
+        if (d.bankruptcyLevel >= 1 && !d.everBankrupt) repository.markEverBankrupt(me.uid)
+        val today = StatsHistory.dayKey(System.currentTimeMillis())
+        if (d.coinHistory[today] != d.coins) repository.recordCoinSample(me.uid, today, d.coins, d.coinHistory.keys)
+        viewModelScope.launch { grantAchievements(emptySet()) }
+    }
+
+    /** Unlocks whatever [events] (plus the profile itself) now qualify for. */
+    private suspend fun grantAchievements(events: Set<AchievementEvent>) {
+        val me = user.value ?: return
+        val fresh = Achievements.newlyEarned(me.playerData, events).filter { grantedThisSession.add(it.id) }
+        if (fresh.isEmpty()) return
+        try {
+            repository.unlockAchievements(me.uid, fresh.map { it.id })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logError("achievements", e)
+            fresh.forEach { grantedThisSession.remove(it.id) }
+            return
+        }
+        fresh.forEach { a ->
+            _achievementUnlocked.value = a
+            NotificationHelper.showNotification(getApplication(), "ACHIEVEMENT: ${a.title.uppercase()}", a.description)
+            repository.logEvent("LEVEL_UP", "$myName earned the \"${a.title}\" achievement!", me.uid)
+        }
+    }
+
+    // ---------------------------------------------------------------- personal alerts (v2.1.0)
+
+    /** Writes an alert into another survivor's inbox. Best effort: never fails the action itself. */
+    private suspend fun notifyPlayer(toUid: String, type: String, title: String, body: String) {
+        val me = user.value ?: return
+        try {
+            repository.sendAlert(toUid, type, title, body, me.uid, me.handle)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            logError("sendAlert", e)
+        }
+    }
+
+    /**
+     * Turns alerts that arrived since the last check into phone notifications (once each), and
+     * reacts to the ones that unlock achievements.
+     */
+    fun onAlertsChanged(list: List<AlertItem>) {
+        if (!prefs.alertNotificationsEnabled) return
+        val since = prefs.lastAlertNotifiedAt
+        val fresh = list.filter { !it.read && it.createdAt > since }.sortedBy { it.createdAt }
+        if (fresh.isEmpty()) return
+        prefs.lastAlertNotifiedAt = fresh.maxOf { it.createdAt }
+        // On a first run, don't flood the tray with the whole backlog.
+        val toShow = if (since == 0L) fresh.takeLast(3) else fresh
+        toShow.forEach { NotificationHelper.showNotification(getApplication(), it.title, it.body) }
+        if (fresh.any { it.type == AlertItem.TYPE_SHIELD_BLOCKED }) {
+            viewModelScope.launch { grantAchievements(setOf(AchievementEvent.SHIELD_BLOCKED)) }
+        }
+    }
+
+    fun markAlertsRead() {
+        val uid = user.value?.uid ?: return
+        val unread = alerts.value.filter { !it.read }.map { it.id }
+        if (unread.isEmpty()) return
+        launchSafe(null) { repository.markAlertsRead(uid, unread) }
+    }
+
+    fun clearAlerts() {
+        val uid = user.value?.uid ?: return
+        val ids = alerts.value.map { it.id }
+        launchSafe("Couldn't clear alerts", success = "Alerts cleared") { repository.clearAlerts(uid, ids) }
+    }
+
+    // ---------------------------------------------------------------- group chat (v2.1.0)
+
+    fun prepareChatImage(uri: android.net.Uri) {
+        if (_chatImage.value.processing) return
+        _chatImage.value = ImageUploadState(processing = true)
+        viewModelScope.launch {
+            try {
+                val processed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    ImageCompressor.process(getApplication(), uri)
+                }
+                val preview = android.graphics.BitmapFactory.decodeByteArray(processed.thumb, 0, processed.thumb.size)
+                _chatImage.value = ImageUploadState(pending = processed, preview = preview)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                logError("prepareChatImage", e)
+                _chatImage.value = ImageUploadState()
+                _events.tryEmit("Couldn't load that image: ${e.message ?: "unsupported file"}")
+            }
+        }
+    }
+
+    fun cancelChatImage() {
+        if (!_chatSending.value) _chatImage.value = ImageUploadState()
+    }
+
+    /** Sends a chat message (text, photo or both). Returns false if there was nothing to send. */
+    fun sendChat(text: String): Boolean {
+        val me = user.value ?: return false
+        val clean = text.trim().take(ChatMessage.MAX_TEXT)
+        val image = _chatImage.value.pending
+        if ((clean.isEmpty() && image == null) || _chatSending.value) return false
+        _chatSending.value = true
+        viewModelScope.launch {
+            try {
+                val task = repository.sendChat(me, clean, image)
+                _chatImage.value = ImageUploadState()
+                val sent = withTimeoutOrNull(20_000) { task.await(); true } ?: false
+                if (!sent) _events.tryEmit("No signal: your message will send when you're back online.")
+                grantAchievements(setOf(AchievementEvent.CHAT_MESSAGE))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logError("sendChat", e)
+                _events.tryEmit("Message failed: ${friendlyError(e)}")
+            } finally {
+                _chatSending.value = false
+            }
+        }
+        return true
+    }
+
+    fun deleteChatMessage(message: ChatMessage) {
+        val me = user.value ?: return
+        if (message.senderUid != me.uid && !me.admin) return
+        launchSafe("Couldn't delete message", success = "Message deleted") { repository.deleteChatMessage(message) }
+    }
+
+    // ---------------------------------------------------------------- flash sales (v2.1.0)
+
+    /** Admin: starts a [pct]% Black Market sale for [minutes] (0 = until ended) and announces it. */
+    fun startFlashSale(pct: Int, minutes: Long) {
+        val clean = pct.coerceIn(1, FlashSale.MAX_PCT)
+        val endsAt = if (minutes > 0) System.currentTimeMillis() + minutes * 60_000L else 0L
+        launchSafe("Couldn't start flash sale", success = "Flash sale live: $clean% off") {
+            repository.updateGlobalState(mapOf(
+                "flashSaleActive" to true,
+                "flashSalePct" to clean,
+                "flashSaleEndsAt" to endsAt
+            ))
+            val duration = if (minutes > 0) " for $minutes minutes" else ""
+            repository.logEvent("BLACK_MARKET", "FLASH SALE: everything in the Black Market is $clean% off$duration!", authUid.value)
+        }
+    }
+
+    fun endFlashSale() =
+        launchSafe("Couldn't end flash sale", success = "Flash sale ended") {
+            repository.updateGlobalState(mapOf("flashSaleActive" to false, "flashSaleEndsAt" to 0L))
+        }
+
+    private fun trimMultiplier(m: Double): String =
+        if (m % 1.0 == 0.0) m.toLong().toString() else String.format(java.util.Locale.US, "%.1f", m)
 
     // ---------------------------------------------------------------- helpers
 
@@ -908,6 +1157,9 @@ data class GameSearchState(
 )
 
 const val MAX_CAPTION = 140
+
+/** Edit Profile: maximum bio length. */
+const val MAX_BIO = 160
 
 sealed class AuthState {
     object Idle : AuthState()

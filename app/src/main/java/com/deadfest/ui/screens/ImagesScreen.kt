@@ -148,7 +148,7 @@ private fun imageDescription(image: SharedImage): String {
 
 /** Thumbnail decoded off the main thread and cached, so scrolling stays smooth. */
 @Composable
-private fun rememberThumbnail(image: SharedImage): Bitmap? {
+internal fun rememberThumbnail(image: SharedImage): Bitmap? {
     val state = produceState(initialValue = ThumbnailCache.get(image.id), image.id) {
         if (value == null) value = withContext(Dispatchers.Default) { ThumbnailCache.decode(image.id, image.thumb) }
     }
@@ -308,7 +308,7 @@ private fun PostImageDialog(
 
 /** Full-screen viewer: loads the full image on demand, pinch to zoom, double info bar. */
 @Composable
-private fun ImageViewer(
+internal fun ImageViewer(
     image: SharedImage,
     canDelete: Boolean,
     load: suspend (String) -> ByteArray?,

@@ -428,7 +428,9 @@ class FirebaseRepository(
         game: String,
         cfg: EconomyConfig,
         now: Long,
-        forceSpinProtocol: Boolean = true
+        forceSpinProtocol: Boolean = true,
+        /** Sector Overload multiplier for this death; boosts the death XP (see OverloadRules). */
+        overloadMultiplier: Double = 1.0
     ): DeathResult? {
         val ref = usersRef.document(uid)
         val result = firestore.runTransaction { tx ->
@@ -443,20 +445,29 @@ class FirebaseRepository(
                 insurancePct = cfg.insurancePct,
                 forceSpinProtocol = forceSpinProtocol
             )
-            val xp = Leveling.addXp(d.xp, d.level, cfg.xp.death, cfg.xp)
+            val xp = Leveling.addXp(d.xp, d.level, OverloadRules.boost(cfg.xp.death, overloadMultiplier), cfg.xp)
             val deaths = d.games[game]?.deaths ?: 0L
             tx.update(ref, FieldPath.of("playerData", "games", game, "deaths"), deaths + 1)
+            // Personal stats: deaths per day, keeping the last StatsHistory.KEEP_DAYS days.
+            val day = StatsHistory.dayKey(now)
+            tx.update(ref, FieldPath.of("playerData", "deathsByDay", day), (d.deathsByDay[day] ?: 0L) + 1)
+            StatsHistory.keysToPrune(d.deathsByDay.keys + day).forEach { old ->
+                tx.update(ref, FieldPath.of("playerData", "deathsByDay", old), FieldValue.delete())
+            }
             val updates = mutableMapOf<String, Any>(
                 "playerData.coins" to outcome.coinsAfter,
                 "playerData.bankruptcyLevel" to outcome.levelAfter,
                 "playerData.pendingSpins" to outcome.pendingAfter,
                 "playerData.lastDeathAt" to now,
                 "playerData.xp" to xp.xp,
-                "playerData.level" to xp.level
+                "playerData.level" to xp.level,
+                // A death breaks the survival streak (Survived 7 Days achievement).
+                "playerData.survivalStreak" to 0
             )
             if (outcome.tax.insuranceUsed) updates["playerData.insurance"] = false
+            if (outcome.levelAfter >= Bankruptcy.LEVEL_1) updates["playerData.everBankrupt"] = true
             tx.update(ref, updates)
-            DeathResult(game, outcome, xp)
+            DeathResult(game, outcome, xp, overloadMultiplier)
         }.await()
         if (result != null) bumpGrandTotal(1)
         return result
@@ -468,8 +479,10 @@ class FirebaseRepository(
      * problem on other players' documents never blocks recording the death.
      * @return how many survivors were paid
      */
-    suspend fun payMutualReward(deadUid: String, cfg: EconomyConfig): Int {
+    suspend fun payMutualReward(deadUid: String, cfg: EconomyConfig, overloadMultiplier: Double = 1.0): Int {
         if (cfg.survivalReward <= 0) return 0
+        // Sector Overload: a death in the overloaded sector pays everyone x multiplier.
+        val reward = OverloadRules.boost(cfg.survivalReward, overloadMultiplier)
         val refs = usersRef.get().await().documents.map { it.reference }.filter { it.id != deadUid }
         if (refs.isEmpty()) return 0
         return firestore.runTransaction { tx ->
@@ -477,7 +490,7 @@ class FirebaseRepository(
             var paid = 0
             snaps.forEach { snap ->
                 val d = snap.toUserModel()?.playerData ?: return@forEach
-                val amount = Bankruptcy.payoutFor(d.bankruptcyLevel, cfg.survivalReward)
+                val amount = Bankruptcy.payoutFor(d.bankruptcyLevel, reward)
                 if (amount <= 0) return@forEach
                 tx.update(snap.reference, balanceUpdates(d, d.coins + amount))
                 paid++
@@ -515,6 +528,7 @@ class FirebaseRepository(
             val coins = d.coins + amount
             val updates = balanceUpdates(d, coins).toMutableMap()
             updates["playerData.lastDailyClaim"] = now
+            updates["playerData.survivalStreak"] = if (survived) d.survivalStreak + 1 else 0
             if (xp != null) {
                 updates["playerData.xp"] = xp.xp
                 updates["playerData.level"] = xp.level
@@ -798,6 +812,155 @@ class FirebaseRepository(
             .commit().await()
     }
 
+    // ================================================================ profile & achievements (v2.1.0)
+
+    /** Edit Profile: avatar emoji, bio and badge colour in one write to your own document. */
+    suspend fun updateProfile(uid: String, avatar: String, bio: String, color: String) {
+        usersRef.document(uid).update(mapOf(
+            "playerData.avatar" to avatar,
+            "playerData.bio" to bio,
+            "playerData.color" to color
+        )).await()
+    }
+
+    suspend fun unlockAchievements(uid: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        usersRef.document(uid).update("playerData.achievements", FieldValue.arrayUnion(*ids.toTypedArray())).await()
+    }
+
+    /** Marks the survivor as having been bankrupt (for "Bankrupt and Back"). Fire-and-forget. */
+    fun markEverBankrupt(uid: String) {
+        usersRef.document(uid).update("playerData.everBankrupt", true)
+    }
+
+    /** Personal stats: today's coin balance, plus pruning anything older than the kept window. */
+    fun recordCoinSample(uid: String, day: String, coins: Long, existingDays: Collection<String>) {
+        val ref = usersRef.document(uid)
+        val batch = firestore.batch()
+        batch.update(ref, FieldPath.of("playerData", "coinHistory", day), coins)
+        StatsHistory.keysToPrune(existingDays + day).forEach { old ->
+            batch.update(ref, FieldPath.of("playerData", "coinHistory", old), FieldValue.delete())
+        }
+        batch.commit()
+    }
+
+    // ================================================================ personal alerts (v2.1.0)
+
+    private fun alertsRef(uid: String) = usersRef.document(uid).collection("alerts")
+
+    /** Your newest 50 alerts. Only you can read them (see firestore.rules). */
+    fun getAlerts(uid: String): Flow<List<AlertItem>> =
+        alertsRef(uid).orderBy("createdAt", Query.Direction.DESCENDING).limit(50).snapshots().map { snap ->
+            snap.documents.map { d ->
+                AlertItem(
+                    id = d.id,
+                    type = d.getString("type") ?: "",
+                    title = d.getString("title") ?: "",
+                    body = d.getString("body") ?: "",
+                    fromUid = d.getString("fromUid") ?: "",
+                    fromName = d.getString("fromName") ?: "",
+                    createdAt = (d.get("createdAt") as? Number)?.toLong() ?: 0L,
+                    read = d.getBoolean("read") ?: false
+                )
+            }
+        }
+
+    /** Drops an alert into [toUid]'s inbox. Never alerts yourself. */
+    suspend fun sendAlert(toUid: String, type: String, title: String, body: String, fromUid: String, fromName: String) {
+        if (toUid.isBlank() || toUid == fromUid) return
+        alertsRef(toUid).add(mapOf(
+            "type" to type,
+            "title" to title.take(120),
+            "body" to body.take(400),
+            "fromUid" to fromUid,
+            "fromName" to fromName.take(40),
+            "createdAt" to System.currentTimeMillis(),
+            "read" to false
+        )).await()
+    }
+
+    suspend fun markAlertsRead(uid: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        val batch = firestore.batch()
+        ids.forEach { batch.update(alertsRef(uid).document(it), "read", true) }
+        batch.commit().await()
+    }
+
+    suspend fun clearAlerts(uid: String, ids: List<String>) {
+        if (ids.isEmpty()) return
+        val batch = firestore.batch()
+        ids.forEach { batch.delete(alertsRef(uid).document(it)) }
+        batch.commit().await()
+    }
+
+    // ================================================================ group chat (v2.1.0)
+
+    private val messagesRef get() = firestore.collection("messages")
+
+    /** The newest 100 messages, oldest first. Shares the desktop client's `timestamp` ordering. */
+    fun getChat(): Flow<List<ChatMessage>> =
+        messagesRef.orderBy("timestamp", Query.Direction.DESCENDING).limit(ChatMessage.MAX_MESSAGES).snapshots().map { snap ->
+            snap.documents.map { d ->
+                ChatMessage(
+                    id = d.id,
+                    senderUid = d.getString("senderUid") ?: "",
+                    senderName = d.getString("senderName") ?: "Survivor",
+                    senderAvatar = d.getString("senderAvatar") ?: "",
+                    senderColor = d.getString("senderColor") ?: "",
+                    text = d.getString("text") ?: "",
+                    createdAt = (d.get("timestamp", DocumentSnapshot.ServerTimestampBehavior.ESTIMATE) as? Timestamp)
+                        ?.toDate()?.time ?: 0L,
+                    imageId = d.getString("imageId")?.takeIf { it.isNotBlank() },
+                    thumb = d.getBlob("thumb")?.toBytes(),
+                    imageWidth = (d.get("imageWidth") as? Number)?.toInt() ?: 0,
+                    imageHeight = (d.get("imageHeight") as? Number)?.toInt() ?: 0
+                )
+            }.asReversed()
+        }
+
+    /**
+     * Posts a chat message, optionally with a photo (full image in `imageBlobs`, thumbnail on the
+     * message). Returns the commit task so the caller can stop waiting while offline.
+     */
+    fun sendChat(
+        sender: User,
+        text: String,
+        image: com.deadfest.util.ImageCompressor.Processed?
+    ): com.google.android.gms.tasks.Task<Void> {
+        val msgRef = messagesRef.document()
+        val batch = firestore.batch()
+        val data = mutableMapOf<String, Any>(
+            "id" to msgRef.id,
+            "senderUid" to sender.uid,
+            "senderName" to sender.handle,
+            "senderAvatar" to (sender.playerData.avatar ?: ""),
+            "senderColor" to (sender.playerData.color ?: ""),
+            "text" to text.take(ChatMessage.MAX_TEXT),
+            "timestamp" to Timestamp.now()
+        )
+        if (image != null) {
+            val imageId = imageBlobsRef.document().id
+            batch.set(imageBlobsRef.document(imageId), mapOf(
+                "data" to com.google.firebase.firestore.Blob.fromBytes(image.full),
+                "uploaderUid" to sender.uid
+            ))
+            data["imageId"] = imageId
+            data["thumb"] = com.google.firebase.firestore.Blob.fromBytes(image.thumb)
+            data["imageWidth"] = image.width
+            data["imageHeight"] = image.height
+        }
+        batch.set(msgRef, data)
+        return batch.commit()
+    }
+
+    /** Sender or admin: removes a message (and its photo). */
+    suspend fun deleteChatMessage(message: ChatMessage) {
+        val batch = firestore.batch().delete(messagesRef.document(message.id))
+        message.imageId?.let { batch.delete(imageBlobsRef.document(it)) }
+        batch.commit().await()
+    }
+
+
     // ================================================================ progression
 
     /** Prestige: back to level 1 / 0 XP, +1 permanent prestige. Only allowed at max level. */
@@ -902,7 +1065,12 @@ class FirebaseRepository(
             scratchEnabled = bool("scratchEnabled", d.scratchEnabled),
             scratchCost = long("scratchCost", d.scratchCost),
             shop = shop,
-            xp = xp
+            xp = xp,
+            flashSale = FlashSale(
+                active = bool("flashSaleActive", false),
+                pct = (s.get("flashSalePct") as? Number)?.toInt()?.coerceIn(0, FlashSale.MAX_PCT) ?: 0,
+                endsAt = long("flashSaleEndsAt", 0L)
+            )
         )
     }
 

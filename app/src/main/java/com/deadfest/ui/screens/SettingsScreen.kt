@@ -25,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -323,6 +324,7 @@ private fun SystemTab(viewModel: MainViewModel) {
     val wheel by prefs.wheelAlerts.collectAsStateWithLifecycle()
     val market by prefs.marketAlerts.collectAsStateWithLifecycle()
     val wasteland by prefs.wastelandAlerts.collectAsStateWithLifecycle()
+    val personal by prefs.personalAlerts.collectAsStateWithLifecycle()
     val lowEnd = remember { AppPrefs.isLowEndDevice(context) }
 
     BackgroundActivityGroup()
@@ -364,6 +366,14 @@ private fun SystemTab(viewModel: MainViewModel) {
             subtitle = "Admin broadcasts and firmware notices, including push notifications",
             checked = wasteland,
             onChange = prefs::setWastelandAlerts
+        )
+        GroupDivider()
+        SettingSwitch(
+            icon = Icons.Default.NotificationsActive,
+            title = stringResource(com.deadfest.R.string.settings_personal_alerts),
+            subtitle = stringResource(com.deadfest.R.string.settings_personal_alerts_desc),
+            checked = personal,
+            onChange = prefs::setPersonalAlerts
         )
     }
 }

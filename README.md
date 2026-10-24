@@ -9,8 +9,8 @@
 [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4?logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
 [![Firebase](https://img.shields.io/badge/Backend-Firebase-FFCA28?logo=firebase)](https://firebase.google.com)
 [![Platform](https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?logo=android)](https://developer.android.com)
-[![Version](https://img.shields.io/badge/Version-2.0.9-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
-[![APK](https://img.shields.io/badge/APK-3.9%20MB%20(R8)%20%2F%2026.2%20MB-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![Version](https://img.shields.io/badge/Version-2.1.0-FF4B4B)](https://github.com/CyberLifeYT/Dead-Fest/releases)
+[![APK](https://img.shields.io/badge/APK-4.0%20MB%20(R8)-555)](https://github.com/CyberLifeYT/Dead-Fest/releases)
 
 **DeadFest** is a real‑time multiplayer survival companion built for a small, private community.  
 Record your deaths, survive the casualty tax, spin the Wheel of Fate, scratch for prizes, level up, and see who's online — all synced live for every survivor.
@@ -28,11 +28,26 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - ✅ **Updates are back** – new versions arrive in‑app (update prompt / Settings → System Updates).
 - 🪶 **Built for every phone** – small APK, Performance Mode, and live data that disconnects in the background to save battery.
 
+> 🖥️ **The desktop version has been discontinued.** The Windows client (`Dead-Fest-Desktop-*.exe`) will receive no further updates, and new features (group chat, alerts, achievements, flash sales...) are not coming to it. **The Android app is where Dead-Fest lives and it will keep getting updates.** Existing desktop builds still connect to the same game for now, but they may stop working as the mobile app moves on. Its source stays in [`desktop/`](desktop/) for reference.
+
 ---
 
 ## 🔄 What's New
 
-### v2.1.0 – The desktop console, at full parity *(Latest)*
+### v2.1.0 – The community update *(Latest)*
+
+- **💬 Group chat** – One chat for every survivor (newest 100 messages, live), with photo attachments. Delete your own messages; admins can delete any.
+- **🔔 Personal alerts** – "You were cursed by X", "Your Shield blocked a curse", "Your image was removed", admin changes to your coins/deaths, approved game requests. Phone notifications while the app is open, plus an Alerts inbox (bell on the Dashboard).
+- **🏅 Achievements** – 16 badges (First Blood, Survived 7 Days, Bankrupt and Back, Jackpot, Hex Master, Deflector...) in Progression, with an unlock pop-up.
+- **📊 My Stats** – Your deaths by sector, coins over time and deaths per day, charted.
+- **🙂 Edit Profile** – Emoji avatar, bio and badge colour (more colours unlock with levels).
+- **⚡ Flash sales** – Admins set a discount and timer; the shop shows a countdown banner and crossed-out prices.
+- **🔥 Sector Overloads pay out** – Deaths in the overloaded sector now pay every survivor the boosted survival reward and earn boosted XP (capped at x10).
+- **♿ Accessibility & translations** – Every theme now passes WCAG contrast checks (enforced by a test), Halloween/Toxic Storm buttons use readable dark labels, new screens are fully labelled for screen readers, and new text lives in `strings.xml` ready for translation ([docs/TRANSLATING.md](docs/TRANSLATING.md)).
+- **🖥️ Desktop discontinued** – The Windows client gets no further updates; the Android app continues.
+- **Admins:** deploy the updated [`firestore.rules`](firestore.rules) before handing out this build. Full notes: [release/v2.1.0](release/v2.1.0/RELEASE_NOTES.md).
+
+### Desktop 2.1.0 – The desktop console, at full parity *(final desktop release)*
 
 - **🖥️ Every screen, every action** – The Windows client is now the phone app, not a tour of it: command center, survivor network, black market (all five tabs), Wheel of Fate, scratch cards, progression, utility hub, team progress, archives, image board, survival intel, game requests, every settings page, and the full 12-module admin console. Same layout, same wording, same rules as the Compose screen it replaces.
 - **⚙️ The same transactions** – Buying, cursing, upgrading insulation, buying and equipping titles, spinning, scratching, recording a death (tax, penalty spin, bankruptcy, XP, mutual reward), claiming rations, prestiging, equipping reward frames, editing profiles, posting images and requesting games all call the same Firestore operations as the phone. The formulas live in `js/economy.js` and the repository port in `js/data.js`; there is no desktop-only shortcut and no separate database.
@@ -159,7 +174,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 - **Survivor Identity** – A handle you change yourself in Settings → General → Identity (unique across the app, updates everywhere in real time), plus avatar, badge colour, avatar frame and earnable **Titles**.
 <- **App Themes** – Choose from Default, Halloween, Christmas, Toxic Storm and Blood Moon in Settings → General → Themes. Each previews with real colours before you pick, and the change applies instantly everywhere. Themes restyle surfaces and the brand colour while keeping semantic accents (amber = currency, green = success) consistent.
-- **Desktop Client (Windows)** – The same app as a single-file `.exe`, sharing the same accounts and live data. See [`desktop/`](desktop/).
+- **Desktop Client (Windows)** – *Discontinued.* The last build is Desktop 2.1.0; no further updates. Source kept in [`desktop/`](desktop/).
 - **Levels, XP & Prestige** – A long‑term progression track with cosmetic rewards and a permanent prestige badge.
 - **Live Presence** – See who's in the app right now and when others were last seen.
 - **Images Gallery** – A shared photo wall for the whole community.

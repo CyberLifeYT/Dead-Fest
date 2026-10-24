@@ -15,6 +15,8 @@ import com.deadfest.data.AppPrefs
 import com.deadfest.domain.Presence
 import com.deadfest.ui.components.BatteryOptimizationDialog
 import com.deadfest.ui.components.DailyClaimDialog
+import com.deadfest.ui.components.AchievementUnlockedDialog
+import androidx.compose.ui.res.stringResource
 import com.deadfest.ui.components.DeadFestBackground
 import com.deadfest.util.BatteryOptimization
 import com.deadfest.ui.components.DeathReportDialog
@@ -226,6 +228,14 @@ fun DeadFestApp(viewModel: MainViewModel) {
     val deathReport by viewModel.deathReport.collectAsStateWithLifecycle()
     val dailyResult by viewModel.dailyResult.collectAsStateWithLifecycle()
     val levelUp by viewModel.levelUp.collectAsStateWithLifecycle()
+    val achievement by viewModel.achievementUnlocked.collectAsStateWithLifecycle()
+
+    // ---- v2.1.0: your own profile and inbox, watched while the app is open ----
+    // Profile changes drive the daily stats sample and profile-based achievements; new alerts
+    // become phone notifications. Both piggyback on listeners the app already holds.
+    LaunchedEffect(user?.playerData) { if (user != null) viewModel.onProfileChanged() }
+    val alerts by viewModel.alerts.collectAsStateWithLifecycle()
+    LaunchedEffect(alerts) { viewModel.onAlertsChanged(alerts) }
     // First launch: offer to lift battery optimisation (asked once; also in Settings → System).
     val context = androidx.compose.ui.platform.LocalContext.current
     var showBatteryPrompt by remember {
@@ -235,6 +245,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
         deathReport != null -> DeathReportDialog(deathReport!!, viewModel::dismissDeathReport)
         dailyResult != null -> DailyClaimDialog(dailyResult!!, viewModel::dismissDaily)
         levelUp != null -> LevelUpDialog(levelUp!!, viewModel::dismissLevelUp)
+        achievement != null -> AchievementUnlockedDialog(achievement!!, viewModel::dismissAchievement)
         showBatteryPrompt && downloading == null && !(updateAvailable && globalState.forceUpdate) ->
             BatteryOptimizationDialog(
                 onAllow = {
@@ -252,15 +263,21 @@ fun DeadFestApp(viewModel: MainViewModel) {
             )
     }
 
-    val items = remember(isAdmin) {
+    // Labels come from strings.xml so the navigation follows the phone's language.
+    val navLabels = listOf(
+        stringResource(R.string.nav_dash), stringResource(R.string.nav_players), stringResource(R.string.nav_shop),
+        stringResource(R.string.nav_wheel), stringResource(R.string.nav_more), stringResource(R.string.nav_admin),
+        stringResource(R.string.nav_settings)
+    )
+    val items = remember(isAdmin, navLabels) {
         listOfNotNull(
-            NavigationItem("Dash", "home", Icons.Default.Dashboard),
-            NavigationItem("Players", "players", Icons.Default.People),
-            NavigationItem("Shop", "shop", Icons.Default.ShoppingCart),
-            NavigationItem("Wheel", "wheel", Icons.Default.Cyclone),
-            NavigationItem("More", "more", Icons.Default.GridView),
-            if (isAdmin) NavigationItem("Admin", "admin", Icons.Default.AdminPanelSettings) else null,
-            NavigationItem("Settings", "settings", Icons.Default.Settings)
+            NavigationItem(navLabels[0], "home", Icons.Default.Dashboard),
+            NavigationItem(navLabels[1], "players", Icons.Default.People),
+            NavigationItem(navLabels[2], "shop", Icons.Default.ShoppingCart),
+            NavigationItem(navLabels[3], "wheel", Icons.Default.Cyclone),
+            NavigationItem(navLabels[4], "more", Icons.Default.GridView),
+            if (isAdmin) NavigationItem(navLabels[5], "admin", Icons.Default.AdminPanelSettings) else null,
+            NavigationItem(navLabels[6], "settings", Icons.Default.Settings)
         )
     }
 
@@ -317,6 +334,10 @@ fun DeadFestApp(viewModel: MainViewModel) {
             composable("scratch") { ScratchScreen(navController, viewModel) }
             composable("progression") { ProgressionScreen(navController, viewModel) }
             composable("images") { ImagesScreen(navController, viewModel) }
+            composable("edit_profile") { EditProfileScreen(navController, viewModel) }
+            composable("alerts") { AlertsScreen(navController, viewModel) }
+            composable("chat") { ChatScreen(navController, viewModel) }
+            composable("stats") { StatsScreen(navController, viewModel) }
             composable("admin") {
                 if (isAdmin) {
                     AdminScreen(navController, viewModel)

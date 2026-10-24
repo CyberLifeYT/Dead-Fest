@@ -39,7 +39,14 @@ enum class ShopItem(
     val isCurse: Boolean get() = curseDeaths > 0
     val isInsulation: Boolean get() = tier > 0
 
-    fun priceIn(cfg: EconomyConfig): Long = cfg.shop[id]?.price?.coerceAtLeast(0) ?: price
+    /** Price before any flash sale: the admin override, or the catalog default. */
+    fun basePriceIn(cfg: EconomyConfig): Long = cfg.shop[id]?.price?.coerceAtLeast(0) ?: price
+
+    /**
+     * What a survivor actually pays right now, flash sale included. Every purchase transaction
+     * prices through here, so the shop label, the confirm dialog and the charge always agree.
+     */
+    fun priceIn(cfg: EconomyConfig): Long = cfg.flashSale.apply(basePriceIn(cfg))
 
     fun enabledIn(cfg: EconomyConfig): Boolean =
         (cfg.shop[id]?.enabled ?: true) && (!isInsulation || cfg.insulationEnabled)
@@ -175,7 +182,9 @@ data class ScratchResult(
 data class DeathResult(
     val game: String,
     val outcome: com.deadfest.domain.DeathOutcome,
-    val xp: XpResult?
+    val xp: XpResult?,
+    /** Sector Overload multiplier this death earned (1.0 = no overload). */
+    val overloadMultiplier: Double = 1.0
 )
 
 data class DailyResult(

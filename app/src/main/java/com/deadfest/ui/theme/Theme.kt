@@ -25,7 +25,7 @@ private fun deadFestColorScheme(): ColorScheme {
     val p = DeadFestTheme.palette
     return darkColorScheme(
         primary = p.ember,
-        onPrimary = Color.White,
+        onPrimary = readableOn(p.ember),
         primaryContainer = p.emberDeep,
         onPrimaryContainer = Color.White,
         inversePrimary = p.emberGlow,
@@ -62,7 +62,7 @@ private fun deadFestColorScheme(): ColorScheme {
         outlineVariant = p.inkGrid,
 
         error = p.ember,
-        onError = Color.White,
+        onError = readableOn(p.ember),
         errorContainer = p.emberDeep,
         onErrorContainer = Color.White,
 

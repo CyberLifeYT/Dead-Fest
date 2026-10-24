@@ -151,6 +151,32 @@ service cloud.firestore {
         isCrossPlayerWrite();
 
       allow delete: if isAdmin();
+
+      /**
+       * Personal alerts (v2.1.0): "You were cursed by X", "Your Shield blocked a curse", "An admin
+       * removed your image".
+       *
+       * Anyone signed in may drop an alert into somebody's inbox, but only in their own name and
+       * only as unread - the sender is recorded so an alert can't be forged from someone else.
+       * Only the owner can read, mark read or clear them.
+       */
+      match /alerts/{alertId} {
+        allow read, delete: if isSelf(uid);
+
+        allow create: if signedIn() &&
+          request.resource.data.keys().hasOnly([
+            'type', 'title', 'body', 'fromUid', 'fromName', 'createdAt', 'read'
+          ]) &&
+          request.resource.data.fromUid == request.auth.uid &&
+          request.resource.data.read == false &&
+          request.resource.data.type is string &&
+          request.resource.data.title is string &&
+          request.resource.data.title.size() <= 120 &&
+          request.resource.data.body is string &&
+          request.resource.data.body.size() <= 400;
+
+        allow update: if isSelf(uid) && onlyChanged(['read']);
+      }
     }
 
     // ==================================================================== handle registry
@@ -208,10 +234,22 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    /**
+     * Group chat (v2.1.0). A message is posted in the sender's own name, the text is capped, and a
+     * photo thumbnail must stay small (the full photo lives in imageBlobs). The sender can take
+     * their own message back; an admin can remove any.
+     */
     match /messages/{id} {
       allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if isAdmin();
+      allow create: if signedIn() &&
+        request.resource.data.senderUid == request.auth.uid &&
+        request.resource.data.text is string &&
+        request.resource.data.text.size() <= 500 &&
+        (!('thumb' in request.resource.data) || request.resource.data.thumb.size() < 100 * 1024);
+      allow update: if isAdmin();
+      allow delete: if isAdmin() ||
+        (signedIn() && resource != null && resource.data != null &&
+          resource.data.senderUid == request.auth.uid);
     }
 
     /**

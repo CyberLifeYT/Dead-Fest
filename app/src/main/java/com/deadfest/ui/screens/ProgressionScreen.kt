@@ -107,6 +107,12 @@ fun ProgressionScreen(navController: NavController, viewModel: MainViewModel) {
                 )
             }
 
+            // ---- achievements (v2.1.0)
+            item {
+                val owned = p?.achievements ?: emptyList()
+                AchievementsPanel(owned = owned, modifier = Modifier.enterOnMount(4))
+            }
+
             item { SectionLabel("Reward track", Modifier.enterOnMount(4)) }
             if (rewards.isEmpty()) {
                 item {

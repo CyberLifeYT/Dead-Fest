@@ -299,6 +299,7 @@ internal fun ShopAdmin(viewModel: MainViewModel) {
                 }
             }
         }
+        item { FlashSaleAdminCard(economy.flashSale, viewModel::startFlashSale, viewModel::endFlashSale) }
         item {
             Column {
                 SectionLabel("Black market items")
@@ -310,7 +311,7 @@ internal fun ShopAdmin(viewModel: MainViewModel) {
             ShopItemAdminRow(
                 item = item,
                 enabled = economy.shop[item.id]?.enabled ?: true,
-                price = item.priceIn(economy),
+                price = item.basePriceIn(economy),
                 reduction = item.reductionIn(economy)
             ) { enabled, price, reduction ->
                 val patch = mutableMapOf<String, Any>("enabled" to enabled, "price" to price)
@@ -671,4 +672,72 @@ private fun ScratchPrizeDialog(prize: ScratchPrize, onSave: (ScratchPrize) -> Un
         },
         dismissButton = { TextButton(onClick = onCancel) { Text("CANCEL", color = TextMid) } }
     )
+}
+
+// ================================================================== flash sale (v2.1.0)
+
+/** Start / end a timed Black Market discount. Survivors see a countdown banner in the shop. */
+@Composable
+private fun FlashSaleAdminCard(
+    sale: com.deadfest.domain.FlashSale,
+    onStart: (Int, Long) -> Unit,
+    onEnd: () -> Unit
+) {
+    var pct by remember { mutableStateOf("30") }
+    var minutes by remember { mutableStateOf("60") }
+    val pctValue = pct.toIntOrNull()?.takeIf { it in 1..com.deadfest.domain.FlashSale.MAX_PCT }
+    val minutesValue = minutes.toLongOrNull()?.takeIf { it in 0..10_080 }
+    val live = sale.isLive()
+
+    AdminActionCard(
+        title = androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_title),
+        subtitle = androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_desc)
+    ) {
+        if (live) {
+            StatusPill(androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_live, sale.pct), Toxic)
+            if (sale.endsAt > 0L) {
+                Spacer(Modifier.height(Spacing.xs))
+                Text("Ends in ${remainingLabel(sale.endsAt)}", color = TextMid, style = DeadFestType.body)
+            }
+            Spacer(Modifier.height(Spacing.xs))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+            OutlinedTextField(
+                value = pct,
+                onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 2) pct = v },
+                label = { Text(androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_pct)) },
+                singleLine = true,
+                isError = pctValue == null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = deadFestFieldColors(),
+                modifier = Modifier.weight(0.35f)
+            )
+            OutlinedTextField(
+                value = minutes,
+                onValueChange = { v -> if (v.all { it.isDigit() } && v.length <= 5) minutes = v },
+                label = { Text(androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_minutes)) },
+                singleLine = true,
+                isError = minutesValue == null,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                colors = deadFestFieldColors(),
+                modifier = Modifier.weight(0.65f)
+            )
+        }
+        Spacer(Modifier.height(Spacing.xs))
+        PrimaryAction(
+            text = androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_start),
+            icon = Icons.Default.Bolt,
+            enabled = pctValue != null && minutesValue != null,
+            accent = Toxic,
+            onClick = { onStart(pctValue!!, minutesValue!!) }
+        )
+        if (live) {
+            Spacer(Modifier.height(Spacing.xs))
+            GhostAction(
+                text = androidx.compose.ui.res.stringResource(com.deadfest.R.string.admin_flash_end),
+                onClick = onEnd,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
 }

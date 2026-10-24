@@ -43,6 +43,11 @@ import com.deadfest.domain.TaxTier
 import com.deadfest.ui.components.*
 import com.deadfest.ui.theme.*
 import com.deadfest.ui.viewmodel.MainViewModel
+import com.deadfest.R
+import com.deadfest.domain.FlashSale
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 
 private data class TitleOffer(val title: String, val price: Long, val description: String)
 
@@ -101,7 +106,17 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
     val globalState by viewModel.globalState.collectAsStateWithLifecycle()
     val users by viewModel.users.collectAsStateWithLifecycle()
     val coins = user?.playerData?.coins ?: 0L
-    val economy = globalState.economy
+    // Flash sale: flips off by itself when the timer runs out, so prices snap back without
+    // recomposing the whole shop every second (only the banner ticks).
+    val sale = globalState.economy.flashSale
+    var saleLive by remember(sale) { mutableStateOf(sale.isLive()) }
+    LaunchedEffect(sale) {
+        if (sale.isLive() && sale.endsAt > 0L) {
+            kotlinx.coroutines.delay((sale.endsAt - System.currentTimeMillis()).coerceAtLeast(0L))
+            saleLive = false
+        }
+    }
+    val economy = if (saleLive) globalState.economy else globalState.economy.copy(flashSale = FlashSale())
 
     var confirmItem by remember { mutableStateOf<ShopItem?>(null) }
     var curseItem by remember { mutableStateOf<ShopItem?>(null) }
@@ -156,6 +171,9 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
                     ),
                     verticalArrangement = Arrangement.spacedBy(Spacing.sm)
                 ) {
+                    if (saleLive) {
+                        item(key = "flash") { FlashSaleBanner(sale) }
+                    }
                     if (selectedTab == TAB_INSULATION) {
                         insulationTab(
                             data = user?.playerData,
@@ -166,11 +184,13 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
                         items(TITLES, key = { it.title }) { offer ->
                             val owned = offer.price == 0L || user?.playerData?.ownedTitles?.contains(offer.title) == true
                             val equipped = user?.playerData?.title.equals(offer.title, ignoreCase = true)
+                            val titlePrice = economy.flashSale.apply(offer.price)
                             TitleShopRow(
                                 offer = offer,
+                                price = titlePrice,
                                 isOwned = owned,
                                 isEquipped = equipped,
-                                affordable = coins >= offer.price,
+                                affordable = coins >= titlePrice,
                                 onEquip = { viewModel.equipTitle(offer.title) },
                                 onBuy = { confirmTitle = offer }
                             )
@@ -204,6 +224,7 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
                                 item = item,
                                 description = item.liveDescription(economy),
                                 price = price,
+                                basePrice = item.basePriceIn(economy),
                                 affordable = coins >= price,
                                 status = status,
                                 onBuy = { if (item.isCurse) curseItem = item else confirmItem = item }
@@ -230,9 +251,9 @@ fun ShopScreen(navController: NavController, viewModel: MainViewModel) {
     confirmTitle?.let { offer ->
         ConfirmDialog(
             title = "UNLOCK ${offer.title}?",
-            message = "Cost: ${formatNumber(offer.price)} coins. The title is equipped straight away.",
+            message = "Cost: ${formatNumber(economy.flashSale.apply(offer.price))} coins. The title is equipped straight away.",
             confirmText = "UNLOCK",
-            onConfirm = { viewModel.buyTitle(offer.title, offer.price) },
+            onConfirm = { viewModel.buyTitle(offer.title, economy.flashSale.apply(offer.price)) },
             onDismiss = { confirmTitle = null }
         )
     }
@@ -420,6 +441,7 @@ private fun CurseTargetDialog(
 @Composable
 private fun TitleShopRow(
     offer: TitleOffer,
+    price: Long,
     isOwned: Boolean,
     isEquipped: Boolean,
     affordable: Boolean,
@@ -451,7 +473,7 @@ private fun TitleShopRow(
             Text(offer.description, color = TextMid, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (!isOwned) {
                 Spacer(Modifier.height(Spacing.xxs))
-                PriceTag(offer.price, affordable)
+                SalePriceTag(price, offer.price, affordable)
             }
         }
         Spacer(Modifier.width(Spacing.xs))
@@ -468,6 +490,7 @@ private fun ShopItemRow(
     item: ShopItem,
     description: String,
     price: Long,
+    basePrice: Long,
     affordable: Boolean,
     status: String?,
     onBuy: () -> Unit
@@ -499,7 +522,7 @@ private fun ShopItemRow(
             Text(description, color = TextMid, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (status == null || !item.oneTime) {
                 Spacer(Modifier.height(Spacing.xxs))
-                PriceTag(price, affordable)
+                SalePriceTag(price, basePrice, affordable)
             }
         }
         Spacer(Modifier.width(Spacing.xs))
@@ -770,5 +793,62 @@ private fun ScratchEntryCard(cost: Long, onClick: () -> Unit) {
             PriceTag(cost)
         }
         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Toxic, modifier = Modifier.size(20.dp))
+    }
+}
+
+// ================================================================== flash sale (v2.1.0)
+
+/** Price with the pre-sale price struck through next to it while a flash sale runs. */
+@Composable
+private fun SalePriceTag(price: Long, basePrice: Long, affordable: Boolean) {
+    if (basePrice <= price) {
+        PriceTag(price, affordable)
+        return
+    }
+    val pct = (100 - price * 100 / basePrice).toInt()
+    val cd = stringResource(R.string.cd_flash_price, formatNumber(price), formatNumber(basePrice))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = cd }
+    ) {
+        PriceTag(price, affordable)
+        Spacer(Modifier.width(Spacing.xs))
+        Text(
+            formatNumber(basePrice),
+            color = TextLow,
+            fontSize = 12.sp,
+            style = androidx.compose.ui.text.TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+        )
+        Spacer(Modifier.width(Spacing.xs))
+        StatusPill(stringResource(R.string.flash_off, pct), Toxic)
+    }
+}
+
+/** Top-of-shop banner with a live countdown. Only this composable ticks every second. */
+@Composable
+private fun FlashSaleBanner(sale: FlashSale) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(sale) {
+        while (sale.endsAt > 0L) {
+            kotlinx.coroutines.delay(1_000)
+            now = System.currentTimeMillis()
+        }
+    }
+    SurfaceCard(accent = Toxic) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconTile(Icons.Default.Bolt, tint = Toxic, size = 44)
+            Spacer(Modifier.width(Spacing.sm))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.flash_title), color = Toxic, style = DeadFestType.microLabel)
+                Text(stringResource(R.string.flash_banner, sale.pct), color = TextHi, style = DeadFestType.cardTitle)
+                if (sale.endsAt <= 0L) {
+                    Text(stringResource(R.string.flash_until_ended), color = TextMid, style = DeadFestType.body)
+                }
+            }
+        }
+        if (sale.endsAt > 0L) {
+            Spacer(Modifier.height(Spacing.xs))
+            CountdownTiles(remainingMs = (sale.endsAt - now).coerceAtLeast(0L))
+        }
     }
 }

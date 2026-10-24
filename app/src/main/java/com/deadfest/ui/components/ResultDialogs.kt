@@ -75,6 +75,17 @@ fun DeathReportDialog(report: DeathReport, onDismiss: () -> Unit) {
             )
             HorizontalDivider(color = Outline)
 
+            if (report.result.overloadMultiplier > 1.0) {
+                val m = report.result.overloadMultiplier
+                ReportLine(
+                    Icons.Default.Bolt,
+                    androidx.compose.ui.res.stringResource(
+                        com.deadfest.R.string.report_overload,
+                        if (m % 1.0 == 0.0) m.toLong().toString() else String.format(java.util.Locale.US, "%.1f", m)
+                    ),
+                    Gold
+                )
+            }
             if (tax.insulationSaved > 0) {
                 ReportLine(
                     Icons.Default.Savings,

@@ -163,7 +163,8 @@ val BloodMoonPalette = DeadFestPalette(
     ink4 = Color(0xFF301D21),
     inkLine = Color(0xFF382428),
     inkGrid = Color(0xFF221518),
-    ember = Color(0xFFB91C1C),
+    // CC2222 rather than the original B91C1C: B91C1C fell just under 3:1 on Blood Moon cards (ContrastTest).
+    ember = Color(0xFFCC2222),
     emberDeep = Color(0xFF7F1D1D),
     emberGlow = Color(0xFFEF4444),
     emberDim = Color(0xFF450A0A),

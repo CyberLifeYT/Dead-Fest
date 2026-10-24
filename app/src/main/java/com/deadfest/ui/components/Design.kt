@@ -285,7 +285,8 @@ fun PrimaryAction(
         shape = RoundedCornerShape(Radius.md),
         colors = ButtonDefaults.buttonColors(
             containerColor = accent,
-            contentColor = Color.White,
+            // White on dark accents, dark on light ones (Halloween orange, Toxic lime): see readableOn.
+            contentColor = readableOn(accent),
             disabledContainerColor = Ink4,
             disabledContentColor = TextLow
         ),
