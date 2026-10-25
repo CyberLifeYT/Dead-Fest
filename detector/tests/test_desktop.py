@@ -6,7 +6,6 @@ import cv2
 import pytest
 
 from conftest import write_video
-from test_hud import MATE_BAR, MATE_NAME, SELF_BAR, hud_frame
 
 
 @pytest.fixture
@@ -55,24 +54,44 @@ def test_start_detects_deaths_and_lists_them_as_evidence(api, tmp_path):
     assert api.share([item["id"]])["queued"] == 1
 
 
-def test_hud_setup_samples_bar_colours_and_reads_live_values(api, tmp_path):
+def test_hud_setup_learns_the_layout_and_finds_teammates_by_name(api, tmp_path):
+    from conftest import windows_ocr_available
+    from test_hud_names import AREA, BAR_DY, BAR_H, BAR_W, H, NAME_X, ROW_Y0, W, squad_frame
+
     folder = tmp_path / "frames"
     folder.mkdir()
-    cv2.imwrite(str(folder / "f.png"), hud_frame(mate_fill=0.5))
+    live, _ = squad_frame([("BravoSix", 1), ("AlphaWolf", 0.5)])     # positions swapped since setup
+    cv2.imwrite(str(folder / "f.png"), live)
     api.save_settings({"sourceType": "images"})
     api.cfg["source"]["path"] = str(folder)
-    api.hud_frame = hud_frame()          # "Capture frame" with everyone at full health
-    res = api.hud_save({"self_bar": list(SELF_BAR), "teammates": [{"bar": list(MATE_BAR), "name_box": list(MATE_NAME)}],
-                        "hold_seconds": 4})
+    full, boxes = squad_frame([("AlphaWolf", 1), ("BravoSix", 1)])
+    api.hud_frame = full                                              # "Capture frame" at full health
+    nx, ny, nw, nh = boxes["AlphaWolf"]
+    res = api.hud_save({
+        "self_bar": None, "team_area": list(AREA),
+        "example_name": [(nx - 4) / W, (ny - 4) / H, (nw + 30) / W, (nh + 8) / H],    # drawn loosely
+        "example_bar": [NAME_X / W, (ROW_Y0 + BAR_DY) / H, BAR_W / W, BAR_H / H],
+        "anchor": "left", "hold_seconds": 4,
+    })
     assert res["ok"], res
-    saved = api.cfg["hud"]["dying_light_2"]
-    assert saved["self_bar"]["ref"] and saved["teammates"][0]["bar"]["ref"] and saved["hold_seconds"] == 4
+    team = api.cfg["hud"]["dying_light_2"]["team"]
+    assert team["ref"] and team["anchor"] == "left"
+    if not windows_ocr_available():
+        return
     test = api.hud_test()
     assert test["ok"], test
-    mate = next(r for r in test["readings"] if r["slot"] == "Teammate 1")
-    assert abs(mate["fill"] - 0.5) < 0.08
-    you = next(r for r in test["readings"] if r["slot"] == "You")
-    assert you["fill"] > 0.9
+    found = {r["name"]: r["fill"] for r in test["readings"] if r["slot"] == "Teammate"}
+    assert found.get("BravoSix", 0) > 0.9 and abs(found.get("AlphaWolf", 0) - 0.5) < 0.1, found
+
+
+def test_preview_fps_is_a_setting_and_the_stream_url_is_local(api):
+    s = api.state()
+    assert s["previewFps"] == 30 and s["previewUrl"].startswith("http://127.0.0.1:")
+    assert api.save_settings({"previewFps": 60})["ok"]
+    assert api.state()["previewFps"] == 60 and "fps=60" in api.state()["previewUrl"]
+    api.save_settings({"previewFps": 500})
+    assert api.state()["previewFps"] == 120          # clamped
+    assert api._source_cfg()["capture_fps"] == 120
 
 
 def test_moderation_needs_a_sign_in(api):

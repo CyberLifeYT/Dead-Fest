@@ -37,20 +37,34 @@ verification as the phone app, checked by the same security rules: one death per
 
 ### HUD tracking (no "You are dead" on screen)
 
-Many co-op games never print who died, but show each player's **name next to a health bar**. In
-**HUD setup**:
+Many co-op games never print who died, but show each player's **name next to a health bar**.
+Teammates are tracked **by name, not by position**, so players leaving, rejoining or swapping
+places never mixes anyone up. In **HUD setup**:
 
 1. In co-op, with **everyone at full health**, press **Capture frame**.
-2. Pick **My health bar** and drag a box over your bar. Then **Teammate 1 name** over their name,
-   **Teammate 1 health** over their bar, and so on (up to 3 teammates).
-3. Set **Seconds at zero health before it counts** (3 is fine where death is instant; make it
-   longer than a revive takes in games with a downed state, such as World War Z), then **Save**.
-4. Press **Test**: each bar's health and the name read from the screen appear, with the Dead-Fest
-   player it matches.
+2. **My health bar**: drag over your own bar.
+3. **Teammates area**: drag over the whole list of teammates' names and bars (make it big enough
+   for a full squad, as the list grows and shrinks).
+4. **Example name** and **Example health bar**: one teammate's name and their bar. This teaches the
+   layout (where a bar sits next to a name) and the bar's colour. Pick whether names line up on the
+   **left** or the **right**.
+5. Set **Seconds at zero health before it counts** (3 where death is instant; longer than a revive
+   in games with a downed state, such as World War Z), then **Save**.
+6. Press **Test**: every teammate found is drawn on the picture with their health, marked as a
+   Dead-Fest player or not.
 
-From then on, a bar that empties and **stays empty** for that long is a death, labelled with the
-name beside it. It's combined with everything else below, so a death screen and an empty bar
-together are even more certain.
+About once a second the names in the area are read and matched to **Dead-Fest usernames** (everyone's
+Xbox gamertag; the Players tab can map any that differ), and each player's bar is found from where
+*their* name is right now. A bar that empties and stays empty counts as **that player's** death, but
+only while their name is still on screen, because someone who **leaves** also vanishes from the HUD
+and that is not a death.
+
+### Live preview
+
+The **What the detector sees** panel is a smooth live stream of the capture (15, 30 or 60 FPS, or a
+custom rate, chosen next to it). Capture runs on its own thread, so detection never makes the picture
+stutter, and the stream comes from a server that only this PC can reach (127.0.0.1, with a secret
+per-run key). If there's no picture, the panel says why, for example that the Xbox app is minimised.
 
 ## What it can and can't do
 

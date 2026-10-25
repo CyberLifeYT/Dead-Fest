@@ -42,11 +42,15 @@
       <div id="live-warn" class="notice hidden"></div>
       <div class="grid2">
         <div class="card">
-          <div class="card-head"><h3>What the detector sees</h3><button id="btn-preview" class="ghost">Refresh</button></div>
-          <div class="preview"><img id="preview-img" alt="Live picture from the Xbox app"><div id="preview-empty" class="muted">Press Refresh, or Start, to see the picture.</div></div>
+          <div class="card-head"><h3>What the detector sees</h3>
+            <div class="fps-pick"><select id="fps-select"><option value="15">15 FPS</option><option value="30">30 FPS</option><option value="60">60 FPS</option><option value="custom">Custom…</option></select>
+            <input id="fps-custom" type="number" min="1" max="120" step="1" class="tiny hidden" title="Frames per second (1-120)">
+            <button id="btn-preview" class="ghost">Reconnect</button></div></div>
+          <div class="preview"><img id="preview-img" alt="Live picture from the Xbox app"><div id="preview-empty" class="muted">Connecting to the picture…</div><span id="fps-badge" class="fps-badge hidden"></span></div>
           <div class="stats">
             <div><b id="stat-deaths">0</b><small>deaths this session</small></div>
             <div><b id="stat-frames">0</b><small>frames analysed</small></div>
+            <div><b id="stat-fps">0</b><small>preview FPS</small></div>
             <div><b id="stat-held">0</b><small>waiting to save</small></div>
           </div>
         </div>
@@ -80,7 +84,7 @@
 
     <!-- PLAYERS -->
     <section id="tab-players" class="page">
-      <div class="toolbar"><span class="muted">Pick who "me" is, and add each player's Xbox gamertag so names on screen are matched to them.</span><span class="spacer"></span><button id="btn-pl-refresh" class="primary">Refresh</button></div>
+      <div class="toolbar"><span class="muted">Pick who "me" is. Dead-Fest usernames are matched to the Xbox gamertags on screen automatically; only fill in a gamertag if a player's is different.</span><span class="spacer"></span><button id="btn-pl-refresh" class="primary">Refresh</button></div>
       <div id="pl-note" class="notice hidden"></div>
       <div class="grid2 wide-left">
         <div class="card"><table class="table" id="pl-table"><thead><tr><th>Me</th><th>Player</th><th>Xbox gamertag</th><th>Lvl</th><th>Coins</th><th>Deaths</th></tr></thead><tbody></tbody></table></div>
@@ -92,8 +96,9 @@
     <section id="tab-hud" class="page">
       <div class="toolbar">
         <button id="btn-hud-capture" class="primary">Capture frame</button>
-        <span class="muted small">Do this in co-op with <b>everyone at full health</b>, then draw each box.</span>
+        <span class="muted small">In co-op with <b>everyone at full health</b>: capture, then draw the four boxes.</span>
         <span class="spacer"></span>
+        <label class="small">Names line up on the <select id="hud-anchor"><option value="left">left</option><option value="right">right</option></select></label>
         <label class="small">Seconds at zero health before it counts <input id="hud-hold" type="number" min="1" max="60" step="0.5" value="3"></label>
         <button id="btn-hud-test" class="ghost">Test</button>
         <button id="btn-hud-save" class="primary">Save</button>
@@ -102,9 +107,14 @@
       <div id="hud-note" class="notice hidden"></div>
       <div class="grid2 wide-left">
         <div class="card"><div class="hud-stage"><img id="hud-img" alt="Captured frame"><canvas id="hud-canvas"></canvas><div id="hud-empty" class="muted">Capture a frame to start.</div></div></div>
-        <div class="card"><h3>Readings</h3><div id="hud-readings" class="muted small">Save, then press Test to see each bar's health and the name read from the screen.</div>
+        <div class="card"><h3>Readings</h3><div id="hud-readings" class="muted small">Save, then press Test: every teammate found by name appears here with their health, and their boxes are drawn on the picture.</div>
           <h3 class="mt">How it works</h3>
-          <p class="small muted">Pick a box below, then drag on the picture. A health bar that empties and stays empty for the time you set counts as a death; the name next to it says whose. Boxes are stored as a share of the picture, so resizing the Xbox app is fine.</p></div>
+          <ol class="small muted steps">
+            <li><b>My health bar</b>: drag over your own bar.</li>
+            <li><b>Teammates area</b>: drag over the whole list of teammates' names and bars (big enough for a full squad).</li>
+            <li><b>Example name</b> and <b>Example health bar</b>: one teammate's name and their bar. This teaches where a bar sits next to a name.</li>
+          </ol>
+          <p class="small muted">Teammates are then found <b>by name</b> about once a second, so it doesn't matter who leaves, rejoins or swaps places. A bar that empties and stays empty counts as that player's death, but only while their name is still on screen; someone who leaves doesn't count. Names are matched to Dead-Fest usernames (their gamertags).</p></div>
       </div>
     </section>
 

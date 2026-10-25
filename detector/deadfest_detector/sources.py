@@ -34,6 +34,8 @@ class SourceError(Exception):
 
 class FrameSource:
     description = "source"
+    # Called with plain-language messages ("The Xbox app is minimised...") while frames can't flow.
+    on_status = staticmethod(print)
 
     def frames(self) -> Iterator[Frame]:
         raise NotImplementedError
@@ -140,6 +142,7 @@ class XboxAppSource(FrameSource):
             crop_content=True,
             crop_16_9=self.crop_16_9,
             describe_missing="Waiting for the Xbox app window (was it closed?).",
+            on_status=self.on_status,
         )
 
 
@@ -165,6 +168,7 @@ class WindowSource(FrameSource):
             crop_content=False,
             crop_16_9=self.crop_16_9,
             describe_missing=f"Waiting for a window titled '{self.title_part}'.",
+            on_status=self.on_status,
         )
 
 

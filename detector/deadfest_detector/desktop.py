@@ -30,7 +30,8 @@ from .cli import build_rules, load_session, save_session, session_path, template
 from .counting import AutoCounter
 from .detect import Analyzer, load_templates
 from .firebase_rest import AuthClient, FirebaseError, FirestoreClient, NetworkError
-from .hud import HudConfig, HudTracker, bar_fill, crop, reference_colour
+from .hud import HudConfig, HudTracker, calibrate_team, crop, reference_colour
+from .live import LIVE_SOURCES, FrameHub, PreviewServer, ThreadedSource
 from .pipeline import Pipeline
 from .players import Player, match_name
 from .sources import SourceError, first_frame, from_config, looks_blank
@@ -55,27 +56,21 @@ def _b64_bytes(data: bytes) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(data).decode()
 
 
-class _LatestFrame:
-    """Wraps a source so the window can show the newest frame while the pipeline uses it."""
+class _Published:
+    """Recorded footage (not live): frames go to the pipeline in order and are also shown live."""
 
-    def __init__(self, source):
+    def __init__(self, source, hub: FrameHub):
         self.source = source
+        self.hub = hub
         self.description = source.description
-        self.frame: np.ndarray | None = None
-        self.lock = threading.Lock()
 
     def frames(self):
         for t, frame in self.source.frames():
-            with self.lock:
-                self.frame = frame
+            self.hub.publish(t, frame)
             yield t, frame
 
     def close(self):
         self.source.close()
-
-    def latest(self) -> np.ndarray | None:
-        with self.lock:
-            return None if self.frame is None else self.frame.copy()
 
 
 class Api:
@@ -87,7 +82,7 @@ class Api:
         self.stop_flag = threading.Event()
         self.sync_wake = threading.Event()
         self.pipeline: Pipeline | None = None
-        self.source: _LatestFrame | None = None
+        self.source = None
         self.status_line = "Stopped"
         self.players_cache: list[Player] = []
         self.thumb_cache: dict[str, str] = {}
@@ -96,6 +91,13 @@ class Api:
         self.cfg.setdefault("gamertags", {})
         self.cfg.setdefault("hud", {})
         self.cfg.setdefault("auto_count", True)
+        self.cfg.setdefault("preview_fps", 30)
+        # Live preview: frames captured on their own thread, streamed to the window as MJPEG.
+        self.hub = FrameHub()
+        self.preview_source: ThreadedSource | None = None
+        self.preview_lock = threading.Lock()
+        self.preview_server = PreviewServer(self.hub, on_viewer=self._on_viewer)
+        self.capture_status = ""
         threading.Thread(target=self._sync_loop, daemon=True).start()
 
     # ------------------------------------------------------------------ helpers
@@ -136,6 +138,78 @@ class Api:
         p = match_name(raw, self.players_cache, self.cfg.get("gamertags", {}))
         return p.handle if p else raw
 
+    def _hud_identity(self, raw: str) -> tuple[str, str]:
+        """(key, label) for a name read off the HUD: the Dead-Fest player it is, else the raw name."""
+        p = match_name(raw, self.players_cache, self.cfg.get("gamertags", {}))
+        return (p.uid, p.handle) if p else (raw.upper(), raw)
+
+    def _known_names(self) -> list[str]:
+        return [p.handle for p in self.players_cache] + [t for t in self.cfg.get("gamertags", {}).values() if t]
+
+    def _open_source(self, src_cfg: dict):
+        """from_config, with the source's status messages shown in the window."""
+        raw = from_config(src_cfg)
+        self.capture_status = ""
+
+        def status(msg: str) -> None:
+            self.capture_status = "" if msg.startswith("Capturing") else msg
+            self._event("info" if msg.startswith("Capturing") else "warn", msg)
+
+        raw.on_status = status
+        return raw
+
+    def _source_cfg(self) -> dict:
+        """The source settings, capturing live sources at the preview frame rate."""
+        src = dict(self.cfg["source"])
+        src["capture_fps"] = max(float(self.cfg.get("preview_fps", 30)), float(self.cfg["detection"]["analysis_fps"]))
+        return src
+
+    # ------------------------------------------------------------------ live preview
+
+    def _on_viewer(self, active: bool) -> None:
+        if active:
+            self._start_preview_capture()
+        else:
+            threading.Timer(3.0, self._maybe_stop_preview).start()
+
+    def _start_preview_capture(self) -> None:
+        """Capture just for the preview while detection is stopped (detection feeds it otherwise)."""
+        with self.preview_lock:
+            if self.running or (self.preview_source and self.preview_source.running):
+                return
+            src_cfg = self._source_cfg()
+            if src_cfg.get("type") not in LIVE_SOURCES:
+                return
+            try:
+                raw = self._open_source(src_cfg)
+            except SourceError as e:
+                self.capture_status = str(e)
+                self._event("warn", f"Preview: {e}")
+                return
+            self.preview_source = ThreadedSource(raw, self.hub).start()
+
+    def _stop_preview_capture(self) -> None:
+        with self.preview_lock:
+            if self.preview_source:
+                self.preview_source.close()
+                self.preview_source = None
+
+    def _maybe_stop_preview(self) -> None:
+        if self.preview_server.viewers == 0:
+            self._stop_preview_capture()
+
+    def _current_frame(self, timeout: float = 15.0) -> np.ndarray:
+        """The newest live frame if one is flowing, else a fresh one-off capture."""
+        if self.running or (self.preview_source and self.preview_source.running):
+            got = self.hub.wait_next(self.hub.seq - 1, timeout=2.0)
+            if got is not None:
+                return got[2].copy()
+        src = from_config(self._source_cfg())
+        try:
+            return first_frame(src, timeout=timeout)
+        finally:
+            src.close()
+
     @staticmethod
     def _safe(fn):
         try:
@@ -175,6 +249,10 @@ class Api:
             "lastSync": self.last_sync,
             "log": list(self.log)[:60],
             "hasHud": bool(self.cfg["hud"].get(self.cfg["game"])),
+            "previewFps": float(self.cfg.get("preview_fps", 30)),
+            "previewUrl": self.preview_server.url(float(self.cfg.get("preview_fps", 30))),
+            "measuredFps": round(self.hub.fps(), 1),
+            "captureStatus": self.capture_status,
         }
 
     # ------------------------------------------------------------------ account and settings
@@ -224,10 +302,18 @@ class Api:
             if "gamertag" in s:
                 uid, tag = s["gamertag"]
                 self.cfg["gamertags"][uid] = tag.strip()[:40]
+            if "previewFps" in s:
+                self.cfg["preview_fps"] = max(1.0, min(120.0, float(s["previewFps"])))
             self._save_cfg()
+        if "previewFps" in s or "sourceType" in s or "deviceIndex" in s:
+            # Restart the preview-only capture at the new rate / source (detection restarts on Start).
+            if self.preview_source:
+                self._stop_preview_capture()
+                if self.preview_server.viewers:
+                    self._start_preview_capture()
         if self.cfg["sharing"] == configmod.SHARING_SHARED:
             self.sync_wake.set()
-        return {"ok": True, "restartNeeded": self.running and any(k in s for k in ("game", "sourceType", "deviceIndex", "evidenceRoot"))}
+        return {"ok": True, "restartNeeded": self.running and any(k in s for k in ("game", "sourceType", "deviceIndex", "evidenceRoot", "previewFps"))}
 
     # ------------------------------------------------------------------ detection
 
@@ -245,7 +331,7 @@ class Api:
         if me and self.cfg["gamertags"].get(me):
             names.append(self.cfg["gamertags"][me])
         hud_cfg = HudConfig.from_json(self.cfg["hud"].get(game_id))
-        hud = HudTracker(hud_cfg, reader, self._resolve_name) if hud_cfg else None
+        hud = HudTracker(hud_cfg, reader, self._hud_identity, self._known_names) if hud_cfg else None
         return Analyzer(profile, reader, load_templates(templates_dir(game_id)),
                         template_threshold=float(det.get("template_threshold", 0.8)),
                         color_boost=float(det.get("color_boost", 0.05)),
@@ -256,8 +342,10 @@ class Api:
             with self.lock:
                 if self.running:
                     return {"ok": True}
+                self._stop_preview_capture()      # detection takes over the camera / window
+                src_cfg = self._source_cfg()
                 try:
-                    raw = from_config(self.cfg["source"])
+                    raw = self._open_source(src_cfg)
                 except SourceError as e:
                     return {"ok": False, "error": str(e)}
                 game_id = self.cfg["game"]
@@ -268,7 +356,11 @@ class Api:
                     self._event("warn", f"{e} Deaths will be held until it's back.")
                 if self.cfg["sharing"] == configmod.SHARING_SHARED:
                     self._players()
-                self.source = _LatestFrame(raw)
+                if src_cfg.get("type") in LIVE_SOURCES:
+                    # Captured on its own thread at the preview rate; detection takes the newest frame.
+                    self.source = ThreadedSource(raw, self.hub)
+                else:
+                    self.source = _Published(raw, self.hub)
                 det, cap = self.cfg["detection"], self.cfg["capture"]
 
                 def on_record(r):
@@ -305,19 +397,19 @@ class Api:
         finally:
             self.running = False
             self.status_line = "Stopped"
+            if self.preview_server.viewers:
+                self._start_preview_capture()   # keep the preview going after detection stops
 
     def stop(self) -> dict:
         self.stop_flag.set()
+        if isinstance(self.source, ThreadedSource):
+            self.source.close()                 # ends the frame stream even if no frames arrive
         self._event("info", "Stopping.")
         return {"ok": True}
 
     def preview(self) -> dict:
         def go():
-            frame = self.source.latest() if (self.running and self.source) else None
-            if frame is None:
-                src = from_config(self.cfg["source"])
-                frame = first_frame(src, timeout=15)
-                src.close()
+            frame = self._current_frame()
             return {"ok": True, "image": _b64_jpeg(frame), "width": frame.shape[1], "height": frame.shape[0],
                     "blank": looks_blank(frame)}
         return self._safe(go)
@@ -534,71 +626,91 @@ class Api:
 
     def hud_capture(self) -> dict:
         def go():
-            frame = self.source.latest() if (self.running and self.source) else None
-            if frame is None:
-                src = from_config(self.cfg["source"])
-                frame = first_frame(src, timeout=15)
-                src.close()
+            frame = self._current_frame()
             self.hud_frame = frame
             return {"ok": True, "image": _b64_jpeg(frame, 1280, 85), "width": frame.shape[1], "height": frame.shape[0],
                     "hud": self.cfg["hud"].get(self.cfg["game"]) or {}}
         return self._safe(go)
 
+    def _text_box(self, frame: np.ndarray, box) -> tuple | None:
+        """The exact box of the text inside a drawn box (OCR), in fractions of the frame."""
+        try:
+            reader = ocr.create(self.cfg["detection"].get("ocr", "windows"))
+        except Exception:  # noqa: BLE001
+            return None
+        h, w = frame.shape[:2]
+        img = crop(frame, tuple(box))
+        if img.size == 0:
+            return None
+        lines = reader.read_lines(cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC))
+        if not lines:
+            return None
+        _, (x, y, bw, bh) = lines[0]
+        return box[0] + x / 3 / w, box[1] + y / 3 / h, bw / 3 / w, bh / 3 / h
+
     def hud_save(self, hud: dict) -> dict:
-        """Saves the boxes for the current game, sampling each bar's 'full' colour from the captured frame."""
+        """
+        Saves the HUD for the current game from the captured frame: your bar, the teammates area,
+        and one example teammate (name + bar) that teaches where a bar sits relative to a name.
+        """
         def go():
             frame = self.hud_frame
             if frame is None:
                 return {"ok": False, "error": "Capture a frame first (everyone at full health)."}
-
-            def bar(b):
-                if not b:
-                    return None
-                ref = reference_colour(crop(frame, tuple(b)))
-                return {"box": list(b), "ref": list(ref) if ref else None}
-
-            out = {"self_bar": bar(hud.get("self_bar")), "teammates": [],
-                   "hold_seconds": float(hud.get("hold_seconds", 3.0))}
-            for t in hud.get("teammates", []):
-                if t.get("bar"):
-                    out["teammates"].append({"bar": bar(t["bar"]), "name_box": t.get("name_box"), "label": t.get("label", "")})
-            if not out["self_bar"] and not out["teammates"]:
+            out: dict = {"hold_seconds": float(hud.get("hold_seconds", 3.0))}
+            notes = []
+            if hud.get("self_bar"):
+                ref = reference_colour(crop(frame, tuple(hud["self_bar"])))
+                out["self_bar"] = {"box": list(hud["self_bar"]), "ref": list(ref) if ref else None}
+                if not ref:
+                    notes.append("couldn't find a clear colour in your bar")
+            area, name, bar = hud.get("team_area"), hud.get("example_name"), hud.get("example_bar")
+            if area or name or bar:
+                if not (area and name and bar):
+                    return {"ok": False, "error": "For teammates, draw the teammates area, one example name and that player's health bar."}
+                anchor = hud.get("anchor", "left")
+                name_box = self._text_box(frame, name) or tuple(name)
+                ref = reference_colour(crop(frame, tuple(bar)))
+                out["team"] = {"area": list(area), "bar_offset": list(calibrate_team(tuple(area), name_box, tuple(bar), anchor)),
+                               "ref": list(ref) if ref else None, "anchor": anchor, "example_name": list(name),
+                               "example_bar": list(bar)}
+                if not ref:
+                    notes.append("couldn't find a clear colour in the example bar")
+            if "self_bar" not in out and "team" not in out:
                 self.cfg["hud"].pop(self.cfg["game"], None)
             else:
                 self.cfg["hud"][self.cfg["game"]] = out
             self._save_cfg()
-            missing = [n for n, b in [("your bar", out["self_bar"])] + [(f"teammate {i + 1}", t["bar"]) for i, t in enumerate(out["teammates"])]
-                       if b and not b["ref"]]
-            note = (" Couldn't find a clear bar colour for " + ", ".join(missing) +
-                    "; capture again with everyone at full health.") if missing else ""
+            note = (" Note: " + "; ".join(notes) + ". Capture again with everyone at full health.") if notes else ""
             return {"ok": True, "message": "HUD saved for " + games.get(self.cfg["game"]).name + "." + note,
                     "restartNeeded": self.running}
         return self._safe(go)
 
     def hud_test(self) -> dict:
-        """Live readings for the saved boxes: each bar's fill and the name the HUD shows."""
+        """What HUD tracking sees right now: every teammate found by name, their bar and its fill."""
         def go():
             cfg = HudConfig.from_json(self.cfg["hud"].get(self.cfg["game"]))
             if not cfg:
                 return {"ok": False, "error": "No HUD saved for this game yet."}
-            frame = self.source.latest() if (self.running and self.source) else None
-            if frame is None:
-                src = from_config(self.cfg["source"])
-                frame = first_frame(src, timeout=15)
-                src.close()
+            frame = self._current_frame()
             try:
                 reader = ocr.create(self.cfg["detection"].get("ocr", "windows"))
             except Exception:  # noqa: BLE001
                 reader = ocr.NullOcr()
-            tracker = HudTracker(cfg, reader, self._resolve_name)
-            out = []
-            if cfg.self_bar:
-                out.append({"slot": "You", "fill": round(bar_fill(crop(frame, cfg.self_bar.box), cfg.self_bar.ref), 3), "name": ""})
-            for i, slot in enumerate(cfg.teammates):
-                name = tracker._read_name(frame, slot.name_box) if slot.name_box else slot.fixed_label
-                out.append({"slot": f"Teammate {i + 1}", "fill": round(bar_fill(crop(frame, slot.bar.box), slot.bar.ref), 3),
-                            "name": name, "player": self._resolve_name(name) if name else ""})
-            return {"ok": True, "readings": out, "holdSeconds": cfg.hold_seconds}
+            if self.cfg.get("sharing") == configmod.SHARING_SHARED or self._session():
+                self._players()
+            tracker = HudTracker(cfg, reader, self._hud_identity, self._known_names)
+            tracker.update(0.0, frame)
+            readings = []
+            for r in tracker.readings():
+                if r["slot"] == "Teammate":
+                    key = next((k for k, st in tracker.states.items() if st.label == r["name"]), "")
+                    matched = any(p.uid == key[5:] for p in self.players_cache) if key.startswith("team:") else False
+                    readings.append({**r, "matched": matched})
+                else:
+                    readings.append(r)
+            return {"ok": True, "readings": readings, "holdSeconds": cfg.hold_seconds,
+                    "image": _b64_jpeg(frame, 1280, 85), "knownPlayers": len(self.players_cache)}
         return self._safe(go)
 
 

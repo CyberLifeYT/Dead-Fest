@@ -218,7 +218,10 @@ class GraphicsCapture:
         self._frame: np.ndarray | None = None
         self._count = 0
         self.closed = threading.Event()
-        interval = max(1, int(1000 / max(1.0, fps)))
+        self.new_frame = threading.Event()   # set whenever a frame arrives, so readers needn't poll
+        # Windows rounds the minimum update interval to display refresh ticks, so asking for the
+        # exact period (16 ms for 60 FPS) delivers ~37 FPS. Ask for half; capture_frames paces to fps.
+        interval = max(1, int(500 / max(1.0, fps)))
         try:
             self._capture = WindowsCapture(cursor_capture=False, draw_border=False,
                                            minimum_update_interval=interval, window_hwnd=hwnd)
@@ -231,6 +234,7 @@ class GraphicsCapture:
             with self._lock:
                 self._frame = img
                 self._count += 1
+            self.new_frame.set()
 
         @self._capture.event
         def on_closed():
@@ -252,6 +256,13 @@ class GraphicsCapture:
             pass
 
 
+def _still_valid(hwnd: int) -> WindowInfo | None:
+    """A fresh look at the window being captured (cheap), or None if it no longer exists."""
+    if not _user32().IsWindow(hwnd):
+        return None
+    return _info(hwnd, with_children=True)
+
+
 def capture_frames(
     find,
     *,
@@ -262,15 +273,18 @@ def capture_frames(
     on_status=print,
 ) -> Iterator[tuple[float, np.ndarray]]:
     """
-    Yields (seconds, BGR frame) from the window find() returns, re-finding it if it closes or is
-    reopened, and pausing (with a message) while it is minimised or missing.
+    Yields (seconds, BGR frame) from the window find() returns, at up to `fps` frames a second,
+    re-finding it if it closes or is reopened, and pausing (with a message) while it is minimised
+    or missing. Paced by deadline, so the rate holds at 30/60 FPS; the full window search (which
+    looks at every window on the PC) only runs when the captured window has gone.
     """
     make_dpi_aware()
     period = 1.0 / max(1.0, fps)
     session: GraphicsCapture | None = None
     window: WindowInfo | None = None
-    last_find = 0.0
+    last_check = 0.0
     last_count = -1
+    next_at = 0.0
     last_status = ""
     last_status_at = 0.0
 
@@ -284,9 +298,11 @@ def capture_frames(
     try:
         while True:
             now = time.monotonic()
-            if session is None or session.closed.is_set() or now - last_find > 2.0:
-                found = find()
-                last_find = now
+            if session is None or session.closed.is_set() or now - last_check > 2.0:
+                last_check = now
+                found = _still_valid(session.hwnd) if (session and not session.closed.is_set()) else None
+                if found is None or found.cloaked:
+                    found = find()
                 if found is None:
                     if session:
                         session.stop()
@@ -296,7 +312,8 @@ def capture_frames(
                     continue
                 if found.minimized:
                     status("The Xbox app is minimised. Restore it (it can sit behind other windows, just not minimised).")
-                    time.sleep(1.0)
+                    time.sleep(0.5)
+                    last_check = 0.0
                     continue
                 if session is None or session.closed.is_set() or found.hwnd != session.hwnd:
                     if session:
@@ -306,18 +323,23 @@ def capture_frames(
                     status(f"Capturing '{found.title or found.exe}' ({found.rect[2] - found.rect[0]}x{found.rect[3] - found.rect[1]}).")
                 window = found
 
+            session.new_frame.wait(timeout=min(0.5, period * 2))
+            session.new_frame.clear()
             count, frame = session.latest()
             if frame is None or count == last_count:
-                time.sleep(period / 2)
                 continue
+            now = time.monotonic()
+            if now < next_at:
+                time.sleep(next_at - now)      # faster than asked: hold to the chosen rate
+                count, frame = session.latest()
             last_count = count
+            next_at = max(next_at + period, time.monotonic() - period)
             h, w = frame.shape[:2]
             box = content_box(window, w, h) if crop_content else (0, 0, w, h)
             if crop_16_9:
                 box = fit_16_9(box)
             x0, y0, x1, y1 = box
             yield time.monotonic(), frame[y0:y1, x0:x1]
-            time.sleep(period)
     finally:
         if session:
             session.stop()

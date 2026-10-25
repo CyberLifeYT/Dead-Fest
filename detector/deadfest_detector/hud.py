@@ -1,23 +1,32 @@
 """
 HUD tracking: deaths read from the health bars, for games that never print "You died".
 
-In co-op the HUD shows each player's name next to their health bar. You mark those boxes once in
-the desktop app (HUD setup), with everyone at full health. From then on, every analysed frame:
+You mark the HUD once in the desktop app (HUD setup), in co-op with everyone at full health:
 
-  * each bar's fill is measured (the share of the bar still in its "full" colour);
-  * a bar that was alive and then sits at (near) zero for `hold_seconds` is a death;
-  * the name box is read with OCR now and then and matched to a Dead-Fest player, so a teammate's
-    death is labelled with who it was.
+  * **your health bar** (it never moves);
+  * the **teammates area**: the part of the screen where teammates' names and bars are listed;
+  * **one example teammate**: their name and their health bar. That teaches the layout: where a
+    bar sits relative to its name, and the bar's "full" colour.
 
-Boxes are stored as fractions of the frame (0..1), so they keep working when the Xbox app window
-is resized. A slot whose name box is empty (nobody in that slot) never produces a death.
+From then on teammates are tracked **by name, not by position**. About once a second the names in
+the teammates area are read (Windows OCR) and matched to Dead-Fest players (whose usernames are
+their Xbox gamertags; the Players tab can map any that differ). Each player's bar is found from
+where *their* name currently is, so people leaving, rejoining or swapping places never mixes them
+up. Every analysed frame, each known player's bar fill is measured:
 
-Being downed (revivable) also empties a bar in some games. `hold_seconds` is how long a bar must
-stay empty to count; set it longer than a revive takes in games that have a downed state.
+  * a bar that was alive and then sits at (near) zero for `hold_seconds` is that player's death;
+  * the player's name must still be on screen in the same place after their bar emptied, because
+    a player who *leaves* also makes their bar vanish, and that is not a death.
+
+Boxes are stored as fractions of the frame (0..1), so resizing the Xbox app window is fine.
+
+Being downed (revivable) also empties a bar in some games: set `hold_seconds` longer than a
+revive takes there. The older fixed-slot setup (one box per slot) still works if it's configured.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import cv2
@@ -28,6 +37,8 @@ from .games import SELF, TEAMMATE
 from .ocr import OcrProvider
 
 Box = tuple[float, float, float, float]   # x, y, w, h as fractions of the frame
+
+_PLAUSIBLE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9 _.\-]{1,19}$")
 
 
 def crop(frame: np.ndarray, box: Box) -> np.ndarray:
@@ -41,7 +52,7 @@ def crop(frame: np.ndarray, box: Box) -> np.ndarray:
 
 
 def reference_colour(bar_bgr: np.ndarray) -> tuple[float, float, float] | None:
-    """The bar's 'full' colour (HSV median of its vivid pixels), sampled while everyone is at full health."""
+    """The bar's 'full' colour (HSV median of its vivid or bright pixels), sampled at full health."""
     hsv = cv2.cvtColor(bar_bgr, cv2.COLOR_BGR2HSV).reshape(-1, 3).astype(np.float32)
     vivid = hsv[(hsv[:, 1] > 60) & (hsv[:, 2] > 70)]
     bright = hsv[(hsv[:, 1] <= 60) & (hsv[:, 2] > 170)]   # white/grey bars
@@ -78,16 +89,41 @@ class BarSpec:
 
 @dataclass
 class SlotSpec:
-    """One player on the HUD. `name_box` None means the bar is yours."""
+    """Fixed-slot mode: one teammate position (older setups)."""
     bar: BarSpec
     name_box: Box | None = None
     fixed_label: str = ""
 
 
 @dataclass
+class TeamSpec:
+    """Name-tracking mode: where teammates are listed and how a bar sits relative to its name."""
+    area: Box
+    bar_offset: tuple[float, float, float, float]   # dx, dy from the name's anchor corner; w, h of the bar
+    ref: tuple[float, float, float] | None = None
+    anchor: str = "left"                             # names line up on their "left" or "right" edge
+    read_every: float = 1.0
+
+    def bar_for(self, name_box: Box) -> Box:
+        nx, ny, nw, _ = name_box
+        ax = nx if self.anchor == "left" else nx + nw
+        dx, dy, bw, bh = self.bar_offset
+        return ax + dx, ny + dy, bw, bh
+
+
+def calibrate_team(area: Box, example_name: Box, example_bar: Box, anchor: str = "left") -> tuple:
+    """bar_offset from one example teammate (name box and bar box, fractions of the frame)."""
+    nx, ny, nw, _ = example_name
+    bx, by, bw, bh = example_bar
+    ax = nx if anchor == "left" else nx + nw
+    return bx - ax, by - ny, bw, bh
+
+
+@dataclass
 class HudConfig:
     self_bar: BarSpec | None = None
     teammates: list[SlotSpec] = field(default_factory=list)
+    team: TeamSpec | None = None
     hold_seconds: float = 3.0
     empty_below: float = 0.04
     alive_above: float = 0.15
@@ -101,10 +137,16 @@ class HudConfig:
         def bar(b):
             return BarSpec(tuple(b["box"]), tuple(b["ref"]) if b.get("ref") else None) if b else None
 
+        team = None
+        if d.get("team"):
+            t = d["team"]
+            team = TeamSpec(tuple(t["area"]), tuple(t["bar_offset"]), tuple(t["ref"]) if t.get("ref") else None,
+                            t.get("anchor", "left"), float(t.get("read_every", 1.0)))
         return HudConfig(
             self_bar=bar(d.get("self_bar")),
             teammates=[SlotSpec(bar(t["bar"]), tuple(t["name_box"]) if t.get("name_box") else None, t.get("label", ""))
                        for t in d.get("teammates", []) if t.get("bar")],
+            team=team,
             hold_seconds=float(d.get("hold_seconds", 3.0)),
         )
 
@@ -117,14 +159,39 @@ class _BarState:
     name: str = ""
     name_read_at: float = float("-inf")
     has_name: bool = True
+    # name-tracking mode
+    label: str = ""
+    bar_box: Box | None = None
+    name_box: Box | None = None
+    seen_at: float = float("-inf")       # last OCR pass that found this player's name
+
+
+def _near(a: Box | None, b: Box | None, tol: float = 0.02) -> bool:
+    return a is not None and b is not None and abs(a[0] - b[0]) < tol and abs(a[1] - b[1]) < tol
 
 
 class HudTracker:
-    def __init__(self, config: HudConfig, ocr: OcrProvider | None = None, name_resolver=None):
+    def __init__(self, config: HudConfig, ocr: OcrProvider | None = None, name_resolver=None,
+                 known_names=None):
+        """
+        name_resolver(raw) -> (key, label) or label: who a name read off the screen is.
+        known_names() -> list of names to accept in name-tracking mode (empty: any plausible name).
+        """
         self.config = config
         self.ocr = ocr
         self.resolve = name_resolver or (lambda raw: raw)
+        self.known_names = known_names or (lambda: [])
         self.states: dict[str, _BarState] = {}
+        self._team_read_at = float("-inf")
+
+    # ------------------------------------------------------------------ common
+
+    def _identity(self, raw: str) -> tuple[str, str]:
+        res = self.resolve(raw)
+        if isinstance(res, tuple):
+            return res
+        label = res or raw
+        return label.upper(), label
 
     def _read_name(self, frame: np.ndarray, box: Box) -> str:
         if not self.ocr:
@@ -133,11 +200,9 @@ class HudTracker:
         if img.size == 0:
             return ""
         img = cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)   # small HUD text reads better big
-        text = " ".join(self.ocr.read(img).split())
-        return text[:40]
+        return " ".join(self.ocr.read(img).split())[:40]
 
-    def _step(self, key: str, t: float, fill: float) -> _BarState:
-        st = self.states.setdefault(key, _BarState())
+    def _step(self, st: _BarState, t: float, fill: float) -> None:
         st.fill = fill
         c = self.config
         if fill >= c.alive_above:
@@ -146,7 +211,6 @@ class HudTracker:
         elif fill <= c.empty_below:
             if st.empty_since is None:
                 st.empty_since = t
-        return st
 
     def _dead(self, st: _BarState, t: float) -> bool:
         c = self.config
@@ -154,31 +218,113 @@ class HudTracker:
         return (st.empty_since is not None and t - st.empty_since >= c.hold_seconds
                 and st.empty_since - st.alive_at <= 30.0)
 
+    # ------------------------------------------------------------------ name-tracking mode
+
+    def _area_lines(self, area: np.ndarray) -> list[tuple[str, tuple[float, float, float, float]]]:
+        """
+        Text lines in the teammates area, positions in the area's own pixels. Windows OCR is picky
+        about scale (the same names can read at 1x and vanish at 2x), so it reads the area twice,
+        at native size and enlarged with a margin, and keeps every distinct line it found.
+        """
+        out: list[tuple[str, tuple[float, float, float, float]]] = []
+        seen: set[str] = set()
+        for scale, pad in ((1.0, 24), (2.0, 48)):
+            img = area if scale == 1.0 else cv2.resize(area, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+            img = cv2.copyMakeBorder(img, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=(0, 0, 0))
+            for text, (x, y, w, h) in self.ocr.read_lines(img):
+                key = "".join(text.split()).upper()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                out.append((text, ((x - pad) / scale, (y - pad) / scale, w / scale, h / scale)))
+        return out
+
+    def _read_team(self, t: float, frame: np.ndarray) -> None:
+        team = self.config.team
+        area = crop(frame, team.area)
+        if area.size == 0 or not self.ocr:
+            return
+        fh, fw = frame.shape[:2]
+        ax, ay = team.area[0], team.area[1]
+        known = [n for n in self.known_names() if n]
+        taken: set[str] = set()
+        for text, (x, y, w, h) in self._area_lines(area):
+            raw = " ".join(text.split()).strip(" .-_")
+            if not _PLAUSIBLE_NAME.match(raw):
+                continue
+            key, label = self._identity(raw)
+            if known and label not in known and key not in {k.upper() for k in known}:
+                continue          # a known-players list exists and this isn't one of them
+            if key in taken:
+                continue
+            taken.add(key)
+            name_box = (ax + x / fw, ay + y / fh, w / fw, h / fh)
+            st = self.states.setdefault("team:" + key, _BarState())
+            if not _near(st.name_box, name_box):
+                # They moved (someone left or joined): their bar history belongs to the old position.
+                st.empty_since = None if st.name_box is not None else st.empty_since
+            st.label, st.name_box, st.bar_box, st.seen_at = label, name_box, team.bar_for(name_box), t
+
+    def _update_team(self, t: float, frame: np.ndarray) -> list[Candidate]:
+        team = self.config.team
+        if t - self._team_read_at >= team.read_every:
+            self._read_team(t, frame)
+            self._team_read_at = t
+        out = []
+        forget = self.config.hold_seconds + 10
+        for key, st in list(self.states.items()):
+            if not key.startswith("team:") or st.bar_box is None:
+                continue
+            if t - st.seen_at > forget:
+                del self.states[key]          # gone from the HUD: left the game
+                continue
+            fill = bar_fill(crop(frame, st.bar_box), team.ref)
+            self._step(st, t, fill)
+            # Still listed, in the same place, after the bar emptied: dead, not departed.
+            still_here = st.empty_since is not None and st.seen_at >= st.empty_since
+            if self._dead(st, t) and still_here:
+                out.append(Candidate(TEAMMATE, st.label[:40], 0.85,
+                                     {"hud": f"{st.label}'s health bar empty", "hud_fill": round(fill, 3)}))
+        return out
+
+    # ------------------------------------------------------------------ update
+
     def update(self, t: float, frame: np.ndarray) -> list[Candidate]:
         out: list[Candidate] = []
         c = self.config
         if c.self_bar:
+            st = self.states.setdefault("self", _BarState())
             fill = bar_fill(crop(frame, c.self_bar.box), c.self_bar.ref)
-            st = self._step("self", t, fill)
+            self._step(st, t, fill)
             if self._dead(st, t):
                 out.append(Candidate(SELF, "", 0.85, {"hud": "own health bar empty", "hud_fill": round(fill, 3)}))
+        if c.team:
+            out += self._update_team(t, frame)
         for i, slot in enumerate(c.teammates):
-            key = f"mate{i}"
+            st = self.states.setdefault(f"mate{i}", _BarState())
             fill = bar_fill(crop(frame, slot.bar.box), slot.bar.ref)
-            st = self._step(key, t, fill)
+            self._step(st, t, fill)
             if slot.name_box and t - st.name_read_at >= c.name_every_seconds and fill >= c.alive_above:
                 # Read names while the player is alive: dead HUD names are often greyed out.
                 raw = self._read_name(frame, slot.name_box)
                 st.name_read_at = t
                 st.has_name = bool(raw)
                 if raw:
-                    st.name = self.resolve(raw) or raw
+                    st.name = self._identity(raw)[1]
             label = slot.fixed_label or st.name
             if self._dead(st, t) and (slot.fixed_label or st.has_name):
                 out.append(Candidate(TEAMMATE, label[:40], 0.85,
                                      {"hud": f"teammate {i + 1} health bar empty", "hud_fill": round(fill, 3)}))
         return out
 
-    def readings(self) -> dict[str, dict]:
-        return {k: {"fill": round(v.fill, 3), "name": v.name, "empty_for": None if v.empty_since is None else True}
-                for k, v in self.states.items()}
+    def readings(self) -> list[dict]:
+        out = []
+        for key, st in self.states.items():
+            if key == "self":
+                out.append({"slot": "You", "name": "", "fill": round(st.fill, 3)})
+            elif key.startswith("team:"):
+                out.append({"slot": "Teammate", "name": st.label, "fill": round(st.fill, 3),
+                            "bar": st.bar_box, "nameBox": st.name_box})
+            else:
+                out.append({"slot": f"Slot {key[4:]}", "name": st.name, "fill": round(st.fill, 3)})
+        return out

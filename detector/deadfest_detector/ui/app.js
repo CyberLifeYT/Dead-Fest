@@ -45,6 +45,7 @@ document.querySelectorAll(".tab").forEach((b) =>
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
     tab = b.dataset.tab;
     document.querySelectorAll(".page").forEach((p) => p.classList.toggle("active", p.id === "tab-" + tab));
+    if (tab === "live") ensureStream(); else stopStream();
     if (tab === "evidence") loadEvidence();
     if (tab === "players") loadPlayers();
     if (tab === "hud") renderHudSlots();
@@ -69,6 +70,16 @@ function renderState() {
   start.textContent = s.running ? "Stop" : "Start detecting";
   start.classList.toggle("stop", !!s.running);
   $("stat-deaths").textContent = s.deaths || 0;
+  $("stat-fps").textContent = s.measuredFps ? s.measuredFps.toFixed(0) : "0";
+  // No frames flowing: say why (minimised Xbox app, closed window, unplugged card...).
+  if (!s.measuredFps && s.captureStatus) {
+    $("preview-empty").style.display = "block";
+    $("preview-empty").textContent = s.captureStatus;
+  } else if (s.measuredFps && $("preview-img").style.display === "block") {
+    $("preview-empty").style.display = "none";
+  }
+  syncFps(s.previewFps);
+  if (tab === "live") ensureStream();
   $("stat-frames").textContent = s.framesAnalyzed || 0;
   $("stat-held").textContent = s.held || 0;
   $("account-foot").textContent = s.signedIn ? (s.handle || s.email) + (s.isAdmin ? " · admin" : "") : "Not signed in";
@@ -122,33 +133,57 @@ function fillMe() {
 async function poll() {
   state = await api.state();
   renderState();
-  if (tab === "live" && state.running) refreshPreview(true);
 }
 
 /* ------------------------------------------------------------------ live */
 
-let previewBusy = false;
-async function refreshPreview(quiet) {
-  if (previewBusy) return;
-  previewBusy = true;
-  const res = quiet ? await api.preview() : await call("preview");
-  previewBusy = false;
-  if (res.ok) {
-    const img = $("preview-img");
-    img.src = res.image;
-    img.style.display = "block";
-    $("preview-empty").style.display = "none";
-    if (!quiet && res.blank) toast("The picture is almost black. Is Remote Play showing your game?", "bad");
-  } else if (!quiet) {
-    $("preview-empty").textContent = res.error || "No picture.";
-  }
+/* The preview is an MJPEG stream from a local-only server (127.0.0.1, secret token). */
+let streamUrl = "";
+function ensureStream(force) {
+  const img = $("preview-img");
+  const url = state.previewUrl ? state.previewUrl + "&w=" + Math.min(1920, Math.max(640, Math.round(img.parentElement.clientWidth * (window.devicePixelRatio || 1)))) : "";
+  if (!url || (url.split("&w=")[0] === streamUrl.split("&w=")[0] && !force)) return;
+  streamUrl = url;
+  img.onload = () => { img.style.display = "block"; $("preview-empty").style.display = "none"; $("fps-badge").classList.remove("hidden"); };
+  img.onerror = () => { $("preview-empty").style.display = "block"; $("preview-empty").textContent = "No picture. Is the Xbox app open with Remote Play?"; };
+  img.src = url + "&t=" + Date.now();
+}
+function stopStream() {
+  streamUrl = "";
+  $("preview-img").removeAttribute("src");
+  $("preview-img").style.display = "none";
+  $("fps-badge").classList.add("hidden");
+  $("preview-empty").style.display = "block";
+  $("preview-empty").textContent = "Connecting to the picture…";
+}
+setInterval(() => { if (state.measuredFps !== undefined) $("fps-badge").textContent = Math.round(state.measuredFps || 0) + " FPS"; }, 1000);
+
+function syncFps(fps) {
+  const sel = $("fps-select"), custom = $("fps-custom");
+  if (document.activeElement === sel || document.activeElement === custom) return;
+  const preset = ["15", "30", "60"].includes(String(fps)) ? String(fps) : "custom";
+  sel.value = preset;
+  custom.classList.toggle("hidden", preset !== "custom");
+  if (preset === "custom") custom.value = fps;
+}
+$("fps-select").addEventListener("change", (e) => {
+  const v = e.target.value;
+  $("fps-custom").classList.toggle("hidden", v !== "custom");
+  if (v === "custom") { $("fps-custom").focus(); return; }
+  setFps(parseFloat(v));
+});
+$("fps-custom").addEventListener("change", (e) => setFps(Math.max(1, Math.min(120, parseFloat(e.target.value) || 30))));
+async function setFps(fps) {
+  await saveSetting({ previewFps: fps });
+  stopStream();
+  setTimeout(() => ensureStream(true), 300);
 }
 
 $("btn-start").addEventListener("click", async () => {
   const res = await call(state.running ? "stop" : "start");
   if (res.ok) poll();
 });
-$("btn-preview").addEventListener("click", () => refreshPreview(false));
+$("btn-preview").addEventListener("click", () => { stopStream(); setTimeout(() => ensureStream(true), 200); });
 $("btn-sync").addEventListener("click", async () => {
   const res = await call("sync_now");
   if (res.ok) toast(`Uploaded ${res.uploaded}, counted ${res.counted}` + (res.failed ? `, ${res.failed} waiting` : ""), "good");
@@ -326,10 +361,11 @@ $("btn-pl-refresh").addEventListener("click", () => loadPlayers(false));
 
 const HUD_SLOTS = [
   ["self_bar", "My health bar", "#5dff7a"],
-  ["t0_name", "Teammate 1 name", "#8c9bff"], ["t0_bar", "Teammate 1 health", "#8c9bff"],
-  ["t1_name", "Teammate 2 name", "#ffb020"], ["t1_bar", "Teammate 2 health", "#ffb020"],
-  ["t2_name", "Teammate 3 name", "#ff7ad9"], ["t2_bar", "Teammate 3 health", "#ff7ad9"],
+  ["team_area", "Teammates area", "#8c9bff"],
+  ["example_name", "Example name", "#ffb020"],
+  ["example_bar", "Example health bar", "#ff7ad9"],
 ];
+let hudFound = [];   // boxes from the last Test: [{name, nameBox, bar, fill, matched}]
 
 function renderHudSlots() {
   $("hud-slots").innerHTML = HUD_SLOTS.map(([k, label, colour]) =>
@@ -348,12 +384,15 @@ $("hud-slots").addEventListener("click", (e) => {
 
 function hudFromSaved(saved) {
   hud.boxes = {};
+  hudFound = [];
   if (!saved) return;
   if (saved.self_bar) hud.boxes.self_bar = saved.self_bar.box;
-  (saved.teammates || []).forEach((t, i) => {
-    if (t.bar) hud.boxes[`t${i}_bar`] = t.bar.box;
-    if (t.name_box) hud.boxes[`t${i}_name`] = t.name_box;
-  });
+  if (saved.team) {
+    hud.boxes.team_area = saved.team.area;
+    if (saved.team.example_name) hud.boxes.example_name = saved.team.example_name;
+    if (saved.team.example_bar) hud.boxes.example_bar = saved.team.example_bar;
+    $("hud-anchor").value = saved.team.anchor || "left";
+  }
   if (saved.hold_seconds) $("hud-hold").value = saved.hold_seconds;
 }
 
@@ -376,15 +415,22 @@ function drawHud() {
   cv.width = img.clientWidth; cv.height = img.clientHeight;
   const ctx = cv.getContext("2d");
   ctx.clearRect(0, 0, cv.width, cv.height);
-  HUD_SLOTS.forEach(([k, label, colour]) => {
-    const b = hud.boxes[k];
-    if (!b) return;
+  const rect = (b, colour, width, label, dash) => {
     const [x, y, w, h] = [b[0] * cv.width, b[1] * cv.height, b[2] * cv.width, b[3] * cv.height];
-    ctx.strokeStyle = colour; ctx.lineWidth = k === hud.active ? 3 : 2;
+    ctx.setLineDash(dash || []);
+    ctx.strokeStyle = colour; ctx.lineWidth = width;
     ctx.strokeRect(x, y, w, h);
-    ctx.fillStyle = colour; ctx.font = "12px Segoe UI";
-    ctx.fillText(label, x, Math.max(12, y - 4));
+    if (label) { ctx.fillStyle = colour; ctx.font = "12px Segoe UI"; ctx.fillText(label, x, Math.max(12, y - 4)); }
+  };
+  HUD_SLOTS.forEach(([k, label, colour]) => {
+    if (hud.boxes[k]) rect(hud.boxes[k], colour, k === hud.active ? 3 : 2, label, k === "team_area" ? [6, 4] : null);
   });
+  hudFound.forEach((f) => {
+    const colour = f.fill < 0.05 ? "#ff4b4b" : "#5dff7a";
+    if (f.nameBox) rect(f.nameBox, "#ffffff", 1, `${f.name} ${Math.round(f.fill * 100)}%`);
+    if (f.bar) rect(f.bar, colour, 2);
+  });
+  ctx.setLineDash([]);
 }
 window.addEventListener("resize", drawHud);
 
@@ -409,22 +455,33 @@ window.addEventListener("resize", drawHud);
 })();
 
 $("btn-hud-save").addEventListener("click", async () => {
-  const teammates = [0, 1, 2].map((i) => ({ bar: hud.boxes[`t${i}_bar`] || null, name_box: hud.boxes[`t${i}_name`] || null }))
-    .filter((t) => t.bar);
-  const res = await call("hud_save", { self_bar: hud.boxes.self_bar || null, teammates, hold_seconds: parseFloat($("hud-hold").value) || 3 });
+  const res = await call("hud_save", {
+    self_bar: hud.boxes.self_bar || null, team_area: hud.boxes.team_area || null,
+    example_name: hud.boxes.example_name || null, example_bar: hud.boxes.example_bar || null,
+    anchor: $("hud-anchor").value, hold_seconds: parseFloat($("hud-hold").value) || 3,
+  });
   if (res.ok) notice("hud-note", res.message + (res.restartNeeded ? " Stop and start detecting to use it." : ""), "good");
   poll();
 });
 
 $("btn-hud-test").addEventListener("click", async () => {
-  $("hud-readings").textContent = "Reading…";
+  $("hud-readings").textContent = "Reading the HUD…";
   const res = await call("hud_test");
   if (!res.ok) { $("hud-readings").textContent = res.error || ""; return; }
-  $("hud-readings").innerHTML = res.readings.map((r) => `
-    <div class="reading"><span>${esc(r.slot)}${r.name ? ": " + esc(r.name) : ""}${r.player && r.player !== r.name ? " → " + esc(r.player) : ""}</span>
+  // Show the frame that was tested, with every teammate found by name drawn on it.
+  const img = $("hud-img");
+  img.onload = () => { $("hud-empty").style.display = "none"; img.style.display = "block"; drawHud(); };
+  img.src = res.image;
+  hudFound = res.readings.filter((r) => r.slot === "Teammate");
+  const rows = res.readings.map((r) => `
+    <div class="reading"><span class="who">${r.slot === "You" ? "You" : esc(r.name)}
+      ${r.slot === "Teammate" ? (r.matched ? '<span class="tag-ok">Dead-Fest player</span>' : '<span class="tag-no">not a Dead-Fest player</span>') : ""}</span>
     <span class="meter"><i style="width:${Math.round(r.fill * 100)}%;background:${r.fill < 0.05 ? "var(--ember)" : "var(--toxic)"}"></i></span>
-    <b>${Math.round(r.fill * 100)}%</b></div>`).join("") +
-    `<p class="small muted">A bar at 0% for ${esc(res.holdSeconds)} s counts as a death.</p>`;
+    <b>${Math.round(r.fill * 100)}%</b></div>`).join("");
+  const none = hudFound.length ? "" : '<p class="small" style="color:var(--amber)">No teammate names found in the teammates area. Check the box covers their names, and that players are signed in (Players tab) so names can be recognised.</p>';
+  $("hud-readings").innerHTML = rows + none +
+    `<p class="small muted">${res.knownPlayers} Dead-Fest players known for name matching. A bar at 0% for ${esc(res.holdSeconds)} s counts as a death.</p>`;
+  drawHud();
 });
 
 /* ------------------------------------------------------------------ settings */
