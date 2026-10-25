@@ -203,6 +203,12 @@ def cmd_login(cfg: dict, args) -> int:
     cfg["sharing"] = configmod.SHARING_SHARED if answer in ("y", "yes") else configmod.SHARING_PRIVATE
     configmod.save(cfg)
     print(f"Signed in as {data['email']}. Sharing is {cfg['sharing']}.")
+    if cfg["sharing"] == configmod.SHARING_SHARED:
+        store = EvidenceStore(cfg["evidence_root"])
+        private = [r for r in store.records() if r.sync_state == "private"] if store.root.exists() else []
+        if private and input(f"Also share the {len(private)} death(s) already saved on this PC? [y/N] ").strip().lower() in ("y", "yes"):
+            args.event_ids = []
+            return cmd_share(cfg, args)
     return 0
 
 
@@ -342,6 +348,26 @@ def cmd_sync(cfg: dict, args) -> int:
     return 0 if push.failed == 0 else 2
 
 
+def cmd_share(cfg: dict, args) -> int:
+    """Queues evidence that was saved while sharing was off, so the next sync uploads it."""
+    from .storage import SYNC_PRIVATE
+
+    store = EvidenceStore(cfg["evidence_root"])
+    wanted = set(args.event_ids or [])
+    queued = 0
+    for r in store.records():
+        if r.sync_state != SYNC_PRIVATE or (wanted and r.event_id not in wanted):
+            continue
+        r.sync_state = SYNC_PENDING
+        store.update(r)
+        queued += 1
+    print(f"{queued} private record(s) queued for upload." if queued else "No private evidence to queue.")
+    if make_syncer(cfg, store) is None:
+        print("Sign in ('login') and they upload on the next sync.")
+        return 0
+    return cmd_sync(cfg, args)
+
+
 def cmd_list(cfg: dict, args) -> int:
     store = EvidenceStore(cfg["evidence_root"])
     rows = [r for r in store.records() if not args.game or r.game_id == args.game]
@@ -422,6 +448,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--max-seconds", type=float)
     r.add_argument("--no-sync", action="store_true")
     sub.add_parser("sync")
+    sh = sub.add_parser("share", help="upload evidence saved while sharing was off")
+    sh.add_argument("event_ids", nargs="*", help="only these (default: all private evidence)")
     ls = sub.add_parser("list")
     ls.add_argument("--game", choices=games.ids())
     pv = sub.add_parser("preview", help="save and open one frame as the detector sees it")
@@ -438,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     cfg = configmod.load()
     handler = {
         "doctor": cmd_doctor, "devices": cmd_devices, "login": cmd_login, "logout": cmd_logout,
-        "config": cmd_config, "run": cmd_run, "sync": cmd_sync, "list": cmd_list,
+        "config": cmd_config, "run": cmd_run, "sync": cmd_sync, "share": cmd_share, "list": cmd_list,
         "gallery": cmd_gallery, "calibrate": cmd_calibrate, "preview": cmd_preview,
     }[args.cmd]
     try:

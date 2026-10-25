@@ -36,7 +36,7 @@ echo    3  Show what the detector sees (preview)
 echo    4  Choose the game
 echo    5  Choose the video source
 echo    6  Sign in and choose whether to share
-echo    7  Upload waiting evidence / get admin decisions
+echo    7  Share saved deaths with the app / get admin decisions
 echo    8  Open the evidence gallery
 echo    9  List capture devices
 echo    0  Exit
@@ -52,7 +52,7 @@ if %pick%==3 call :cmd preview & goto :menu
 if %pick%==4 goto :game
 if %pick%==5 goto :source
 if %pick%==6 call :cmd login & goto :menu
-if %pick%==7 call :cmd sync & goto :menu
+if %pick%==7 call :cmd share & goto :menu
 if %pick%==8 call :cmd gallery & goto :menu
 if %pick%==9 call :cmd devices & goto :menu
 goto :menu
