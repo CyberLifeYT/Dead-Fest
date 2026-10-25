@@ -46,6 +46,16 @@ import numpy as np
 from .detect import Candidate
 from .games import SELF, TEAMMATE
 from .ocr import OcrProvider
+from .teamslots import TeamTracker
+
+# Where the teammates list sits when nobody has drawn it: Dying Light lists teammates under your
+# health in the top-left. Fractions of the (16:9) frame. Other games: draw it in HUD setup.
+DEFAULT_TEAM_AREA = {
+    "dying_light": (0.0, 0.11, 0.34, 0.34),
+    "dying_light_2": (0.0, 0.11, 0.34, 0.34),
+    "dying_light_the_beast": (0.0, 0.11, 0.34, 0.34),
+}
+DEFAULT_CUE = {"dying_light": "name_red", "dying_light_2": "name_red", "dying_light_the_beast": "name_red"}
 
 Box = tuple[float, float, float, float]   # x, y, w, h as fractions of the frame
 
@@ -142,13 +152,20 @@ class SlotSpec:
 
 @dataclass
 class TeamSpec:
-    """Name-tracking mode: where teammates are listed and how a bar sits relative to its name."""
+    """
+    Teammates mode. With no bar_offset ("auto", the normal case) names are found automatically by
+    teamslots.TeamTracker. With a bar_offset (older setups) a bar is located relative to each name.
+    """
     area: Box
-    bar_offset: tuple[float, float, float, float]   # dx, dy from the name's anchor corner; w, h of the bar
+    bar_offset: tuple[float, float, float, float] | None = None   # dx, dy from the name's anchor; w, h
     ref: tuple[float, float, float] | None = None
     anchor: str = "left"                             # names line up on their "left" or "right" edge
     read_every: float = 1.0
     death_cue: str = "bar_empty"                     # "name_red" | "bar_empty" | "either"
+
+    @property
+    def auto(self) -> bool:
+        return self.bar_offset is None
 
     def bar_for(self, name_box: Box) -> Box:
         nx, ny, nw, _ = name_box
@@ -186,8 +203,9 @@ class HudConfig:
         team = None
         if d.get("team"):
             t = d["team"]
-            team = TeamSpec(tuple(t["area"]), tuple(t["bar_offset"]), tuple(t["ref"]) if t.get("ref") else None,
-                            t.get("anchor", "left"), float(t.get("read_every", 1.0)), t.get("death_cue", "bar_empty"))
+            team = TeamSpec(tuple(t["area"]), tuple(t["bar_offset"]) if t.get("bar_offset") else None,
+                            tuple(t["ref"]) if t.get("ref") else None, t.get("anchor", "left"),
+                            float(t.get("read_every", 1.0)), t.get("death_cue", "bar_empty"))
         return HudConfig(
             self_bar=bar(d.get("self_bar")),
             teammates=[SlotSpec(bar(t["bar"]), tuple(t["name_box"]) if t.get("name_box") else None, t.get("label", ""))
@@ -234,7 +252,7 @@ def _name_region(name_box: Box, frame: np.ndarray, anchor: str = "left") -> Box:
 
 class HudTracker:
     def __init__(self, config: HudConfig, ocr: OcrProvider | None = None, name_resolver=None,
-                 known_names=None):
+                 known_names=None, roster=None, on_learn=None):
         """
         name_resolver(raw) -> (key, label) or label: who a name read off the screen is.
         known_names() -> list of names to accept in name-tracking mode (empty: any plausible name).
@@ -245,6 +263,11 @@ class HudTracker:
         self.known_names = known_names or (lambda: [])
         self.states: dict[str, _BarState] = {}
         self._team_read_at = float("-inf")
+        self.team_tracker = None
+        if config.team is not None and config.team.auto:
+            self.team_tracker = TeamTracker(config.team.area, config.team.death_cue,
+                                            min(config.hold_seconds, 2.0) if config.team.death_cue == "name_red" else config.hold_seconds,
+                                            ocr, self._identity, roster, on_learn=on_learn)
 
     # ------------------------------------------------------------------ common
 
@@ -398,7 +421,9 @@ class HudTracker:
             if self._dead(st, t):
                 # Supporting only (below the threshold): the HUD also vanishes in menus and maps.
                 out.append(Candidate(SELF, "", 0.6, {"hud": "own health bar empty", "hud_fill": round(fill, 3)}))
-        if c.team:
+        if self.team_tracker is not None:
+            out += self.team_tracker.update(t, frame)
+        elif c.team:
             out += self._update_team(t, frame)
         for i, slot in enumerate(c.teammates):
             st = self.states.setdefault(f"mate{i}", _BarState())
@@ -417,8 +442,10 @@ class HudTracker:
                                      {"hud": f"teammate {i + 1} health bar empty", "hud_fill": round(fill, 3)}))
         return out
 
-    def readings(self) -> list[dict]:
+    def readings(self, frame: np.ndarray | None = None) -> list[dict]:
         out = []
+        if self.team_tracker is not None and frame is not None:
+            out += self.team_tracker.readings(frame)
         for key, st in self.states.items():
             if key == "self":
                 out.append({"slot": "You", "name": "", "fill": round(st.fill, 3)})
@@ -428,3 +455,12 @@ class HudTracker:
             else:
                 out.append({"slot": f"Slot {key[4:]}", "name": st.name, "fill": round(st.fill, 3)})
         return out
+
+
+def default_config(game_id: str) -> dict | None:
+    """The zero-setup HUD config for games whose layout is known (Dying Light), else None."""
+    area = DEFAULT_TEAM_AREA.get(game_id)
+    if not area:
+        return None
+    return {"team": {"area": list(area), "death_cue": DEFAULT_CUE.get(game_id, "bar_empty")},
+            "hold_seconds": 2.0, "default": True}

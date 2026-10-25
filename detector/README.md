@@ -35,45 +35,42 @@ takes it off the count again. Restore puts it back, exactly once. This is the sa
 verification as the phone app, checked by the same security rules: one death per record, and
 **coins are never touched**.
 
-### HUD tracking (no "You are dead" on screen)
+### Teammate deaths (no "X is dead" on screen)
 
-Many co-op games never print who died, but show each player's **name next to a health bar**.
-Teammates are tracked **by name, not by position**, so players leaving, rejoining or swapping
-places never mixes anyone up. In **HUD setup**:
+Co-op games show each teammate as a row on the HUD: an icon, their name and a health bar. In all of
+these games an empty or red bar usually means **downed** (still revivable), not dead, so the detector
+watches for each game's *death* sign instead:
 
-1. In co-op, with **everyone at full health**, press **Capture frame**.
-2. **My health bar**: drag over your own bar.
-3. **Teammates area**: drag over the whole list of teammates' names and bars (make it big enough
-   for a full squad, as the list grows and shrinks).
-4. **Example name** and **Example health bar**: one teammate's name and their bar. This teaches the
-   layout (where a bar sits next to a name) and the bar's colour. Pick whether names line up on the
-   **left** or the **right**.
-5. Choose **A teammate is dead when**:
-   - **their name turns red**: Dying Light (the default for all three Dying Light games). A *downed*
-     teammate keeps a white name and skull; a *dead* one's name and skull turn red. The red name
-     usually can't be read, so who it is comes from reading their name in that spot while it was
-     white, and the death is seen from the colour change (about 2 seconds after it turns red);
-   - **their health bar empties**: games where the bar is the only sign. Set **Seconds at zero health
-     before it counts** longer than a revive takes in games with a downed state (World War Z);
-   - **either**.
+- **Dying Light (all three): no setup.** The teammates list under your health (top left) is watched
+  automatically. A downed teammate keeps a **white** name and skull; when they **die**, the name and
+  skull turn **red**, and that is counted about 2 seconds later. Being downed never counts.
+- **Other games:** in **HUD setup**, press **Capture frame**, drag the **Teammates area** over the list
+  of names, choose **A teammate is dead when** (*their health bar empties* or *either*), and **Save**.
 
-   Then **Save**.
-6. Press **Test**: every teammate found is drawn on the picture with their health, marked as a
-   Dead-Fest player or not.
+How it works:
 
-Your own health bar is optional and only ever a *supporting* cue: on its own it never counts as a
-death, because the HUD also disappears in menus, the map and cut-scenes. Your own deaths are caught
-from the death screen ("YOU ARE DEAD" in Dying Light). If no clear bar colour is found in the box you
-draw, it isn't saved at all.
+1. Names are found by their **shape** (letters in a row), not by reading them, and trusted once they
+   stay in place: the HUD is still while the world moves, so bright scenery never becomes a teammate.
+   Leaving, rejoining and swapping places just make rows appear and disappear.
+2. A dead name is judged on **exactly the letter pixels** it had while white, so a red roof behind
+   the HUD, or a downed teammate's red health bar, can't fake a death.
+3. **Who it was:** the name is read (Windows OCR) when it's big enough and matched to a Dead-Fest
+   player. If it matches nobody, or can't be read, and you've ticked one teammate under
+   **Playing with** on the Live tab, it's them, and the name seen on screen is saved as their
+   gamertag so it matches by itself from then on. With several teammates and no readable name, the
+   death is saved for an admin to assign.
 
-**Make the Xbox app window big** (or maximise it). Names and death text are small; at 620 pixels wide
-they're hard to read, and the app warns you when the window is that small.
+**The Xbox app must be big enough.** Names are small: at 620 or 500 pixels wide they're a few pixels
+tall and nothing can read or even find them. Teammate tracking pauses (with a red warning and a
+**Maximise the Xbox app** button on the Live tab) whenever the picture is under about 600 pixels tall.
+Maximised is best.
 
-About once a second the names in the area are read and matched to **Dead-Fest usernames** (everyone's
-Xbox gamertag; the Players tab can map any that differ), and each player's bar is found from where
-*their* name is right now. A bar that empties and stays empty counts as **that player's** death, but
-only while their name is still on screen, because someone who **leaves** also vanishes from the HUD
-and that is not a death.
+Press **Test** in HUD setup during co-op to see every teammate found, drawn on the picture, with their
+state (alive/downed or DEAD) and who they are.
+
+Your own deaths come from the death screen ("YOU ARE DEAD" in Dying Light). **My health bar** is
+optional and never counts a death on its own, because the HUD also disappears in menus, the map and
+cut-scenes.
 
 ### Live preview
 

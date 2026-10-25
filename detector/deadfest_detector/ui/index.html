@@ -40,6 +40,9 @@
         </div>
       </div>
       <div id="live-warn" class="notice hidden"></div>
+      <div id="small-warn" class="notice bad hidden"><span id="small-text"></span> <button id="btn-max" class="primary">Maximise the Xbox app</button></div>
+      <div class="card squad"><b>Playing with</b> <span class="muted small">tick the teammates in this session: if a name can't be read, a death is credited to them (with one teammate, automatically)</span>
+        <div id="squad-chips" class="chips"></div></div>
       <div class="grid2">
         <div class="card">
           <div class="card-head"><h3>What the detector sees</h3>
@@ -96,11 +99,11 @@
     <section id="tab-hud" class="page">
       <div class="toolbar">
         <button id="btn-hud-capture" class="primary">Capture frame</button>
-        <span class="muted small">In co-op with <b>everyone at full health</b>: capture, then draw the four boxes.</span>
+        <span class="muted small">Capture, then drag the <b>Teammates area</b> over the list of teammates' names.</span>
         <span class="spacer"></span>
         <label class="small">A teammate is dead when <select id="hud-cue"><option value="name_red">their name turns red</option><option value="bar_empty">their health bar empties</option><option value="either">either</option></select></label>
-        <label class="small">Names line up on the <select id="hud-anchor"><option value="left">left</option><option value="right">right</option></select></label>
-        <label class="small">Seconds at zero health before it counts <input id="hud-hold" type="number" min="1" max="60" step="0.5" value="3"></label>
+        <label class="small">Seconds at zero health before it counts <input id="hud-hold" type="number" min="1" max="60" step="0.5" value="2"></label>
+        <button id="btn-hud-reset" class="ghost">Use default</button>
         <button id="btn-hud-test" class="ghost">Test</button>
         <button id="btn-hud-save" class="primary">Save</button>
       </div>
@@ -110,12 +113,14 @@
         <div class="card"><div class="hud-stage"><img id="hud-img" alt="Captured frame"><canvas id="hud-canvas"></canvas><div id="hud-empty" class="muted">Capture a frame to start.</div></div></div>
         <div class="card"><h3>Readings</h3><div id="hud-readings" class="muted small">Save, then press Test: every teammate found by name appears here with their health, and their boxes are drawn on the picture.</div>
           <h3 class="mt">How it works</h3>
-          <ol class="small muted steps">
-            <li><b>My health bar</b>: drag over your own bar.</li>
-            <li><b>Teammates area</b>: drag over the whole list of teammates' names and bars (big enough for a full squad).</li>
-            <li><b>Example name</b> and <b>Example health bar</b>: one teammate's name and their bar. This teaches where a bar sits next to a name.</li>
-          </ol>
-          <p class="small muted">Teammates are then found <b>by name</b> about once a second, so it doesn't matter who leaves, rejoins or swaps places. A bar that empties and stays empty counts as that player's death, but only while their name is still on screen; someone who leaves doesn't count. Names are matched to Dead-Fest usernames (their gamertags).</p></div>
+          <p class="small muted"><b>Dying Light needs no setup</b>: the teammates list under your health (top left) is watched automatically. For other games, or if your HUD differs, drag the <b>Teammates area</b> over the list of names.</p>
+          <ul class="small muted steps">
+            <li>Names are found by their shape and trusted once they stay put (scenery moves, the HUD doesn't). Leaving, rejoining and swapping places are fine.</li>
+            <li><b>Name turns red</b> (Dying Light): a downed teammate stays white; when the name and skull go red they're dead. Counted about 2 seconds later.</li>
+            <li>Who it was: the name is read when it's big enough; otherwise the teammate ticked under <b>Playing with</b>.</li>
+            <li>Needs the Xbox app big enough (maximised is best). Too small, and tracking pauses with a warning rather than guessing.</li>
+            <li>Your own deaths come from the death screen; <b>My health bar</b> is optional and never counts a death on its own.</li>
+          </ul></div>
       </div>
     </section>
 

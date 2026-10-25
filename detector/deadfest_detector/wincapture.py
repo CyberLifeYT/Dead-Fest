@@ -108,19 +108,31 @@ def _cloaked(hwnd: int) -> bool:
     return value.value != 0
 
 
+def _walk(parent: int | None, limit: int = 4000) -> list[int]:
+    """
+    Windows directly under `parent` (None: the desktop), walked with FindWindowExW. No callbacks:
+    EnumWindows calls back into Python from inside Windows, which was seen to hang when another
+    thread was busy streaming the preview.
+    """
+    u = _user32()
+    find = u.FindWindowExW
+    find.restype = wintypes.HWND
+    find.argtypes = [wintypes.HWND, wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR]
+    out: list[int] = []
+    h = None
+    while len(out) < limit:
+        h = find(parent, h, None, None)
+        if not h:
+            break
+        out.append(h)
+    return out
+
+
 def _info(hwnd: int, with_children: bool = False) -> WindowInfo:
     u = _user32()
     children: list[WindowInfo] = []
     if with_children:
-        kids: list[int] = []
-
-        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-        def each(child, _):
-            kids.append(child)
-            return True
-
-        u.EnumChildWindows(hwnd, each, 0)
-        children = [_info(c) for c in kids]
+        children = [_info(c) for c in _walk(hwnd, 64)]
     return WindowInfo(
         hwnd=hwnd, title=_text(hwnd), exe=_exe_of(hwnd), class_name=_class(hwnd),
         visible=bool(u.IsWindowVisible(hwnd)), minimized=bool(u.IsIconic(hwnd)),
@@ -130,15 +142,8 @@ def _info(hwnd: int, with_children: bool = False) -> WindowInfo:
 
 def top_level_windows() -> list[WindowInfo]:
     make_dpi_aware()
-    handles: list[int] = []
-
-    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def each(hwnd, _):
-        handles.append(hwnd)
-        return True
-
-    _user32().EnumWindows(each, 0)
-    return [_info(h, with_children=True) for h in handles if _user32().IsWindowVisible(h)]
+    u = _user32()
+    return [_info(h, with_children=True) for h in _walk(None) if u.IsWindowVisible(h)]
 
 
 def is_xbox_app(w: WindowInfo) -> bool:

@@ -30,7 +30,8 @@ from .cli import build_rules, load_session, save_session, session_path, template
 from .counting import AutoCounter
 from .detect import Analyzer, load_templates
 from .firebase_rest import AuthClient, FirebaseError, FirestoreClient, NetworkError
-from .hud import HudConfig, HudTracker, calibrate_team, crop, reference_colour
+from .hud import HudConfig, HudTracker, crop, default_config, reference_colour
+from .teamslots import MIN_FRAME_HEIGHT
 from .live import LIVE_SOURCES, FrameHub, PreviewServer, ThreadedSource
 from .pipeline import Pipeline
 from .players import Player, match_name
@@ -148,6 +149,26 @@ class Api:
         p = match_name(raw, self.players_cache, self.cfg.get("gamertags", {}))
         return (p.uid, p.handle) if p else (raw.upper(), raw)
 
+    def _roster(self) -> list[str]:
+        """Names of the teammates you're playing with ("Playing with" on the Live tab), not you."""
+        me = self.cfg.get("me_uid")
+        names = {p.uid: p.handle for p in self.players_cache}
+        return [names.get(uid, "") for uid in self.cfg.get("squad", []) if uid != me and names.get(uid)]
+
+    def _learn_gamertag(self, name: str) -> None:
+        """A name on screen that matches nobody, while playing with one teammate: that's their gamertag."""
+        me = self.cfg.get("me_uid")
+        mates = [u for u in self.cfg.get("squad", []) if u != me]
+        if len(mates) == 1 and not self.cfg["gamertags"].get(mates[0]) and 3 <= len(name) <= 20:
+            self.cfg["gamertags"][mates[0]] = name
+            self._save_cfg()
+            who = next((p.handle for p in self.players_cache if p.uid == mates[0]), "your teammate")
+            self._event("info", f"Learned {who}'s gamertag from the HUD: {name}")
+
+    def _hud_json(self, game_id: str) -> dict | None:
+        """The saved HUD for a game, else the built-in one for games whose layout is known."""
+        return self.cfg["hud"].get(game_id) or default_config(game_id)
+
     def _known_names(self) -> list[str]:
         return [p.handle for p in self.players_cache] + [t for t in self.cfg.get("gamertags", {}).values() if t]
 
@@ -164,7 +185,8 @@ class Api:
         return raw
 
     def _frame_size(self) -> list[int]:
-        frame = self.hub.latest() if self.hub.fps() > 0 else None
+        # The last frame captured, even if the picture isn't changing (a still Xbox app sends few frames).
+        frame = self.hub.latest() if (self.running or (self.preview_source and self.preview_source.running)) else None
         return [int(frame.shape[1]), int(frame.shape[0])] if frame is not None else []
 
     def _source_cfg(self) -> dict:
@@ -257,7 +279,11 @@ class Api:
             "held": self.pipeline.held if self.pipeline else 0,
             "lastSync": self.last_sync,
             "log": list(self.log)[:60],
-            "hasHud": bool(self.cfg["hud"].get(self.cfg["game"])),
+            "hasHud": bool(self._hud_json(self.cfg["game"])),
+            "hudDefault": not self.cfg["hud"].get(self.cfg["game"]) and bool(default_config(self.cfg["game"])),
+            "squad": list(self.cfg.get("squad", [])),
+            "teamTooSmall": bool(self._hud_json(self.cfg["game"]) and self._frame_size()
+                                 and self._frame_size()[1] < MIN_FRAME_HEIGHT),
             "previewFps": float(self.cfg.get("preview_fps", 30)),
             "previewUrl": self.preview_server.url(float(self.cfg.get("preview_fps", 30))),
             "measuredFps": round(self.hub.fps(), 1),
@@ -314,6 +340,8 @@ class Api:
                 self.cfg["gamertags"][uid] = tag.strip()[:40]
             if "previewFps" in s:
                 self.cfg["preview_fps"] = max(1.0, min(120.0, float(s["previewFps"])))
+            if "squad" in s:
+                self.cfg["squad"] = [str(u) for u in s["squad"]][:8]
             self._save_cfg()
         if "previewFps" in s or "sourceType" in s or "deviceIndex" in s:
             # Restart the preview-only capture at the new rate / source (detection restarts on Start).
@@ -340,8 +368,9 @@ class Api:
         me = self.cfg.get("me_uid")
         if me and self.cfg["gamertags"].get(me):
             names.append(self.cfg["gamertags"][me])
-        hud_cfg = HudConfig.from_json(self.cfg["hud"].get(game_id))
-        hud = HudTracker(hud_cfg, reader, self._hud_identity, self._known_names) if hud_cfg else None
+        hud_cfg = HudConfig.from_json(self._hud_json(game_id))
+        hud = (HudTracker(hud_cfg, reader, self._hud_identity, self._known_names, self._roster, self._learn_gamertag)
+               if hud_cfg else None)
         return Analyzer(profile, reader, load_templates(templates_dir(game_id)),
                         template_threshold=float(det.get("template_threshold", 0.8)),
                         color_boost=float(det.get("color_boost", 0.05)),
@@ -602,6 +631,19 @@ class Api:
             return {"ok": True, "message": text}
         return self._safe(go)
 
+    def maximise_xbox(self) -> dict:
+        """Maximises the Xbox app window, so names and death text are big enough to read."""
+        from . import wincapture
+
+        w = wincapture.pick_xbox_window(wincapture.top_level_windows())
+        if w is None:
+            return {"ok": False, "error": "The Xbox app isn't open."}
+        user32 = __import__("ctypes").windll.user32
+        user32.ShowWindow(w.hwnd, 9)      # SW_RESTORE (if minimised)
+        user32.ShowWindow(w.hwnd, 3)      # SW_MAXIMIZE
+        self._event("info", "Maximised the Xbox app window.")
+        return {"ok": True}
+
     def open_folder(self) -> dict:
         root = self._store().root
         if root.exists():
@@ -639,92 +681,81 @@ class Api:
             frame = self._current_frame()
             self.hud_frame = frame
             return {"ok": True, "image": _b64_jpeg(frame, 1280, 85), "width": frame.shape[1], "height": frame.shape[0],
-                    "hud": self.cfg["hud"].get(self.cfg["game"]) or {}, "defaultCue": default_death_cue(self.cfg["game"])}
+                    "hud": self._hud_json(self.cfg["game"]) or {}, "defaultCue": default_death_cue(self.cfg["game"]),
+                    "isDefault": not self.cfg["hud"].get(self.cfg["game"])}
         return self._safe(go)
-
-    def _text_box(self, frame: np.ndarray, box) -> tuple | None:
-        """The exact box of the text inside a drawn box (OCR), in fractions of the frame."""
-        try:
-            reader = ocr.create(self.cfg["detection"].get("ocr", "windows"))
-        except Exception:  # noqa: BLE001
-            return None
-        h, w = frame.shape[:2]
-        img = crop(frame, tuple(box))
-        if img.size == 0:
-            return None
-        lines = reader.read_lines(cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC))
-        if not lines:
-            return None
-        _, (x, y, bw, bh) = lines[0]
-        return box[0] + x / 3 / w, box[1] + y / 3 / h, bw / 3 / w, bh / 3 / h
 
     def hud_save(self, hud: dict) -> dict:
         """
-        Saves the HUD for the current game from the captured frame: your bar, the teammates area,
-        and one example teammate (name + bar) that teaches where a bar sits relative to a name.
+        Saves the HUD for the current game: the teammates area (names are found in it automatically),
+        how a teammate's death shows, and optionally your own health bar (a supporting cue only).
         """
         def go():
             frame = self.hud_frame
-            if frame is None:
-                return {"ok": False, "error": "Capture a frame first (everyone at full health)."}
-            out: dict = {"hold_seconds": float(hud.get("hold_seconds", 3.0))}
+            out: dict = {"hold_seconds": float(hud.get("hold_seconds", 2.0))}
             notes = []
             if hud.get("self_bar"):
-                ref = reference_colour(crop(frame, tuple(hud["self_bar"])))
+                ref = reference_colour(crop(frame, tuple(hud["self_bar"]))) if frame is not None else None
                 if ref:
                     out["self_bar"] = {"box": list(hud["self_bar"]), "ref": list(ref)}
                 else:
                     # Without a bar colour the box can't tell "empty" from "the HUD is hidden": skip it.
                     notes.append("your health bar wasn't saved: no clear bar colour in that box (draw it tightly "
                                  "over just the bar, at full health). Your own deaths still come from the death screen")
-            area, name, bar = hud.get("team_area"), hud.get("example_name"), hud.get("example_bar")
-            if area or name or bar:
-                if not (area and name and bar):
-                    return {"ok": False, "error": "For teammates, draw the teammates area, one example name and that player's health bar."}
-                anchor = hud.get("anchor", "left")
-                name_box = self._text_box(frame, name) or tuple(name)
-                ref = reference_colour(crop(frame, tuple(bar)))
-                cue = hud.get("death_cue") or default_death_cue(self.cfg["game"])
-                out["team"] = {"area": list(area), "bar_offset": list(calibrate_team(tuple(area), name_box, tuple(bar), anchor)),
-                               "ref": list(ref) if ref else None, "anchor": anchor, "example_name": list(name),
-                               "example_bar": list(bar), "death_cue": cue}
-                if not ref and cue != "name_red":
-                    notes.append("couldn't find a clear colour in the example bar")
+            if hud.get("team_area"):
+                out["team"] = {"area": list(hud["team_area"]),
+                               "death_cue": hud.get("death_cue") or default_death_cue(self.cfg["game"])}
             if "self_bar" not in out and "team" not in out:
                 self.cfg["hud"].pop(self.cfg["game"], None)
             else:
                 self.cfg["hud"][self.cfg["game"]] = out
             self._save_cfg()
-            note = (" Note: " + "; ".join(notes) + ". Capture again with everyone at full health.") if notes else ""
+            note = (" Note: " + "; ".join(notes) + ".") if notes else ""
             return {"ok": True, "message": "HUD saved for " + games.get(self.cfg["game"]).name + "." + note,
                     "restartNeeded": self.running}
         return self._safe(go)
 
+    def hud_reset(self) -> dict:
+        """Back to the built-in layout (Dying Light) or none."""
+        self.cfg["hud"].pop(self.cfg["game"], None)
+        self._save_cfg()
+        return {"ok": True, "hud": self._hud_json(self.cfg["game"]) or {}, "restartNeeded": self.running}
+
     def hud_test(self) -> dict:
-        """What HUD tracking sees right now: every teammate found by name, their bar and its fill."""
+        """What teammate tracking sees: every name found, its state, who it is."""
         def go():
-            cfg = HudConfig.from_json(self.cfg["hud"].get(self.cfg["game"]))
+            cfg = HudConfig.from_json(self._hud_json(self.cfg["game"]))
             if not cfg:
-                return {"ok": False, "error": "No HUD saved for this game yet."}
-            frame = self._current_frame()
+                return {"ok": False, "error": "Draw the teammates area first."}
             try:
                 reader = ocr.create(self.cfg["detection"].get("ocr", "windows"))
             except Exception:  # noqa: BLE001
                 reader = ocr.NullOcr()
-            if self.cfg.get("sharing") == configmod.SHARING_SHARED or self._session():
+            if self._session():
                 self._players()
-            tracker = HudTracker(cfg, reader, self._hud_identity, self._known_names)
-            tracker.update(0.0, frame)
-            readings = []
-            for r in tracker.readings():
-                if r["slot"] == "Teammate":
-                    key = next((k for k, st in tracker.states.items() if st.label == r["name"]), "")
-                    matched = any(p.uid == key[5:] for p in self.players_cache) if key.startswith("team:") else False
-                    readings.append({**r, "matched": matched})
-                else:
-                    readings.append(r)
-            return {"ok": True, "readings": readings, "holdSeconds": cfg.hold_seconds,
-                    "image": _b64_jpeg(frame, 1280, 85), "knownPlayers": len(self.players_cache)}
+            tracker = HudTracker(cfg, reader, self._hud_identity, self._known_names, self._roster)
+            if tracker.team_tracker:
+                tracker.team_tracker.read_every = 0.0
+            # Several frames (a name is trusted once it stays put; names are read once confirmed).
+            frame = self._current_frame()
+            live = self.running or (self.preview_source and self.preview_source.running)
+            for i in range(6):
+                if live and i:
+                    got = self.hub.wait_next(self.hub.seq, timeout=0.5)
+                    if got is not None:
+                        frame = got[2].copy()
+                tracker.update(i * 0.25, frame)
+            readings = tracker.readings(frame)
+            warn = ""
+            if frame.shape[0] < MIN_FRAME_HEIGHT:
+                warn = (f"The picture is only {frame.shape[1]}x{frame.shape[0]}: too small to see teammates. "
+                        "Maximise the Xbox app.")
+            elif cfg.team and not [r for r in readings if r.get("slot") == "Teammate"]:
+                warn = ("No teammate names found in the teammates area. In co-op, check the area covers the "
+                        "names (they must be white, i.e. alive or downed, to be found).")
+            return {"ok": True, "readings": readings, "holdSeconds": cfg.hold_seconds, "warning": warn,
+                    "image": _b64_jpeg(frame, 1280, 85), "knownPlayers": len(self.players_cache),
+                    "roster": self._roster(), "area": cfg.team.area if cfg.team else None}
         return self._safe(go)
 
 
@@ -752,6 +783,8 @@ class Bridge:
     def hud_capture(self): return self._api.hud_capture()
     def hud_save(self, hud): return self._api.hud_save(hud)
     def hud_test(self): return self._api.hud_test()
+    def hud_reset(self): return self._api.hud_reset()
+    def maximise_xbox(self): return self._api.maximise_xbox()
 
 
 def main() -> int:

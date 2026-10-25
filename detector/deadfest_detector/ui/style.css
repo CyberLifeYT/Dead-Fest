@@ -122,3 +122,9 @@ label.radio input, label.switch input { display: inline; width: auto; margin: 0 
 .steps { padding-left: 18px; margin: 6px 0; } .steps li { margin: 4px 0; }
 .reading .who { flex: 0 0 46%; }
 .tag-ok { color: var(--toxic); font-size: 11px; } .tag-no { color: var(--amber); font-size: 11px; }
+
+.squad { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.chip { border-radius: 99px; padding: 5px 12px; background: var(--ink2); border: 1px solid var(--line); cursor: pointer; color: var(--mid); }
+.chip.on { border-color: var(--toxic); color: var(--toxic); background: rgba(93,255,122,.08); }
+#small-warn { display: flex; gap: 12px; align-items: center; justify-content: space-between; }

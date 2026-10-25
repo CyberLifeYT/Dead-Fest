@@ -115,3 +115,22 @@ def test_preview_needs_the_token_and_only_listens_locally():
         assert e.value.code == 403
     finally:
         server.close()
+
+
+def test_waiting_with_no_frame_yet_really_waits_instead_of_spinning():
+    # A spinning stream loop starved the capture thread of the interpreter lock (no frames ever came).
+    hub = FrameHub()
+    start = time.monotonic()
+    assert hub.wait_next(-1, timeout=0.3) is None
+    assert time.monotonic() - start >= 0.25
+
+
+def test_a_still_picture_is_resent_so_the_window_shows_it():
+    hub = FrameHub()
+    server = PreviewServer(hub)
+    hub.publish(0.0, np.full((90, 160, 3), 128, np.uint8))     # one frame, then nothing changes
+    try:
+        frames = read_mjpeg_frames(server.url(fps=30), 3, timeout=6)
+        assert len(frames) == 3 and 0.5 < frames[2][0] - frames[1][0] < 3.0   # resent about once a second
+    finally:
+        server.close()

@@ -45,7 +45,9 @@ class FrameHub:
 
     def wait_next(self, after_seq: int, timeout: float = 1.0) -> tuple[int, float, np.ndarray] | None:
         with self._cond:
-            if self.seq <= after_seq:
+            # Wait while there's nothing new, including when there's no frame at all yet: returning
+            # straight away then made the stream loop spin and starve the capture thread.
+            if self.seq <= after_seq or self._frame is None:
                 self._cond.wait(timeout)
             if self.seq <= after_seq or self._frame is None:
                 return None
@@ -203,11 +205,17 @@ class PreviewServer:
         seq = -1
         next_at = 0.0
         try:
+            last_sent = 0.0
             while True:
-                got = self.hub.wait_next(seq, timeout=2.0)
+                got = self.hub.wait_next(seq, timeout=1.0)
                 if got is None:
-                    continue
-                seq, _, frame = got
+                    # Nothing new (a still picture sends few frames): resend the current one now and
+                    # then, because browsers may hold a stream's only frame back until the next one.
+                    frame = self.hub.latest()
+                    if frame is None or time.monotonic() - last_sent < 1.0:
+                        continue
+                else:
+                    seq, _, frame = got
                 now = time.monotonic()
                 if now < next_at:
                     continue           # faster than the chosen rate: skip this frame
@@ -216,6 +224,7 @@ class PreviewServer:
                 handler.wfile.write(b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
                                     + str(len(data)).encode() + b"\r\n\r\n" + data + b"\r\n")
                 handler.wfile.flush()
+                last_sent = time.monotonic()
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, OSError):
             pass                       # the window stopped watching
         finally:
