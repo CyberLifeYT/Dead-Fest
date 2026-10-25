@@ -161,7 +161,8 @@ class Syncer:
         if self.counter:
             # Records that uploaded earlier but couldn't be counted then (offline, player unknown).
             for record in self.store.records():
-                if record.sync_state == SYNC_SYNCED and record.verification_status == "pending" and not record.review.get("count_tried"):
+                if (record.sync_state == SYNC_SYNCED and record.verification_status == "pending"
+                        and (not record.review.get("count_tried") or record.review.get("count_retry"))):
                     self._count(record, report)
         return report
 
@@ -169,7 +170,8 @@ class Syncer:
         if not self.counter or record.verification_status != "pending":
             return
         result = self.counter.count(record)
-        record.review = {**record.review, "count_tried": True, "count_message": result.message}
+        record.review = {**record.review, "count_tried": True, "count_message": result.message,
+                         "count_retry": bool(getattr(result, "retry", False))}
         if result.counted:
             record.verification_status = "verified"
             record.review.update({"counted": True, "sector": result.sector, "subject_uid": result.subject_uid})

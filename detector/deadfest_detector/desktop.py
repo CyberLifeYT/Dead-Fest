@@ -52,6 +52,11 @@ def _b64_jpeg(frame: np.ndarray, max_dim: int = 960, quality: int = 75) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode() if ok else ""
 
 
+def default_death_cue(game_id: str) -> str:
+    """How a teammate's death shows: Dying Light turns the name and skull red (downed stays white)."""
+    return "name_red" if game_id.startswith("dying_light") else "bar_empty"
+
+
 def _b64_bytes(data: bytes) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(data).decode()
 
@@ -158,6 +163,10 @@ class Api:
         raw.on_status = status
         return raw
 
+    def _frame_size(self) -> list[int]:
+        frame = self.hub.latest() if self.hub.fps() > 0 else None
+        return [int(frame.shape[1]), int(frame.shape[0])] if frame is not None else []
+
     def _source_cfg(self) -> dict:
         """The source settings, capturing live sources at the preview frame rate."""
         src = dict(self.cfg["source"])
@@ -253,6 +262,7 @@ class Api:
             "previewUrl": self.preview_server.url(float(self.cfg.get("preview_fps", 30))),
             "measuredFps": round(self.hub.fps(), 1),
             "captureStatus": self.capture_status,
+            "frameSize": self._frame_size(),
         }
 
     # ------------------------------------------------------------------ account and settings
@@ -629,7 +639,7 @@ class Api:
             frame = self._current_frame()
             self.hud_frame = frame
             return {"ok": True, "image": _b64_jpeg(frame, 1280, 85), "width": frame.shape[1], "height": frame.shape[0],
-                    "hud": self.cfg["hud"].get(self.cfg["game"]) or {}}
+                    "hud": self.cfg["hud"].get(self.cfg["game"]) or {}, "defaultCue": default_death_cue(self.cfg["game"])}
         return self._safe(go)
 
     def _text_box(self, frame: np.ndarray, box) -> tuple | None:
@@ -661,9 +671,12 @@ class Api:
             notes = []
             if hud.get("self_bar"):
                 ref = reference_colour(crop(frame, tuple(hud["self_bar"])))
-                out["self_bar"] = {"box": list(hud["self_bar"]), "ref": list(ref) if ref else None}
-                if not ref:
-                    notes.append("couldn't find a clear colour in your bar")
+                if ref:
+                    out["self_bar"] = {"box": list(hud["self_bar"]), "ref": list(ref)}
+                else:
+                    # Without a bar colour the box can't tell "empty" from "the HUD is hidden": skip it.
+                    notes.append("your health bar wasn't saved: no clear bar colour in that box (draw it tightly "
+                                 "over just the bar, at full health). Your own deaths still come from the death screen")
             area, name, bar = hud.get("team_area"), hud.get("example_name"), hud.get("example_bar")
             if area or name or bar:
                 if not (area and name and bar):
@@ -671,10 +684,11 @@ class Api:
                 anchor = hud.get("anchor", "left")
                 name_box = self._text_box(frame, name) or tuple(name)
                 ref = reference_colour(crop(frame, tuple(bar)))
+                cue = hud.get("death_cue") or default_death_cue(self.cfg["game"])
                 out["team"] = {"area": list(area), "bar_offset": list(calibrate_team(tuple(area), name_box, tuple(bar), anchor)),
                                "ref": list(ref) if ref else None, "anchor": anchor, "example_name": list(name),
-                               "example_bar": list(bar)}
-                if not ref:
+                               "example_bar": list(bar), "death_cue": cue}
+                if not ref and cue != "name_red":
                     notes.append("couldn't find a clear colour in the example bar")
             if "self_bar" not in out and "team" not in out:
                 self.cfg["hud"].pop(self.cfg["game"], None)

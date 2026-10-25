@@ -48,10 +48,26 @@ places never mixes anyone up. In **HUD setup**:
 4. **Example name** and **Example health bar**: one teammate's name and their bar. This teaches the
    layout (where a bar sits next to a name) and the bar's colour. Pick whether names line up on the
    **left** or the **right**.
-5. Set **Seconds at zero health before it counts** (3 where death is instant; longer than a revive
-   in games with a downed state, such as World War Z), then **Save**.
+5. Choose **A teammate is dead when**:
+   - **their name turns red**: Dying Light (the default for all three Dying Light games). A *downed*
+     teammate keeps a white name and skull; a *dead* one's name and skull turn red. The red name
+     usually can't be read, so who it is comes from reading their name in that spot while it was
+     white, and the death is seen from the colour change (about 2 seconds after it turns red);
+   - **their health bar empties**: games where the bar is the only sign. Set **Seconds at zero health
+     before it counts** longer than a revive takes in games with a downed state (World War Z);
+   - **either**.
+
+   Then **Save**.
 6. Press **Test**: every teammate found is drawn on the picture with their health, marked as a
    Dead-Fest player or not.
+
+Your own health bar is optional and only ever a *supporting* cue: on its own it never counts as a
+death, because the HUD also disappears in menus, the map and cut-scenes. Your own deaths are caught
+from the death screen ("YOU ARE DEAD" in Dying Light). If no clear bar colour is found in the box you
+draw, it isn't saved at all.
+
+**Make the Xbox app window big** (or maximise it). Names and death text are small; at 620 pixels wide
+they're hard to read, and the app warns you when the window is that small.
 
 About once a second the names in the area are read and matched to **Dead-Fest usernames** (everyone's
 Xbox gamertag; the Players tab can map any that differ), and each player's bar is found from where

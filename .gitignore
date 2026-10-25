@@ -20,3 +20,5 @@ firestore-debug.*.log
 detector/.venv/
 __pycache__/
 .pytest_cache/
+# Real gameplay screenshots used by optional local tests (they show gamertags): never committed
+detector/tests/fixtures/local/

@@ -26,6 +26,7 @@ class CountResult:
     message: str
     subject_uid: str = ""
     sector: str = ""
+    retry: bool = False          # worth trying again on the next sync (refused, offline)
 
 
 class AutoCounter:
@@ -59,8 +60,13 @@ class AutoCounter:
         sector = moderation.default_sector(record.game_id, self.sectors)
         try:
             out = self.moderator.apply(record.event_id, moderation.Verify(sector, subject))
-        except (FirebaseError, NetworkError) as e:
-            return CountResult(False, f"not counted yet: {e}")
+        except FirebaseError as e:
+            if e.status == 403:
+                return CountResult(False, "not counted yet: the live Firestore rules refused it. Publish the "
+                                          "v2.1.3 rules (Firebase console > Firestore > Rules), then Sync now.", retry=True)
+            return CountResult(False, f"not counted yet: {e}", retry=True)
+        except NetworkError as e:
+            return CountResult(False, f"not counted yet (offline): {e}", retry=True)
         who = next((p.handle for p in self.players if p.uid == subject), subject[:8])
         if out.kind == "applied":
             return CountResult(True, f"counted for {who} in {sector}", subject, sector)

@@ -8,6 +8,17 @@ You mark the HUD once in the desktop app (HUD setup), in co-op with everyone at 
   * **one example teammate**: their name and their health bar. That teaches the layout: where a
     bar sits relative to its name, and the bar's "full" colour.
 
+How a teammate's death shows depends on the game, so HUD setup asks:
+
+  * **name turns red** (Dying Light): a downed teammate keeps a white name; a dead one's name and
+    skull turn red. The red name usually can't be read, so who it is comes from the last time their
+    name was read in that place while white, and the death is seen by the colour change;
+  * **health bar empties**: the bar drops to zero and stays there;
+  * **either**.
+
+Your own health bar is only a supporting cue: on its own it never counts as a death, because the
+HUD also disappears in menus, maps and cut-scenes. Your own deaths come from the death screen.
+
 From then on teammates are tracked **by name, not by position**. About once a second the names in
 the teammates area are read (Windows OCR) and matched to Dead-Fest players (whose usernames are
 their Xbox gamertags; the Players tab can map any that differ). Each player's bar is found from
@@ -81,6 +92,40 @@ def bar_fill(bar_bgr: np.ndarray, ref: tuple[float, float, float] | None) -> flo
     return float(columns.mean())
 
 
+def _red_white(region_bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Masks of bright red pixels and white pixels: HUD text colours."""
+    hsv = cv2.cvtColor(region_bgr, cv2.COLOR_BGR2HSV).astype(np.int16)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    red = ((h <= 8) | (h >= 172)) & (s >= 130) & (v >= 110)
+    white = (s <= 60) & (v >= 170)
+    return red, white
+
+
+def name_colour(region_bgr: np.ndarray, letters: np.ndarray | None = None) -> str:
+    """
+    "red", "white" or "none" for the text in a HUD name region (name plus the icon beside it).
+    With `letters` (the pixels that were the white letters last time the name was read) only those
+    pixels are judged, so a red roof or sunset behind the name can't fake a death.
+    """
+    if region_bgr.size == 0:
+        return "none"
+    red, white = _red_white(region_bgr)
+    if letters is not None and letters.shape == red.shape and letters.sum() >= 12:
+        n = float(letters.sum())
+        r, w = float((red & letters).sum()) / n, float((white & letters).sum()) / n
+        if r >= 0.35 and r > w:
+            return "red"
+        if w >= 0.35:
+            return "white"
+        return "none"
+    r, w = float(red.mean()), float(white.mean())
+    if r >= 0.08 and r >= 3 * w:
+        return "red"
+    if w >= 0.05:
+        return "white"
+    return "none"
+
+
 @dataclass
 class BarSpec:
     box: Box
@@ -103,6 +148,7 @@ class TeamSpec:
     ref: tuple[float, float, float] | None = None
     anchor: str = "left"                             # names line up on their "left" or "right" edge
     read_every: float = 1.0
+    death_cue: str = "bar_empty"                     # "name_red" | "bar_empty" | "either"
 
     def bar_for(self, name_box: Box) -> Box:
         nx, ny, nw, _ = name_box
@@ -141,7 +187,7 @@ class HudConfig:
         if d.get("team"):
             t = d["team"]
             team = TeamSpec(tuple(t["area"]), tuple(t["bar_offset"]), tuple(t["ref"]) if t.get("ref") else None,
-                            t.get("anchor", "left"), float(t.get("read_every", 1.0)))
+                            t.get("anchor", "left"), float(t.get("read_every", 1.0)), t.get("death_cue", "bar_empty"))
         return HudConfig(
             self_bar=bar(d.get("self_bar")),
             teammates=[SlotSpec(bar(t["bar"]), tuple(t["name_box"]) if t.get("name_box") else None, t.get("label", ""))
@@ -164,10 +210,26 @@ class _BarState:
     bar_box: Box | None = None
     name_box: Box | None = None
     seen_at: float = float("-inf")       # last OCR pass that found this player's name
+    # name-colour cue
+    colour: str = "none"
+    red_since: float | None = None
+    white_at: float = float("-inf")
+    gone_since: float | None = None
+    letters: np.ndarray | None = None    # where the white letters were at the last read
 
 
 def _near(a: Box | None, b: Box | None, tol: float = 0.02) -> bool:
     return a is not None and b is not None and abs(a[0] - b[0]) < tol and abs(a[1] - b[1]) < tol
+
+
+def _name_region(name_box: Box, frame: np.ndarray, anchor: str = "left") -> Box:
+    fh, fw = frame.shape[:2]
+    x, y, w, h = name_box
+    icon = h * fh / fw * 1.6                       # the skull/icon is about as wide as the text is tall
+    pad_y = h * 0.15
+    if anchor == "left":
+        return max(0.0, x - icon), max(0.0, y - pad_y), w + icon, h + 2 * pad_y
+    return x, max(0.0, y - pad_y), w + icon, h + 2 * pad_y
 
 
 class HudTracker:
@@ -261,9 +323,20 @@ class HudTracker:
             name_box = (ax + x / fw, ay + y / fh, w / fw, h / fh)
             st = self.states.setdefault("team:" + key, _BarState())
             if not _near(st.name_box, name_box):
-                # They moved (someone left or joined): their bar history belongs to the old position.
-                st.empty_since = None if st.name_box is not None else st.empty_since
+                # They moved (someone left or joined): their history belongs to the old position.
+                if st.name_box is not None:
+                    st.empty_since, st.red_since, st.letters = None, None, None
+                # Anyone else last seen in this spot isn't there any more.
+                for other_key, other in self.states.items():
+                    if other_key != "team:" + key and other_key.startswith("team:") and _near(other.name_box, name_box):
+                        other.name_box, other.bar_box, other.letters, other.red_since = None, None, None, None
             st.label, st.name_box, st.bar_box, st.seen_at = label, name_box, team.bar_for(name_box), t
+            region = crop(frame, _name_region(name_box, frame, team.anchor))
+            red, white = _red_white(region)
+            if white.mean() >= 0.05 and red.mean() < 0.02:
+                # Read while white (alive or downed): remember exactly which pixels the letters are.
+                st.letters = cv2.dilate(white.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool)
+                st.white_at = t
 
     def _update_team(self, t: float, frame: np.ndarray) -> list[Candidate]:
         team = self.config.team
@@ -278,26 +351,53 @@ class HudTracker:
             if t - st.seen_at > forget:
                 del self.states[key]          # gone from the HUD: left the game
                 continue
-            fill = bar_fill(crop(frame, st.bar_box), team.ref)
+            cue = team.death_cue
+            fill = bar_fill(crop(frame, st.bar_box), team.ref)     # always measured: shown by Test
             self._step(st, t, fill)
-            # Still listed, in the same place, after the bar emptied: dead, not departed.
-            still_here = st.empty_since is not None and st.seen_at >= st.empty_since
-            if self._dead(st, t) and still_here:
-                out.append(Candidate(TEAMMATE, st.label[:40], 0.85,
-                                     {"hud": f"{st.label}'s health bar empty", "hud_fill": round(fill, 3)}))
+            if cue in ("bar_empty", "either"):
+                # Still listed, in the same place, after the bar emptied: dead, not departed.
+                still_here = st.empty_since is not None and st.seen_at >= st.empty_since
+                if self._dead(st, t) and still_here:
+                    out.append(Candidate(TEAMMATE, st.label[:40], 0.85,
+                                         {"hud": f"{st.label}'s health bar empty", "hud_fill": round(fill, 3)}))
+                    continue
+            if cue in ("name_red", "either") and st.name_box is not None:
+                if self._name_turned_red(st, t, frame, team.anchor):
+                    out.append(Candidate(TEAMMATE, st.label[:40], 0.9,
+                                         {"hud": f"{st.label}'s name turned red", "name_colour": "red"}))
         return out
+
+    def _name_turned_red(self, st: _BarState, t: float, frame: np.ndarray, anchor: str) -> bool:
+        region = crop(frame, _name_region(st.name_box, frame, anchor))
+        st.colour = name_colour(region, st.letters)
+        if st.colour == "white":
+            st.white_at, st.red_since, st.gone_since = t, None, None
+        elif st.colour == "red":
+            st.gone_since = None
+            if st.red_since is None:
+                st.red_since = t
+        else:
+            # No text there (a menu, the map, the HUD hidden): pause; forget after a while.
+            st.gone_since = st.gone_since if st.gone_since is not None else t
+            if t - st.gone_since > 5.0:
+                st.red_since = None
+            return False
+        hold = min(self.config.hold_seconds, 2.0)       # the colour change is decisive; no long wait needed
+        return (st.red_since is not None and t - st.red_since >= hold
+                and st.red_since - st.white_at <= 60.0)   # this player was seen alive here shortly before
 
     # ------------------------------------------------------------------ update
 
     def update(self, t: float, frame: np.ndarray) -> list[Candidate]:
         out: list[Candidate] = []
         c = self.config
-        if c.self_bar:
+        if c.self_bar and c.self_bar.ref is not None:
             st = self.states.setdefault("self", _BarState())
             fill = bar_fill(crop(frame, c.self_bar.box), c.self_bar.ref)
             self._step(st, t, fill)
             if self._dead(st, t):
-                out.append(Candidate(SELF, "", 0.85, {"hud": "own health bar empty", "hud_fill": round(fill, 3)}))
+                # Supporting only (below the threshold): the HUD also vanishes in menus and maps.
+                out.append(Candidate(SELF, "", 0.6, {"hud": "own health bar empty", "hud_fill": round(fill, 3)}))
         if c.team:
             out += self._update_team(t, frame)
         for i, slot in enumerate(c.teammates):
@@ -324,7 +424,7 @@ class HudTracker:
                 out.append({"slot": "You", "name": "", "fill": round(st.fill, 3)})
             elif key.startswith("team:"):
                 out.append({"slot": "Teammate", "name": st.label, "fill": round(st.fill, 3),
-                            "bar": st.bar_box, "nameBox": st.name_box})
+                            "bar": st.bar_box, "nameBox": st.name_box, "colour": st.colour})
             else:
                 out.append({"slot": f"Slot {key[4:]}", "name": st.name, "fill": round(st.fill, 3)})
         return out

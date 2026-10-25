@@ -104,3 +104,14 @@ def test_the_bridge_exposes_actions_not_internals(api):
     public = {n for n in dir(Bridge(api)) if not n.startswith("_")}
     assert {"state", "start", "stop", "moderate", "evidence", "hud_save", "players", "sign_in"} <= public
     assert not {"cfg", "lock", "log", "pipeline"} & public
+
+
+def test_dying_light_defaults_to_the_red_name_cue_and_a_colourless_bar_is_not_saved(api):
+    import numpy as np
+    from deadfest_detector.desktop import default_death_cue
+
+    assert default_death_cue("dying_light") == "name_red" and default_death_cue("world_war_z") == "bar_empty"
+    api.hud_frame = np.full((720, 1280, 3), 60, np.uint8)       # a grey screen: no bar colour anywhere
+    res = api.hud_save({"self_bar": [0.01, 0.01, 0.3, 0.1], "hold_seconds": 3})
+    assert res["ok"] and "wasn't saved" in res["message"]
+    assert "self_bar" not in (api.cfg["hud"].get("dying_light_2") or {})

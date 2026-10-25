@@ -93,6 +93,8 @@ function renderState() {
 
   const warn = [];
   if (s.storageError) warn.push(s.storageError);
+  if (s.frameSize && s.frameSize.length && s.frameSize[0] < 960)
+    warn.push(`The Xbox app window is small (${s.frameSize[0]}×${s.frameSize[1]}). Make it bigger or maximise it, so names and death text can be read reliably.`);
   if (!s.signedIn) warn.push("Not signed in: deaths are saved on this PC only. Sign in under Settings to share and count them.");
   else if (!s.sharing) warn.push("Sharing is off: deaths stay on this PC. Turn on \"Share with the app\" to upload and count them.");
   else if (s.autoCount && !s.isAdmin && s.handle) warn.push("Counting straight away needs an admin account; deaths upload as pending.");
@@ -392,6 +394,7 @@ function hudFromSaved(saved) {
     if (saved.team.example_name) hud.boxes.example_name = saved.team.example_name;
     if (saved.team.example_bar) hud.boxes.example_bar = saved.team.example_bar;
     $("hud-anchor").value = saved.team.anchor || "left";
+    $("hud-cue").value = saved.team.death_cue || "bar_empty";
   }
   if (saved.hold_seconds) $("hud-hold").value = saved.hold_seconds;
 }
@@ -406,6 +409,7 @@ $("btn-hud-capture").addEventListener("click", async () => {
   img.onload = () => { $("hud-empty").style.display = "none"; img.style.display = "block"; drawHud(); };
   img.src = res.image;
   hudFromSaved(res.hud);
+  if (!(res.hud && res.hud.team)) $("hud-cue").value = res.defaultCue || "bar_empty";
   renderHudSlots();
 });
 
@@ -458,7 +462,7 @@ $("btn-hud-save").addEventListener("click", async () => {
   const res = await call("hud_save", {
     self_bar: hud.boxes.self_bar || null, team_area: hud.boxes.team_area || null,
     example_name: hud.boxes.example_name || null, example_bar: hud.boxes.example_bar || null,
-    anchor: $("hud-anchor").value, hold_seconds: parseFloat($("hud-hold").value) || 3,
+    anchor: $("hud-anchor").value, death_cue: $("hud-cue").value, hold_seconds: parseFloat($("hud-hold").value) || 3,
   });
   if (res.ok) notice("hud-note", res.message + (res.restartNeeded ? " Stop and start detecting to use it." : ""), "good");
   poll();
@@ -477,7 +481,7 @@ $("btn-hud-test").addEventListener("click", async () => {
     <div class="reading"><span class="who">${r.slot === "You" ? "You" : esc(r.name)}
       ${r.slot === "Teammate" ? (r.matched ? '<span class="tag-ok">Dead-Fest player</span>' : '<span class="tag-no">not a Dead-Fest player</span>') : ""}</span>
     <span class="meter"><i style="width:${Math.round(r.fill * 100)}%;background:${r.fill < 0.05 ? "var(--ember)" : "var(--toxic)"}"></i></span>
-    <b>${Math.round(r.fill * 100)}%</b></div>`).join("");
+    <b>${Math.round(r.fill * 100)}%</b>${r.colour && r.colour !== "none" ? ` <span class="${r.colour === "red" ? "tag-no" : "tag-ok"}">name ${esc(r.colour)}</span>` : ""}</div>`).join("");
   const none = hudFound.length ? "" : '<p class="small" style="color:var(--amber)">No teammate names found in the teammates area. Check the box covers their names, and that players are signed in (Players tab) so names can be recognised.</p>';
   $("hud-readings").innerHTML = rows + none +
     `<p class="small muted">${res.knownPlayers} Dead-Fest players known for name matching. A bar at 0% for ${esc(res.holdSeconds)} s counts as a death.</p>`;
