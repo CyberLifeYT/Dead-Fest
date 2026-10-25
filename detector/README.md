@@ -24,17 +24,16 @@ Dead Island Riptide, Dead Island 2, State of Decay 2.
 ## Setup
 
 1. Install **Python 3.11 or newer** from python.org (tick "Add python.exe to PATH").
-2. Double-click `run-detector.bat` once. The first run creates a private environment in
-   `detector\.venv` and installs the packages (OpenCV, NumPy, mss and the Windows OCR bindings).
-   Then close it with Ctrl+C.
-3. Open a terminal in this folder and check everything:
+2. Double-click `run-detector.bat`. The first run creates a private environment in
+   `detector\.venv` and installs the packages (OpenCV, NumPy, mss and the Windows OCR bindings),
+   then shows a menu: start detecting, check setup, choose the game, choose the video source,
+   sign in, sync, open the gallery. Press a number; results stay on screen until you press a key.
+3. Pick **2 Check setup** first (or run `run-detector.bat doctor` in a terminal). It checks that `D:\XboxDeathDetector` can be written, that OCR works, that the video
+   source gives frames, and whether you're signed in. Until a capture card is connected (or the
+   source is set to the Xbox app window), "Start detecting" reports that the video device could
+   not be opened.
 
-   ```
-   run-detector.bat doctor
-   ```
-
-   `doctor` checks that `D:\XboxDeathDetector` can be written, that OCR works, that the video
-   source gives frames, and whether you're signed in.
+Every menu item is also a command for a terminal, as used below.
 
 ### Choose the game
 
