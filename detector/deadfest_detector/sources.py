@@ -4,14 +4,16 @@ Where frames come from.
   capture_card  An HDMI capture card (Elgato, AVerMedia, generic UVC dongles...). These appear in
                 Windows as a webcam-style video device, which OpenCV reads through DirectShow.
                 This is the dependable way to get Xbox video onto a PC.
-  screen        A region of a monitor (mss). Use it to watch the Xbox app's Remote Play window.
-  window        Like "screen", but finds the window by part of its title and follows it.
+  xbox_app      The Xbox app's Remote Play stream on this PC (Windows Graphics Capture). Found by
+                its process, follows the window, keeps working while other windows cover it.
+  screen        A region of a monitor (mss).
+  window        Any other window, by part of its title (Windows Graphics Capture).
   video         A recorded gameplay file. For testing and tuning on real footage.
   images        A folder of still frames, in name order. For tests.
 
-The Xbox app has no public API for its video frames, so Remote Play is watched the same way you
-see it: by capturing the screen area it is drawn in. Whether the stream can be captured depends on
-the Xbox app; if a capture comes out black, use a capture card.
+The Xbox app has no public API for its video frames, so Remote Play is captured the way OBS's window
+capture does it: Windows Graphics Capture of the app's window. The app does not block capture
+(its display affinity is "none"), so this sees exactly what you see.
 """
 
 from __future__ import annotations
@@ -108,62 +110,62 @@ class ScreenSource(FrameSource):
     def frames(self) -> Iterator[Frame]:
         while True:
             yield time.monotonic(), self._grab()
+            time.sleep(0.1)
 
     def close(self) -> None:
         self._mss.close()
 
 
-def find_window(title_part: str) -> tuple[int, int, int, int] | None:
-    """Screen rectangle (left, top, width, height) of the first visible window whose title contains title_part."""
-    import ctypes
-    from ctypes import wintypes
+class XboxAppSource(FrameSource):
+    """The Xbox app's Remote Play stream, via Windows Graphics Capture (works while covered)."""
 
-    user32 = ctypes.windll.user32
-    found: list[int] = []
+    def __init__(self, fps: float = 10.0, crop_16_9: bool = True):
+        from . import wincapture
 
-    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-    def enum(hwnd, _):
-        if user32.IsWindowVisible(hwnd):
-            n = user32.GetWindowTextLengthW(hwnd)
-            if n:
-                buf = ctypes.create_unicode_buffer(n + 1)
-                user32.GetWindowTextW(hwnd, buf, n + 1)
-                if title_part.lower() in buf.value.lower():
-                    found.append(hwnd)
-                    return False
-        return True
-
-    user32.EnumWindows(enum, 0)
-    if not found:
-        return None
-    rect = wintypes.RECT()
-    user32.GetWindowRect(found[0], ctypes.byref(rect))
-    w, h = rect.right - rect.left, rect.bottom - rect.top
-    if w <= 0 or h <= 0:
-        return None
-    return rect.left, rect.top, w, h
-
-
-class WindowSource(ScreenSource):
-    def __init__(self, title_part: str):
-        rect = find_window(title_part)
-        if rect is None:
-            raise SourceError(f"No open window has '{title_part}' in its title. Open the Xbox app and start Remote Play first.")
-        super().__init__(region=list(rect))
-        self.title_part = title_part
-        self.description = f"window '{title_part}'"
+        self._wc = wincapture
+        self.fps = fps
+        self.crop_16_9 = crop_16_9
+        self.description = "the Xbox app (Remote Play)"
+        if wincapture.pick_xbox_window(wincapture.top_level_windows()) is None:
+            raise SourceError(
+                "The Xbox app isn't open. Open it, choose your console and start Remote Play, "
+                "then try again. (It can be behind other windows, but not minimised.)"
+            )
 
     def frames(self) -> Iterator[Frame]:
-        last_check = 0.0
-        while True:
-            now = time.monotonic()
-            if now - last_check > 2.0:   # follow the window if it is moved or resized
-                rect = find_window(self.title_part)
-                if rect:
-                    left, top, width, height = rect
-                    self.area = {"left": left, "top": top, "width": width, "height": height}
-                last_check = now
-            yield now, self._grab()
+        wc = self._wc
+        return wc.capture_frames(
+            lambda: wc.pick_xbox_window(wc.top_level_windows()),
+            fps=self.fps,
+            crop_content=True,
+            crop_16_9=self.crop_16_9,
+            describe_missing="Waiting for the Xbox app window (was it closed?).",
+        )
+
+
+class WindowSource(FrameSource):
+    """Any window by part of its title, via Windows Graphics Capture."""
+
+    def __init__(self, title_part: str, fps: float = 10.0, crop_16_9: bool = False):
+        from . import wincapture
+
+        self._wc = wincapture
+        self.title_part = title_part
+        self.fps = fps
+        self.crop_16_9 = crop_16_9
+        self.description = f"window '{title_part}'"
+        if wincapture.find_window_by_title(title_part) is None:
+            raise SourceError(f"No open window has '{title_part}' in its title.")
+
+    def frames(self) -> Iterator[Frame]:
+        wc = self._wc
+        return wc.capture_frames(
+            lambda: wc.find_window_by_title(self.title_part),
+            fps=self.fps,
+            crop_content=False,
+            crop_16_9=self.crop_16_9,
+            describe_missing=f"Waiting for a window titled '{self.title_part}'.",
+        )
 
 
 class VideoFileSource(FrameSource):
@@ -211,14 +213,51 @@ class ImageFolderSource(FrameSource):
                 yield i / self.fps, img
 
 
+def first_frame(source: FrameSource, timeout: float = 15.0) -> np.ndarray:
+    """One frame from a source, giving up after timeout seconds (a minimised app never sends one)."""
+    import threading
+
+    result: dict = {}
+
+    def grab():
+        frames = source.frames()
+        try:
+            result["frame"] = next(frames)[1]
+        except Exception as e:  # noqa: BLE001 - reported to the caller below
+            result["error"] = e
+        finally:
+            try:
+                frames.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    t = threading.Thread(target=grab, daemon=True)
+    t.start()
+    t.join(timeout)
+    if "frame" in result:
+        return result["frame"]
+    if "error" in result:
+        err = result["error"]
+        raise SourceError(str(err) or "The video source stopped.") from err
+    raise SourceError(f"No picture from {source.description} within {timeout:.0f} seconds.")
+
+
+def looks_blank(frame: np.ndarray) -> bool:
+    """Almost uniformly black: nothing is being drawn, or the source is blocked."""
+    small = cv2.resize(frame, (160, 90), interpolation=cv2.INTER_AREA)
+    return float(small.mean()) < 8 and float(small.std()) < 6
+
+
 def from_config(src: dict) -> FrameSource:
     kind = src.get("type", "capture_card")
     if kind == "capture_card":
         return CaptureCardSource(int(src.get("device_index", 0)), int(src.get("width", 1920)), int(src.get("height", 1080)))
     if kind == "screen":
         return ScreenSource(int(src.get("monitor", 1)), src.get("region"))
+    if kind == "xbox_app":
+        return XboxAppSource(float(src.get("capture_fps", 10)), bool(src.get("crop_16_9", True)))
     if kind == "window":
-        return WindowSource(src.get("window_title") or "Xbox")
+        return WindowSource(src.get("window_title") or "Xbox", float(src.get("capture_fps", 10)), bool(src.get("crop_16_9", False)))
     if kind == "video":
         return VideoFileSource(src.get("path", ""), bool(src.get("realtime", True)))
     if kind == "images":

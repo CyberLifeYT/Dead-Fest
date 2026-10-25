@@ -36,7 +36,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ### v2.1.3 – Xbox death evidence *(Latest)*
 
-- **🎮 Xbox Death Detector** – A companion program for the PC next to the Xbox ([`detector/`](detector/README.md)). It watches the gameplay video (HDMI capture card or the Xbox app's Remote Play window), spots death screens in Dying Light 1/2/The Beast, World War Z, Dead Island/Riptide/2 and State of Decay 2, and saves each death's screenshot to `D:\XboxDeathDetector`. Each death is counted once however long the death screen stays up. Evidence stays private until you choose to share it.
+- **🎮 Xbox Death Detector** – A companion program for the PC next to the Xbox ([`detector/`](detector/README.md)). It watches your console through the Xbox app's Remote Play stream on the PC (or an HDMI capture card), spots death screens in Dying Light 1/2/The Beast, World War Z, Dead Island/Riptide/2 and State of Decay 2, and saves each death's screenshot to `D:\XboxDeathDetector`. Each death is counted once however long the death screen stays up. Evidence stays private until you choose to share it.
 - **📸 More → Deaths Images** – Every survivor can browse the shared death screenshots: filter by game and status, sort, zoom, with clear empty, error and missing-image states.
 - **✅ Admin → Deaths** – Verify, reject, correct, remove, restore or permanently delete evidence, with search, filters, a missing-image check and a full audit history. Verifying adds exactly one death to the player's count, enforced by the security rules.
 - **🪙 Coins are never touched by death moderation** – The security rules refuse any moderation commit that changes a balance, and every case is tested against the Firestore emulator with real before/after balances.

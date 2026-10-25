@@ -9,8 +9,8 @@ Dead Island Riptide, Dead Island 2, State of Decay 2.
 
 ## What it can and can't do
 
-- It reads **only the picture you see**: from an HDMI capture card, or from the Xbox app's Remote
-  Play window on your PC. It never touches the console, its memory, its security or its network
+- It reads **only the picture you see**: from the Xbox app's Remote Play stream on your PC, or from
+  an HDMI capture card. It never touches the console, its memory, its security or its network
   traffic.
 - It finds deaths from what the game shows: the death screen's wording (read with Windows' own
   OCR) and, most reliably, a **template** you capture once from a real death screen.
@@ -46,8 +46,22 @@ Ids: `dying_light`, `dying_light_2`, `dying_light_the_beast`, `world_war_z`, `de
 
 ### Connect the video
 
-**Capture card (recommended).** Plug the Xbox's HDMI into the card and the card into the PC. Close
-OBS or the card vendor's app (only one program can use the card at a time), then:
+**Xbox app Remote Play (the default, no extra hardware).** On the PC, open the **Xbox app**, pick
+your console and start **Remote Play**, so your console's picture is on screen. That's all: the
+detector finds the Xbox app by itself (menu **5 > 1**, or `run-detector.bat config --source xbox_app`).
+
+- It captures the app with Windows Graphics Capture, the same way OBS's window capture works, so the
+  Xbox app **can sit behind other windows**. It just can't be **minimised**; if it is, the detector
+  says so and waits.
+- It keeps only the game picture: the app's title bar and any black letterbox bars are cut off, so
+  resizing the window doesn't matter.
+- Menu **3 (preview)** saves and opens one frame exactly as the detector sees it. Check it shows your
+  game before a session.
+- Remote Play quality follows your network. A blurry or stuttering stream makes text harder to read,
+  so a wired connection and a larger Xbox app window help.
+
+**Capture card.** Plug the Xbox's HDMI into the card and the card into the PC. Close OBS or the
+card vendor's app (only one program can use the card at a time), then menu **5 > 2**, or:
 
 ```
 run-detector.bat devices
@@ -57,23 +71,14 @@ run-detector.bat config --source capture_card --device 0
 If the picture is black, turn off **Allow HDCP** in the Xbox's *Settings > General > TV & display
 options > Video modes*. Games don't need HDCP; streaming apps do.
 
-**Xbox app Remote Play (no extra hardware).** Start Remote Play in the Xbox app on the PC, then:
-
-```
-run-detector.bat config --source window --window-title "Xbox"
-```
-
-The window must stay visible (not minimised). The Xbox app has no official way to hand its video to
-other programs, so this captures the window's pixels. Run a short session and check the saved
-screenshots: if they come out black, use a capture card instead.
-
 **Recorded footage (for testing).** `run-detector.bat run --video D:\clips\session.mp4 --fast`
 
 ### Teach it a death screen (strongly recommended)
 
-Take one screenshot of a real death screen for your game (from a saved evidence image, OBS, or
-Win+Alt+PrtScn on the Remote Play window). Note the pixel box around the part that never changes,
-usually the "YOU DIED" text, then:
+Get one screenshot of a real death screen for your game. The easiest: when you're on the death
+screen, use menu **3 (preview)**. It saves `%LOCALAPPDATA%\DeadFestDetector\preview.png` at exactly the
+detector's crop, so the template matches whatever size the Xbox app window is. A saved evidence image
+works too. Note the pixel box around the part that never changes, usually the "YOU DIED" text, then:
 
 ```
 run-detector.bat calibrate --image D:\shots\dl2-death.png --box 700,420,520,110 --type self

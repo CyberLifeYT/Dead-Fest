@@ -24,8 +24,8 @@ DEFAULTS: dict = {
     # Captured evidence stays on this PC until you opt in to sharing it with your group.
     "sharing": SHARING_PRIVATE,
     "source": {
-        # capture_card | screen | window | video | images
-        "type": "capture_card",
+        # xbox_app | capture_card | screen | window | video | images
+        "type": "xbox_app",
         "device_index": 0,
         "width": 1920,
         "height": 1080,
@@ -34,6 +34,8 @@ DEFAULTS: dict = {
         "window_title": "Xbox",  # for "window": part of the window's title
         "path": "",              # for "video" / "images"
         "realtime": True,        # video files: play at real speed (False = as fast as possible)
+        "capture_fps": 10,       # xbox_app / window: frames grabbed per second
+        "crop_16_9": True,       # xbox_app: keep only the 16:9 stream, not the letterbox bars
     },
     "detection": {
         "analysis_fps": 4.0,

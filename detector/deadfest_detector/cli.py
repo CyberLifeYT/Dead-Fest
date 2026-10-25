@@ -8,6 +8,7 @@ Command line for the Dead-Fest Xbox Death Detector.
     python -m deadfest_detector run           watch the feed and record deaths
     python -m deadfest_detector sync          upload waiting evidence, pull admin decisions
     python -m deadfest_detector list          show the evidence on this PC
+    python -m deadfest_detector preview       save and open one frame as the detector sees it
     python -m deadfest_detector gallery       write and open the local gallery page
     python -m deadfest_detector calibrate ... save a death-screen template from a screenshot
 """
@@ -29,7 +30,7 @@ from . import __version__, config as configmod, games, gallery, ocr
 from .detect import Analyzer, load_templates
 from .firebase_rest import AuthClient, FirebaseError, FirestoreClient, NetworkError, Session
 from .pipeline import Pipeline
-from .sources import SourceError, from_config, probe_devices
+from .sources import SourceError, first_frame, from_config, looks_blank, probe_devices
 from .state import DeathStateMachine, Rules
 from .storage import SYNC_PENDING, EvidenceStore, StorageUnavailable
 from .sync import Syncer
@@ -130,10 +131,13 @@ def cmd_doctor(cfg: dict, args) -> int:
     print(f"[{'ok' if n_templates else 'info'}]   {n_templates} death-screen template(s) for this game")
     try:
         src = from_config(cfg["source"])
-        frame = next(iter(src.frames()))[1]
+        frame = first_frame(src)
         src.close()
         print(f"[ok]   Video source '{cfg['source']['type']}' gives {frame.shape[1]}x{frame.shape[0]} frames")
-    except (SourceError, StopIteration, OSError) as e:
+        if looks_blank(frame):
+            print("[warn] The picture is almost completely black. If the game isn't on a black screen, "
+                  "use 'preview' to see what is being captured.")
+    except (SourceError, OSError) as e:
         ok = False
         print(f"[FAIL] Video source: {e}")
     if session_path().exists():
@@ -143,6 +147,30 @@ def cmd_doctor(cfg: dict, args) -> int:
     pending = sum(1 for r in store.records() if r.sync_state == SYNC_PENDING) if store.root.exists() else 0
     print(f"[info] {pending} record(s) waiting to upload")
     return 0 if ok else 1
+
+
+def cmd_preview(cfg: dict, args) -> int:
+    """Saves and opens one frame exactly as the detector sees it."""
+    import cv2
+
+    try:
+        src = from_config(cfg["source"])
+        frame = first_frame(src, timeout=20)
+        src.close()
+    except (SourceError, OSError) as e:
+        print(f"! {e}")
+        return 1
+    out = configmod.app_dir() / "preview.png"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    ok, buf = cv2.imencode(".png", frame)
+    out.write_bytes(buf.tobytes())
+    print(f"Saved what the detector sees ({frame.shape[1]}x{frame.shape[0]}) to {out}")
+    if looks_blank(frame):
+        print("It is almost completely black. If your game isn't on a black screen right now, the stream "
+              "isn't reaching the detector: make sure Remote Play is showing the game in the Xbox app.")
+    if not args.no_open:
+        os.startfile(out)  # type: ignore[attr-defined]  (Windows)
+    return 0
 
 
 def cmd_devices(cfg: dict, args) -> int:
@@ -381,7 +409,7 @@ def main(argv: list[str] | None = None) -> int:
     c = sub.add_parser("config")
     c.add_argument("--game", choices=games.ids())
     c.add_argument("--sharing", choices=[configmod.SHARING_PRIVATE, configmod.SHARING_SHARED])
-    c.add_argument("--source", choices=["capture_card", "screen", "window", "video", "images"])
+    c.add_argument("--source", choices=["xbox_app", "capture_card", "screen", "window", "video", "images"])
     c.add_argument("--device", type=int)
     c.add_argument("--video")
     c.add_argument("--window-title")
@@ -396,6 +424,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("sync")
     ls = sub.add_parser("list")
     ls.add_argument("--game", choices=games.ids())
+    pv = sub.add_parser("preview", help="save and open one frame as the detector sees it")
+    pv.add_argument("--no-open", action="store_true")
     gl = sub.add_parser("gallery")
     gl.add_argument("--no-open", action="store_true")
     cb = sub.add_parser("calibrate")
@@ -409,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
     handler = {
         "doctor": cmd_doctor, "devices": cmd_devices, "login": cmd_login, "logout": cmd_logout,
         "config": cmd_config, "run": cmd_run, "sync": cmd_sync, "list": cmd_list,
-        "gallery": cmd_gallery, "calibrate": cmd_calibrate,
+        "gallery": cmd_gallery, "calibrate": cmd_calibrate, "preview": cmd_preview,
     }[args.cmd]
     try:
         return handler(cfg, args)

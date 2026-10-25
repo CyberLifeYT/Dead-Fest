@@ -32,27 +32,29 @@ echo ==============================================
 echo.
 echo    1  Start detecting deaths
 echo    2  Check setup (storage, OCR, video, login)
-echo    3  Choose the game
-echo    4  Choose the video source
-echo    5  Sign in and choose whether to share
-echo    6  Upload waiting evidence / get admin decisions
-echo    7  Open the evidence gallery
-echo    8  List capture devices
+echo    3  Show what the detector sees (preview)
+echo    4  Choose the game
+echo    5  Choose the video source
+echo    6  Sign in and choose whether to share
+echo    7  Upload waiting evidence / get admin decisions
+echo    8  Open the evidence gallery
+echo    9  List capture devices
 echo    0  Exit
 echo.
-choice /C 123456780 /N /M "Press a number: "
+choice /C 1234567890 /N /M "Press a number: "
 set "pick=%errorlevel%"
 rem No keyboard (input closed): stop instead of redrawing the menu forever.
 if %pick% GEQ 255 exit /b 1
-if %pick%==9 exit /b 0
+if %pick%==10 exit /b 0
 if %pick%==1 goto :run
 if %pick%==2 call :cmd doctor & goto :menu
-if %pick%==3 goto :game
-if %pick%==4 goto :source
-if %pick%==5 call :cmd login & goto :menu
-if %pick%==6 call :cmd sync & goto :menu
-if %pick%==7 call :cmd gallery & goto :menu
-if %pick%==8 call :cmd devices & goto :menu
+if %pick%==3 call :cmd preview & goto :menu
+if %pick%==4 goto :game
+if %pick%==5 goto :source
+if %pick%==6 call :cmd login & goto :menu
+if %pick%==7 call :cmd sync & goto :menu
+if %pick%==8 call :cmd gallery & goto :menu
+if %pick%==9 call :cmd devices & goto :menu
 goto :menu
 
 :run
@@ -94,14 +96,14 @@ goto :menu
 cls
 echo Where does the Xbox picture come from?
 echo.
-echo    1  HDMI capture card
-echo    2  Xbox app Remote Play window on this PC
+echo    1  Xbox app Remote Play on this PC (streaming your console)
+echo    2  HDMI capture card
 echo    0  Back
 echo.
 choice /C 120 /N /M "Press a number: "
 set "s=%errorlevel%"
-if %s%==1 goto :source_card
-if %s%==2 call :cmd config --source window --window-title Xbox
+if %s%==1 call :cmd config --source xbox_app & goto :menu
+if %s%==2 goto :source_card
 goto :menu
 
 :source_card
