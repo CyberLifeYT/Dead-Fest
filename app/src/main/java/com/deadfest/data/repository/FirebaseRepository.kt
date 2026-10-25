@@ -1094,7 +1094,32 @@ class FirebaseRepository(
         data class Refused(val problem: ModerationProblem) : EvidenceModeration
     }
 
+    /**
+     * Set once the server reports a missing composite index, so later pages go straight to the
+     * fallback instead of failing first every time.
+     */
+    @Volatile private var evidenceIndexMissing = false
+
+    /**
+     * One page of evidence. Filters run on the server when firestore.indexes.json has been deployed;
+     * if an index is missing (not deployed yet, or still building), the page is read in time order,
+     * which needs no composite index, and filtered on the phone instead. Same results, more reads.
+     */
     suspend fun evidencePage(filter: EvidenceFilter, after: DocumentSnapshot?, limit: Long = 24): EvidencePage {
+        val needsIndex = filter.gameId != null || filter.status != null || !filter.statuses.isNullOrEmpty() || filter.subjectUid != null
+        if (needsIndex && !evidenceIndexMissing) {
+            try {
+                return indexedEvidencePage(filter, after, limit)
+            } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
+                if (e.code != com.google.firebase.firestore.FirebaseFirestoreException.Code.FAILED_PRECONDITION) throw e
+                android.util.Log.w("FirebaseRepository", "Evidence index missing; filtering on the device", e)
+                evidenceIndexMissing = true
+            }
+        }
+        return scannedEvidencePage(filter, after, limit)
+    }
+
+    private suspend fun indexedEvidencePage(filter: EvidenceFilter, after: DocumentSnapshot?, limit: Long): EvidencePage {
         var q: Query = evidenceRef
         filter.gameId?.let { q = q.whereEqualTo("gameId", it) }
         when {
@@ -1102,14 +1127,50 @@ class FirebaseRepository(
             !filter.statuses.isNullOrEmpty() -> q = q.whereIn("status", filter.statuses)
         }
         filter.subjectUid?.let { q = q.whereEqualTo("subjectUid", it) }
-        filter.fromMs?.let { q = q.whereGreaterThanOrEqualTo("detectedAt", it) }
-        filter.toMs?.let { q = q.whereLessThan("detectedAt", it) }
-        q = q.orderBy("detectedAt", if (filter.newestFirst) Query.Direction.DESCENDING else Query.Direction.ASCENDING)
-        if (after != null) q = q.startAfter(after)
+        q = timeOrdered(q, filter, after)
         val snap = q.limit(limit).get().await()
         val items = snap.documents.mapNotNull { it.toEvidence() }
         return EvidencePage(items, snap.documents.lastOrNull() ?: after, snap.size() < limit)
     }
+
+    /** Time order only (single-field index, always available), filtered here. Bounded per page. */
+    private suspend fun scannedEvidencePage(filter: EvidenceFilter, after: DocumentSnapshot?, limit: Long): EvidencePage {
+        val batch = 60L
+        val items = mutableListOf<DeathEvidence>()
+        var cursor = after
+        var reachedEnd = false
+        var batches = 0
+        while (items.size < limit && batches < 40) {
+            val snap = timeOrdered(evidenceRef, filter, cursor).limit(batch).get().await()
+            batches++
+            for (doc in snap.documents) {
+                cursor = doc
+                val ev = doc.toEvidence() ?: continue
+                if (matches(ev, filter)) items += ev
+                if (items.size >= limit) break
+            }
+            if (snap.size() < batch) {
+                // The collection ran out; it's the end unless the page filled up mid-batch.
+                reachedEnd = cursor == snap.documents.lastOrNull()
+                break
+            }
+        }
+        return EvidencePage(items, cursor, reachedEnd)
+    }
+
+    private fun timeOrdered(base: Query, filter: EvidenceFilter, after: DocumentSnapshot?): Query {
+        var q = base
+        filter.fromMs?.let { q = q.whereGreaterThanOrEqualTo("detectedAt", it) }
+        filter.toMs?.let { q = q.whereLessThan("detectedAt", it) }
+        q = q.orderBy("detectedAt", if (filter.newestFirst) Query.Direction.DESCENDING else Query.Direction.ASCENDING)
+        return if (after != null) q.startAfter(after) else q
+    }
+
+    private fun matches(ev: DeathEvidence, f: EvidenceFilter): Boolean =
+        (f.gameId == null || ev.gameId == f.gameId) &&
+            (f.status == null || ev.status == f.status) &&
+            (f.status != null || f.statuses.isNullOrEmpty() || ev.status in f.statuses) &&
+            (f.subjectUid == null || ev.subjectUid == f.subjectUid)
 
     suspend fun getEvidence(id: String): DeathEvidence? {
         if (!id.matches(Regex("^[A-Za-z0-9_-]{16,64}$"))) return null
