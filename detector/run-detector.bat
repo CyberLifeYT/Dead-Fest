@@ -1,6 +1,6 @@
 @echo off
 rem Dead-Fest Xbox Death Detector launcher.
-rem Double-click: a menu that stays open. From a terminal: run-detector.bat <command> [options].
+rem Double-click: the desktop app. "run-detector.bat menu": text menu. Or run-detector.bat <command> [options].
 setlocal EnableDelayedExpansion
 title Dead-Fest Xbox Death Detector
 cd /d "%~dp0"
@@ -18,11 +18,26 @@ if not exist "%PY%" (
     echo.
 )
 
-rem Called with arguments (from a terminal): run that command and return.
+rem "menu": the text menu below. Other arguments (from a terminal): run that command and return.
+if /i "%~1"=="menu" goto :menu
 if not "%~1"=="" (
     "%PY%" -m deadfest_detector %*
     exit /b !errorlevel!
 )
+
+rem Double-clicked: open the desktop app (no console window). Falls back to the text menu.
+"%PY%" -c "import webview" 2>nul
+if errorlevel 1 (
+    echo Installing the desktop window...
+    "%PY%" -m pip install -r requirements.txt >nul
+)
+"%PY%" -c "import webview" 2>nul
+if not errorlevel 1 (
+    start "" ".venv\Scripts\pythonw.exe" -m deadfest_detector.desktop
+    exit /b 0
+)
+echo The desktop window couldn't start, so here is the text menu instead.
+pause
 
 :menu
 cls

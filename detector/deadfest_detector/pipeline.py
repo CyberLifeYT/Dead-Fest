@@ -114,7 +114,7 @@ class Pipeline:
         self._buffer.append((fid, t, frame))
         self.stats.frames_analyzed += 1
 
-        candidates = self.analyzer.analyze(frame)
+        candidates = self.analyzer.analyze(frame, t)
         for conf in self.machine.update(t, fid, candidates):
             record = self._save(conf, t)
             if record:

@@ -91,3 +91,27 @@ def test_windows_ocr_reads_a_rendered_death_screen():
     assert [c.event_type for c in cands] == ["self"]
     teammates = a.analyze(banner_frame(2, "Marco has died"))
     assert [(c.event_type, c.player_label) for c in teammates] == [("teammate", "Marco")]
+
+
+# ---------------------------------------------------------------- v2: tolerant and combined checks
+
+@pytest.mark.parametrize("text", ["Y0U DlED", "YOU D1ED", "YOU ARE DAED", "YOU HAVE DlED"])
+def test_ocr_slips_in_death_wording_still_match(text):
+    assert [c.event_type for c in analyzer(text).analyze(gameplay_frame(1))] == ["self"]
+
+
+def test_a_respawn_prompt_on_a_normal_screen_is_not_a_death():
+    # Menus say "Retry" or "Respawn" too: on a bright, colourful screen it stays below the threshold.
+    (c,) = analyzer("Press A to respawn").analyze(gameplay_frame(1))
+    assert c.confidence < 0.8
+
+
+def test_a_respawn_prompt_on_a_dark_death_screen_is_a_death():
+    (c,) = analyzer("Press A to respawn").analyze(death_frame(1, text=""))
+    assert c.event_type == "self" and c.confidence >= 0.8 and "dim_screen" in c.cues
+
+
+def test_menu_words_inside_other_words_do_not_count():
+    # "RETRYING" is not "RETRY": no candidate at all, even on a dark screen.
+    assert analyzer("RETRYING CONNECTION... PRETRY").analyze(gameplay_frame(1)) == []
+    assert analyzer("RETRYING CONNECTION").analyze(death_frame(1, text="")) == []

@@ -39,14 +39,22 @@ class SyncReport:
     failed: int = 0
     skipped_private: int = 0
     status_changes: int = 0
+    counted: int = 0
     last_error: str = ""
+    messages: list = None
+
+    def __post_init__(self):
+        if self.messages is None:
+            self.messages = []
 
 
 class Syncer:
-    def __init__(self, store: EvidenceStore, firestore: FirestoreClient, uid: str):
+    def __init__(self, store: EvidenceStore, firestore: FirestoreClient, uid: str, counter=None):
         self.store = store
         self.fs = firestore
         self.uid = uid
+        # Optional counting.AutoCounter: verify (count) each record right after it uploads.
+        self.counter = counter
         self._display_name: str | None = None
 
     def display_name(self) -> str:
@@ -149,7 +157,25 @@ class Syncer:
                 report.uploaded += 1
             else:
                 report.already_there += 1
+            self._count(record, report)
+        if self.counter:
+            # Records that uploaded earlier but couldn't be counted then (offline, player unknown).
+            for record in self.store.records():
+                if record.sync_state == SYNC_SYNCED and record.verification_status == "pending" and not record.review.get("count_tried"):
+                    self._count(record, report)
         return report
+
+    def _count(self, record: EvidenceRecord, report: SyncReport) -> None:
+        if not self.counter or record.verification_status != "pending":
+            return
+        result = self.counter.count(record)
+        record.review = {**record.review, "count_tried": True, "count_message": result.message}
+        if result.counted:
+            record.verification_status = "verified"
+            record.review.update({"counted": True, "sector": result.sector, "subject_uid": result.subject_uid})
+            report.counted += 1
+        report.messages.append(f"{record.event_id[:8]}: {result.message}")
+        self._save_quietly(record)
 
     # ------------------------------------------------------------------ status pull
 
@@ -171,7 +197,7 @@ class Syncer:
                 continue
             record.verification_status = status
             if remote:
-                record.review = {
+                record.review = {**record.review,
                     "reviewed_by": remote.get("reviewerName", ""),
                     "reviewed_at_ms": remote.get("reviewedAt", 0),
                     "reason": remote.get("rejectionReason", ""),

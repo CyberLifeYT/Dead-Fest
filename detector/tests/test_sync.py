@@ -1,9 +1,7 @@
 """Upload and status mirroring against an in-memory Firestore double."""
 
-import time
 from datetime import datetime, timezone
 
-import pytest
 
 from conftest import death_frame
 from deadfest_detector import imaging

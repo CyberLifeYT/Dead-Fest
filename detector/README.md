@@ -7,13 +7,63 @@ Dead-Fest group so admins can verify it in the app.
 Supported games: Dying Light, Dying Light 2, Dying Light: The Beast, World War Z, Dead Island,
 Dead Island Riptide, Dead Island 2, State of Decay 2.
 
+## The desktop app
+
+Double-click **`run-detector.bat`**. The first time, it sets itself up (a minute), then opens the
+**Dead-Fest Detector** window:
+
+| Tab | What it's for |
+|---|---|
+| **Live** | Start / stop, the picture the detector sees, the game, **whose deaths are yours**, sharing and counting switches, and a log of every death, upload and count |
+| **Evidence** | Every death: this PC's and everyone's shared ones. **Count it** (choose the player), **Not verified**, **Restore**, open the screenshot |
+| **Players** | All Dead-Fest players with level, coins and deaths per game. Pick who **"me"** is and enter each player's **Xbox gamertag** |
+| **HUD setup** | Mark each player's name and health bar on screen, for games that never say "You died" |
+| **Settings** | Sign in, video source (Xbox app or capture card), evidence folder |
+
+### Counting deaths straight away
+
+With **Share with the app** and **Count deaths straight away** on, and signed in with an **admin**
+account, each death is counted the moment it's detected:
+
+- **your own deaths** go to the player chosen under "Your deaths count for" (you);
+- **a teammate's death** goes to the player whose gamertag (Players tab) matches the name on screen,
+  even with small OCR slips like `Shad0wOnyx1l`;
+- a name that matches nobody **stays pending** for you to assign on the Evidence tab.
+
+It stays counted **until you press Not verified** (here or in the phone app's Admin > Deaths), which
+takes it off the count again. Restore puts it back, exactly once. This is the same admin
+verification as the phone app, checked by the same security rules: one death per record, and
+**coins are never touched**.
+
+### HUD tracking (no "You are dead" on screen)
+
+Many co-op games never print who died, but show each player's **name next to a health bar**. In
+**HUD setup**:
+
+1. In co-op, with **everyone at full health**, press **Capture frame**.
+2. Pick **My health bar** and drag a box over your bar. Then **Teammate 1 name** over their name,
+   **Teammate 1 health** over their bar, and so on (up to 3 teammates).
+3. Set **Seconds at zero health before it counts** (3 is fine where death is instant; make it
+   longer than a revive takes in games with a downed state, such as World War Z), then **Save**.
+4. Press **Test**: each bar's health and the name read from the screen appear, with the Dead-Fest
+   player it matches.
+
+From then on, a bar that empties and **stays empty** for that long is a death, labelled with the
+name beside it. It's combined with everything else below, so a death screen and an empty bar
+together are even more certain.
+
 ## What it can and can't do
 
 - It reads **only the picture you see**: from the Xbox app's Remote Play stream on your PC, or from
   an HDMI capture card. It never touches the console, its memory, its security or its network
   traffic.
-- It finds deaths from what the game shows: the death screen's wording (read with Windows' own
-  OCR) and, most reliably, a **template** you capture once from a real death screen.
+- It finds deaths from what the game shows, combining several checks:
+  - the death screen's wording ("You died", "You are dead", "<name> has died"), read with Windows'
+    own OCR and matched loosely so misreads like "Y0U DlED" still count;
+  - **respawn prompts** ("Press A to respawn", "Load last save"), counted only when the screen is
+    also dark or washed out, so menus don't trigger them;
+  - **HUD health bars** that empty and stay empty, with the name next to them (HUD setup);
+  - a **template** you capture once from a real death screen (the most reliable single cue).
 - It **can't see every death**. If a game shows nothing when a teammate dies, that death can't be
   detected from the video, and the detector does not guess. Detection quality depends on the game,
   the resolution and what's on screen.

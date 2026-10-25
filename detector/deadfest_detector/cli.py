@@ -1,6 +1,7 @@
 """
 Command line for the Dead-Fest Xbox Death Detector.
 
+    python -m deadfest_detector app           open the desktop app (also: double-click run-detector.bat)
     python -m deadfest_detector doctor        check storage, OCR, capture source and login
     python -m deadfest_detector devices       list capture devices
     python -m deadfest_detector login         sign in with your Dead-Fest account
@@ -422,10 +423,17 @@ def cmd_calibrate(cfg: dict, args) -> int:
 
 # ---------------------------------------------------------------------- entry
 
+def cmd_app(cfg: dict, args) -> int:
+    from .desktop import main as desktop_main
+
+    return desktop_main()
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="deadfest_detector", description="Dead-Fest Xbox Death Detector")
     sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("app", help="open the desktop app")
     sub.add_parser("doctor")
     sub.add_parser("devices")
     lg = sub.add_parser("login")
@@ -465,7 +473,7 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = configmod.load()
     handler = {
-        "doctor": cmd_doctor, "devices": cmd_devices, "login": cmd_login, "logout": cmd_logout,
+        "app": cmd_app, "doctor": cmd_doctor, "devices": cmd_devices, "login": cmd_login, "logout": cmd_logout,
         "config": cmd_config, "run": cmd_run, "sync": cmd_sync, "share": cmd_share, "list": cmd_list,
         "gallery": cmd_gallery, "calibrate": cmd_calibrate, "preview": cmd_preview,
     }[args.cmd]

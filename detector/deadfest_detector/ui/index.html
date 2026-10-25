@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead-Fest Detector</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="nav">
+    <div class="brand"><span class="skull">&#9760;</span><div><b>DEAD-FEST</b><small>XBOX DEATH DETECTOR</small></div></div>
+    <button class="tab active" data-tab="live">Live</button>
+    <button class="tab" data-tab="evidence">Evidence</button>
+    <button class="tab" data-tab="players">Players</button>
+    <button class="tab" data-tab="hud">HUD setup</button>
+    <button class="tab" data-tab="settings">Settings</button>
+    <div class="nav-foot" id="account-foot">Not signed in</div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <span id="status-pill" class="pill off">Stopped</span>
+      <span id="status-text" class="muted"></span>
+      <span class="spacer"></span>
+      <span id="sync-text" class="muted small"></span>
+    </header>
+
+    <!-- LIVE -->
+    <section id="tab-live" class="page active">
+      <div class="hero card">
+        <button id="btn-start" class="primary big">Start detecting</button>
+        <div class="hero-fields">
+          <label>Game <select id="live-game"></select></label>
+          <label>Your deaths count for <select id="live-me"></select></label>
+        </div>
+        <div class="hero-toggles">
+          <label class="switch"><input type="checkbox" id="live-share"><span></span> Share with the app</label>
+          <label class="switch"><input type="checkbox" id="live-count"><span></span> Count deaths straight away</label>
+        </div>
+      </div>
+      <div id="live-warn" class="notice hidden"></div>
+      <div class="grid2">
+        <div class="card">
+          <div class="card-head"><h3>What the detector sees</h3><button id="btn-preview" class="ghost">Refresh</button></div>
+          <div class="preview"><img id="preview-img" alt="Live picture from the Xbox app"><div id="preview-empty" class="muted">Press Refresh, or Start, to see the picture.</div></div>
+          <div class="stats">
+            <div><b id="stat-deaths">0</b><small>deaths this session</small></div>
+            <div><b id="stat-frames">0</b><small>frames analysed</small></div>
+            <div><b id="stat-held">0</b><small>waiting to save</small></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Activity</h3><button id="btn-sync" class="ghost">Sync now</button></div>
+          <ul id="log" class="log"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- EVIDENCE -->
+    <section id="tab-evidence" class="page">
+      <div class="toolbar">
+        <select id="ev-game"><option value="">All games</option></select>
+        <select id="ev-status">
+          <option value="">All</option>
+          <option value="verified">Counted</option>
+          <option value="pending">Pending</option>
+          <option value="rejected">Not verified</option>
+          <option value="removed">Removed</option>
+          <option value="private">Private (this PC only)</option>
+        </select>
+        <span class="spacer"></span>
+        <button id="btn-share-all" class="ghost">Share private deaths</button>
+        <button id="btn-folder" class="ghost">Open folder</button>
+        <button id="btn-ev-refresh" class="primary">Refresh</button>
+      </div>
+      <div id="ev-note" class="notice hidden"></div>
+      <div id="ev-grid" class="ev-grid"></div>
+    </section>
+
+    <!-- PLAYERS -->
+    <section id="tab-players" class="page">
+      <div class="toolbar"><span class="muted">Pick who "me" is, and add each player's Xbox gamertag so names on screen are matched to them.</span><span class="spacer"></span><button id="btn-pl-refresh" class="primary">Refresh</button></div>
+      <div id="pl-note" class="notice hidden"></div>
+      <div class="grid2 wide-left">
+        <div class="card"><table class="table" id="pl-table"><thead><tr><th>Me</th><th>Player</th><th>Xbox gamertag</th><th>Lvl</th><th>Coins</th><th>Deaths</th></tr></thead><tbody></tbody></table></div>
+        <div class="card" id="pl-detail"><p class="muted">Select a player to see their deaths per game.</p></div>
+      </div>
+    </section>
+
+    <!-- HUD -->
+    <section id="tab-hud" class="page">
+      <div class="toolbar">
+        <button id="btn-hud-capture" class="primary">Capture frame</button>
+        <span class="muted small">Do this in co-op with <b>everyone at full health</b>, then draw each box.</span>
+        <span class="spacer"></span>
+        <label class="small">Seconds at zero health before it counts <input id="hud-hold" type="number" min="1" max="60" step="0.5" value="3"></label>
+        <button id="btn-hud-test" class="ghost">Test</button>
+        <button id="btn-hud-save" class="primary">Save</button>
+      </div>
+      <div class="hud-slots" id="hud-slots"></div>
+      <div id="hud-note" class="notice hidden"></div>
+      <div class="grid2 wide-left">
+        <div class="card"><div class="hud-stage"><img id="hud-img" alt="Captured frame"><canvas id="hud-canvas"></canvas><div id="hud-empty" class="muted">Capture a frame to start.</div></div></div>
+        <div class="card"><h3>Readings</h3><div id="hud-readings" class="muted small">Save, then press Test to see each bar's health and the name read from the screen.</div>
+          <h3 class="mt">How it works</h3>
+          <p class="small muted">Pick a box below, then drag on the picture. A health bar that empties and stays empty for the time you set counts as a death; the name next to it says whose. Boxes are stored as a share of the picture, so resizing the Xbox app is fine.</p></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="tab-settings" class="page">
+      <div class="grid2">
+        <div class="card">
+          <h3>Dead-Fest account</h3>
+          <div id="acct-in" class="hidden"><p>Signed in as <b id="acct-email"></b> <span id="acct-admin" class="pill on hidden">Admin</span></p><button id="btn-signout" class="ghost">Sign out</button></div>
+          <form id="acct-form">
+            <label>Email <input id="acct-user" type="email" autocomplete="username" required></label>
+            <label>Password <input id="acct-pass" type="password" autocomplete="current-password" required></label>
+            <button class="primary" type="submit">Sign in</button>
+            <p class="small muted">Your password is used once to sign in and is never stored.</p>
+          </form>
+        </div>
+        <div class="card">
+          <h3>Video source</h3>
+          <label class="radio"><input type="radio" name="src" value="xbox_app"> Xbox app Remote Play on this PC</label>
+          <label class="radio"><input type="radio" name="src" value="capture_card"> HDMI capture card, device <input id="set-device" type="number" min="0" max="9" value="0" class="tiny"></label>
+          <h3 class="mt">Evidence folder</h3>
+          <div class="row"><input id="set-root" type="text"><button id="btn-root" class="ghost">Save</button></div>
+          <p class="small muted">Screenshots are saved here and never anywhere else.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modal" class="modal hidden"><div class="modal-body"><button id="modal-close" class="ghost close">&times;</button><img id="modal-img" alt="Death screenshot"><div id="modal-info"></div></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="app.js"></script>
+</body>
+</html>

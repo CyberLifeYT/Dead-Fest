@@ -15,6 +15,7 @@ sign of another player's death, there is simply no candidate for it.
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 from dataclasses import dataclass, field
@@ -28,6 +29,15 @@ from .games import OTHER, SELF, TEAMMATE, UNKNOWN
 from .ocr import OcrProvider
 
 _NOT_NAMES = {"YOU", "HE", "SHE", "THEY", "IT", "PLAYER", "SOMEONE"}
+
+# Death screen wording, compared loosely so OCR slips ("Y0U DlED") still match.
+_CANONICAL_SELF = ("YOU DIED", "YOU ARE DEAD", "YOU HAVE DIED", "YOU WERE KILLED", "YOU HAVE BEEN KILLED")
+# Prompts that appear on death screens, but also in menus: only counted together with a screen cue.
+_PROMPTS = tuple(re.compile(p) for p in (
+    r"\bRESPAWN(?:ING)?\b", r"\bPRESS .{0,14}TO RESPAWN\b", r"\bLOAD (?:LAST )?(?:SAVE|CHECKPOINT)\b",
+    r"\bTRY AGAIN\b", r"\bRETRY\b", r"\bGAME OVER\b", r"\bWASTED\b", r"\bKILLED BY\b", r"\bYOU'?VE BEEN KILLED\b",
+))
+_OCR_TO_LETTERS = str.maketrans({"0": "O", "1": "I", "5": "S", "|": "I", "$": "S", "!": "I"})
 
 
 @dataclass
@@ -77,6 +87,21 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def letters_only(norm: str) -> str:
+    """OCR digits that are really letters, for matching fixed wording (not for names)."""
+    return norm.translate(_OCR_TO_LETTERS)
+
+
+def dim_screen_score(frame_bgr: np.ndarray) -> float:
+    """0..1: how dark and washed out the frame is, as death screens usually are."""
+    small = cv2.resize(frame_bgr, (160, 90), interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    v, s = float(hsv[..., 2].mean()), float(hsv[..., 1].mean())
+    dark = np.clip((90 - v) / 60, 0, 1)
+    grey = np.clip((60 - s) / 50, 0, 1)
+    return float(np.clip(max(dark, 0.6 * dark + 0.4 * grey, red_wash_score(frame_bgr)), 0, 1))
+
+
 def red_wash_score(frame_bgr: np.ndarray) -> float:
     """0..1: how much of the frame is a dark or red death wash."""
     small = cv2.resize(frame_bgr, (160, 90), interpolation=cv2.INTER_AREA).astype(np.int16)
@@ -97,6 +122,7 @@ class Analyzer:
         color_boost: float = 0.05,
         self_names: list[str] | None = None,
         teammates: list[str] | None = None,
+        hud=None,
     ):
         self.profile = profile
         self.ocr = ocr
@@ -107,6 +133,8 @@ class Analyzer:
         # With a squad list, a named death of anyone else is "other". Without one, a named banner
         # in these co-op games is taken to be a teammate.
         self.teammates = {n.strip().upper() for n in (teammates or []) if n.strip()}
+        # Optional HudTracker: deaths read from health bars, for games that print no death text.
+        self.hud = hud
 
     def _template_hits(self, frame_bgr: np.ndarray) -> list[Candidate]:
         hits: dict[str, Candidate] = {}
@@ -135,11 +163,28 @@ class Analyzer:
             named_allowed = False
         else:
             named_allowed = True
+        fixed = letters_only(norm)
+        found_self = False
         for r in self.profile.self_res:
-            m = r.search(norm)
+            m = r.search(norm) or r.search(fixed)
             if m:
                 hits.append(Candidate(SELF, "", 0.9, {"text": m.group(0)}))
+                found_self = True
                 break
+        if not found_self:
+            for line in text.splitlines():
+                ln = letters_only(normalize_text(line))
+                if 6 <= len(ln) <= 30:
+                    best = max(_CANONICAL_SELF, key=lambda c: difflib.SequenceMatcher(None, ln, c).ratio())
+                    if difflib.SequenceMatcher(None, ln, best).ratio() >= 0.82:
+                        hits.append(Candidate(SELF, "", 0.88, {"text": line.strip(), "fuzzy": best}))
+                        found_self = True
+                        break
+        if not found_self:
+            prompt = next((m.group(0) for r in _PROMPTS for m in [r.search(fixed)] if m), None)
+            if prompt:
+                # Below the threshold on its own; the screen must also look like a death screen.
+                hits.append(Candidate(SELF, "", 0.7, {"prompt": prompt}))
         if named_allowed:
             # The self-death wording is not a name banner ("YOU HAVE DIED" must not yield "You Have").
             rest = norm
@@ -159,8 +204,16 @@ class Analyzer:
                     hits.append(Candidate(event_type, name.title()[:40], 0.85, {"text": m.group(0)}))
         return hits
 
-    def analyze(self, frame_bgr: np.ndarray) -> list[Candidate]:
+    def analyze(self, frame_bgr: np.ndarray, t: float | None = None) -> list[Candidate]:
         candidates = self._template_hits(frame_bgr)
+        if self.hud is not None and t is not None:
+            for c in self.hud.update(t, frame_bgr):
+                existing = next((x for x in candidates if x.key == c.key), None)
+                if existing:
+                    existing.confidence = min(1.0, max(existing.confidence, c.confidence) + 0.05)
+                    existing.cues.update(c.cues)
+                else:
+                    candidates.append(c)
         text = self.ocr.read(frame_bgr) if self.ocr else ""
         for c in self._text_hits(text):
             existing = next((x for x in candidates if x.key == c.key or (x.event_type == c.event_type == SELF)), None)
@@ -172,12 +225,18 @@ class Analyzer:
                     existing.player_label = c.player_label
             else:
                 candidates.append(c)
-        if candidates and self.color_boost > 0:
-            wash = red_wash_score(frame_bgr)
+        if candidates:
+            dim = dim_screen_score(frame_bgr)
             for c in candidates:
-                if c.event_type == SELF and wash > 0.25:
+                if c.event_type != SELF:
+                    continue
+                if "prompt" in c.cues and dim > 0.35:
+                    # A respawn prompt on a dark, washed-out screen: a death screen, not a menu.
+                    c.confidence = min(1.0, c.confidence + 0.15)
+                    c.cues["dim_screen"] = round(dim, 3)
+                elif self.color_boost > 0 and dim > 0.25:
                     c.confidence = min(1.0, c.confidence + self.color_boost)
-                    c.cues["red_wash"] = round(wash, 3)
+                    c.cues["dim_screen"] = round(dim, 3)
         # Self deaths shown with a named banner of your own gamertag merge into one self candidate.
         merged: dict[str, Candidate] = {}
         for c in candidates:
@@ -189,4 +248,4 @@ class Analyzer:
         return list(merged.values())
 
 
-__all__ = ["Analyzer", "Candidate", "Template", "load_templates", "normalize_text", "red_wash_score", "OTHER", "UNKNOWN"]
+__all__ = ["Analyzer", "Candidate", "Template", "load_templates", "normalize_text", "red_wash_score", "dim_screen_score", "OTHER", "UNKNOWN"]

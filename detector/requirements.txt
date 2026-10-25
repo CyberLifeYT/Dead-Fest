@@ -2,6 +2,8 @@
 numpy>=2.0
 opencv-python>=4.10
 mss>=9.0
+# The desktop app window (Edge WebView2, built into Windows 11)
+pywebview>=5.0; sys_platform == "win32"
 # Windows Graphics Capture: the Xbox app's Remote Play window (MIT licence)
 windows-capture>=2.0; sys_platform == "win32"
 # Windows' built-in OCR engine (no separate OCR install needed)

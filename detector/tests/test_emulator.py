@@ -150,3 +150,74 @@ def test_a_stranger_cannot_read_the_evidence():
     with pytest.raises(urllib.error.HTTPError) as e:
         urllib.request.urlopen(req)
     assert e.value.code == 403
+
+
+MATE = "e2eMate"
+
+
+def seed_counting():
+    db = client(None)
+    for uid, coins, is_admin, games_map in (
+        (ADMIN, 999, True, {SECTOR: {"deaths": 1}}),
+        (MATE, 40, False, {}),
+        (OWNER, 300, False, {SECTOR: {"deaths": 2}}),
+    ):
+        fields = {"uid": uid, "displayName": uid, "username": uid, "admin": is_admin,
+                  "playerData": {"coins": coins, "games": games_map}}
+        db.commit([{"update": {"name": db.name(f"users/{uid}"), "fields": {k: encode(v) for k, v in fields.items()}}}])
+    db.commit([{"update": {"name": db.name("gameState/global"),
+                           "fields": {"grandTotal": encode(10), "games": encode([SECTOR])}}}])
+
+
+def test_deaths_count_straight_away_until_marked_not_verified(store):
+    from conftest import death_frame
+    from datetime import datetime, timezone
+    from deadfest_detector import imaging
+    from deadfest_detector.counting import AutoCounter
+    from deadfest_detector.moderation import Moderator, Reject, Restore
+
+    seed_counting()
+    png = imaging.png(death_frame(3))
+    now = datetime.now(timezone.utc)
+    mine = store.save_evidence(game_id="dying_light_2", event_type="self", player_label="", detected_at=now,
+                               confidence=0.93, image_png=png, shared=True)
+    mate = store.save_evidence(game_id="dying_light_2", event_type="teammate", player_label="Shad0wOnyx1l",
+                               detected_at=now, confidence=0.86, image_png=png, shared=True)
+    stranger = store.save_evidence(game_id="dying_light_2", event_type="teammate", player_label="RandomStranger",
+                                   detected_at=now, confidence=0.86, image_png=png, shared=True)
+
+    admin = client(ADMIN)
+    assert AutoCounter.load(client(OWNER), OWNER, OWNER, {}) is None     # only admins may count
+    counter = AutoCounter.load(admin, ADMIN, ADMIN, {MATE: "ShadowOnyx11"})
+    me_before, mate_before = player(ADMIN), player(MATE)
+
+    report = Syncer(store, admin, ADMIN, counter).push_pending()
+    assert report.uploaded == 3 and report.counted == 2, report.messages
+
+    # Counted at once: one death each, coins untouched.
+    assert player(ADMIN) == {"coins": me_before["coins"], "deaths": me_before["deaths"] + 1}
+    assert player(MATE) == {"coins": mate_before["coins"], "deaths": mate_before["deaths"] + 1}
+    assert admin.get(f"deathEvidence/{mine.event_id}")["status"] == "verified"
+    assert admin.get(f"deathEvidence/{mate.event_id}")["subjectUid"] == MATE
+    assert admin.get(f"deathEvidence/{stranger.event_id}")["status"] == "pending"   # nobody to count it for
+    assert store.load(mine.event_id).verification_status == "verified"
+    assert "no Dead-Fest player matches" in store.load(stranger.event_id).review["count_message"]
+
+    # Syncing again never counts anything twice.
+    again = Syncer(store, admin, ADMIN, counter).push_pending()
+    assert again.counted == 0 and player(ADMIN)["deaths"] == me_before["deaths"] + 1
+
+    # "Not verified" takes it back off; coins still untouched.
+    mod = Moderator(admin, ADMIN, "Admin")
+    out = mod.apply(mine.event_id, Reject("Not a real death"))
+    assert out.kind == "applied" and out.deaths_delta == -1
+    assert player(ADMIN) == me_before
+    # Restore counts it again exactly once.
+    assert mod.apply(mine.event_id, Restore()).deaths_delta == 1
+    assert mod.apply(mine.event_id, Restore()).kind == "no_change"
+    assert player(ADMIN) == {"coins": me_before["coins"], "deaths": me_before["deaths"] + 1}
+
+    # A survivor can't use the PC tools to moderate: the rules refuse it.
+    with pytest.raises(FirebaseError) as denied:
+        Moderator(client(OWNER), OWNER, "Owner").apply(stranger.event_id, Reject("no"))
+    assert denied.value.status == 403
