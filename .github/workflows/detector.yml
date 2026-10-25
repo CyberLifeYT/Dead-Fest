@@ -1,0 +1,32 @@
+name: Xbox Death Detector
+
+# The detector runs on the PC next to the Xbox, so it is tested on Windows: storage under a
+# D:\XboxDeathDetector-style folder, de-duplication, detection on recorded footage, and syncing.
+on:
+  push:
+    branches: [main]
+    paths: ["detector/**", ".github/workflows/detector.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["detector/**", ".github/workflows/detector.yml"]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: detector
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install
+        run: pip install -r requirements-dev.txt
+
+      # Windows OCR tests skip themselves if the runner has no OCR language installed.
+      - name: Test
+        run: python -m pytest tests -q -p no:cacheprovider

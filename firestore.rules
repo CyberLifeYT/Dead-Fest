@@ -333,6 +333,246 @@ service cloud.firestore {
       allow delete: if isAdmin() || (signedIn() && uploadedBy(request.auth.uid));
     }
 
+    // ==================================================================== death evidence (v2.1.3)
+
+    /**
+     * Xbox death evidence: screenshots captured by the Dead-Fest Xbox Death Detector on a PC,
+     * reviewed by admins in the app.
+     *
+     *   deathEvidence/{eventId}              metadata + thumbnail (read by every survivor)
+     *   deathEvidence/{eventId}/audit/{ms}   append-only history of every submission and decision
+     *   deathEvidenceBlobs/{eventId}         the full image
+     *
+     * The guarantees, all enforced here rather than in the app:
+     *  - evidence always arrives as "pending" and uncounted, in the submitter's own name;
+     *  - only an admin can verify, reject, correct, remove or restore;
+     *  - "verified" and "counted" are the same thing, and changing either must move the player's
+     *    death count by exactly one in the SAME commit, so the record and the statistic can never
+     *    disagree (a failed commit changes neither);
+     *  - a moderation commit can never change anyone's coins;
+     *  - every moderation change must write its audit entry in the same commit.
+     */
+    function deathGames() {
+      return ['dying_light', 'dying_light_2', 'dying_light_the_beast', 'world_war_z',
+              'dead_island', 'dead_island_riptide', 'dead_island_2', 'state_of_decay_2'];
+    }
+
+    function deathEventTypes() {
+      return ['self', 'teammate', 'other', 'unknown'];
+    }
+
+    function deathStatuses() {
+      return ['pending', 'verified', 'rejected', 'removed'];
+    }
+
+    function evidenceFields() {
+      return ['eventId', 'gameId', 'uid', 'submitterName', 'playerLabel', 'eventType', 'detectedAt',
+              'confidence', 'status', 'localRelativePath', 'hasImage', 'thumb', 'width', 'height',
+              'sizeBytes', 'createdAt', 'updatedAt', 'counted', 'countedSector', 'subjectUid',
+              'reviewedBy', 'reviewerName', 'reviewedAt', 'rejectionReason', 'source', 'detectorVersion'];
+    }
+
+    function evidencePath(eventId) {
+      return /databases/$(database)/documents/deathEvidence/$(eventId);
+    }
+
+    function auditPath(eventId, at) {
+      return /databases/$(database)/documents/deathEvidence/$(eventId)/audit/$(string(at));
+    }
+
+    function userPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function deathsIn(data, sector) {
+      return data.get('playerData', {}).get('games', {}).get(sector, {}).get('deaths', 0);
+    }
+
+    function coinsIn(data) {
+      return data.get('playerData', {}).get('coins', 0);
+    }
+
+    function deathsBefore(uid, sector) {
+      return exists(userPath(uid)) ? deathsIn(get(userPath(uid)).data, sector) : 0;
+    }
+
+    function deathsAfter(uid, sector) {
+      return existsAfter(userPath(uid)) ? deathsIn(getAfter(userPath(uid)).data, sector) : 0;
+    }
+
+    function oneMoreDeath(uid, sector) {
+      return deathsAfter(uid, sector) == deathsBefore(uid, sector) + 1;
+    }
+
+    /** One fewer, or still zero if somebody already took the count to zero. Never negative. */
+    function oneLessDeath(uid, sector) {
+      return deathsBefore(uid, sector) > 0
+        ? deathsAfter(uid, sector) == deathsBefore(uid, sector) - 1
+        : deathsAfter(uid, sector) == 0;
+    }
+
+    function sameDeaths(uid, sector) {
+      return deathsAfter(uid, sector) == deathsBefore(uid, sector);
+    }
+
+    /** Death moderation and the economy are separate: a moderation commit never moves coins. */
+    function coinsUntouched(uid) {
+      return uid == '' || !exists(userPath(uid))
+        ? true
+        : coinsIn(getAfter(userPath(uid)).data) == coinsIn(get(userPath(uid)).data);
+    }
+
+    /**
+     * The death count moves exactly as the record's counted flag says: +1 when it becomes
+     * counted, -1 when it stops, and -1/+1 when a counted death moves to another player or sector.
+     */
+    function countingIsConsistent(before, after) {
+      return before.counted == true
+        ? (after.counted == true
+            ? (before.subjectUid == after.subjectUid && before.countedSector == after.countedSector
+                ? sameDeaths(after.subjectUid, after.countedSector)
+                : oneLessDeath(before.subjectUid, before.countedSector) &&
+                  oneMoreDeath(after.subjectUid, after.countedSector))
+            : oneLessDeath(before.subjectUid, before.countedSector))
+        : (after.counted == true ? oneMoreDeath(after.subjectUid, after.countedSector) : true);
+    }
+
+    function validEvidenceText(data) {
+      return data.playerLabel is string && data.playerLabel.size() <= 40 &&
+        data.submitterName is string && data.submitterName.size() <= 40 &&
+        data.source is string && data.source.size() <= 40 &&
+        data.detectorVersion is string && data.detectorVersion.size() <= 20 &&
+        data.localRelativePath is string && data.localRelativePath.size() <= 200;
+    }
+
+    match /deathEvidence/{eventId} {
+      allow read: if signedIn();
+
+      /** A detector submitting evidence: always pending, uncounted, unreviewed, in your own name. */
+      allow create: if signedIn() &&
+        eventId.matches('^[A-Za-z0-9_-]{16,64}$') &&
+        request.resource.data.keys().hasOnly(evidenceFields()) &&
+        request.resource.data.keys().hasAll(evidenceFields().removeAll(['thumb'])) &&
+        request.resource.data.eventId == eventId &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.counted == false &&
+        request.resource.data.countedSector == '' &&
+        request.resource.data.reviewedBy == '' &&
+        request.resource.data.reviewerName == '' &&
+        request.resource.data.reviewedAt == 0 &&
+        request.resource.data.rejectionReason == '' &&
+        request.resource.data.subjectUid in ['', request.auth.uid] &&
+        request.resource.data.gameId in deathGames() &&
+        request.resource.data.eventType in deathEventTypes() &&
+        request.resource.data.detectedAt is int &&
+        request.resource.data.createdAt is int &&
+        request.resource.data.updatedAt == request.resource.data.createdAt &&
+        request.resource.data.confidence is number &&
+        request.resource.data.confidence >= 0 &&
+        request.resource.data.confidence <= 1 &&
+        request.resource.data.width is int &&
+        request.resource.data.height is int &&
+        request.resource.data.sizeBytes is int &&
+        validEvidenceText(request.resource.data) &&
+        // A relative path inside one game folder: no drive letters, no "..", no absolute paths.
+        request.resource.data.localRelativePath.matches('^[A-Za-z0-9]+/[A-Za-z0-9_.-]+[.](png|jpg)$') &&
+        !request.resource.data.localRelativePath.matches('.*[.][.].*') &&
+        request.resource.data.hasImage is bool &&
+        (request.resource.data.hasImage
+          ? request.resource.data.thumb is bytes && request.resource.data.thumb.size() < 100 * 1024
+          : true) &&
+        existsAfter(auditPath(eventId, request.resource.data.createdAt));
+
+      /** Admin moderation: verify, reject, correct, remove, restore. */
+      allow update: if isAdmin() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'counted', 'countedSector', 'subjectUid', 'gameId', 'eventType', 'playerLabel',
+          'reviewedBy', 'reviewerName', 'reviewedAt', 'rejectionReason', 'updatedAt'
+        ]) &&
+        request.resource.data.status in deathStatuses() &&
+        request.resource.data.gameId in deathGames() &&
+        request.resource.data.eventType in deathEventTypes() &&
+        request.resource.data.reviewedBy == request.auth.uid &&
+        request.resource.data.reviewedAt is int &&
+        request.resource.data.updatedAt is int &&
+        request.resource.data.updatedAt > resource.data.updatedAt &&
+        request.resource.data.countedSector is string &&
+        request.resource.data.countedSector.size() <= 80 &&
+        request.resource.data.playerLabel is string &&
+        request.resource.data.playerLabel.size() <= 40 &&
+        request.resource.data.reviewerName is string &&
+        request.resource.data.reviewerName.size() <= 40 &&
+        request.resource.data.rejectionReason is string &&
+        request.resource.data.rejectionReason.size() <= 200 &&
+        request.resource.data.subjectUid is string &&
+        request.resource.data.counted is bool &&
+        // Verified means counted, and counted means verified.
+        request.resource.data.counted == (request.resource.data.status == 'verified') &&
+        (request.resource.data.counted
+          ? request.resource.data.subjectUid != '' &&
+            request.resource.data.countedSector != '' &&
+            exists(userPath(request.resource.data.subjectUid))
+          : true) &&
+        countingIsConsistent(resource.data, request.resource.data) &&
+        coinsUntouched(resource.data.subjectUid) &&
+        coinsUntouched(request.resource.data.subjectUid) &&
+        existsAfter(auditPath(eventId, request.resource.data.updatedAt));
+
+      /**
+       * Permanent deletion is for uncounted records only (reject or remove it first, so the death
+       * count is corrected). The submitter may withdraw their own evidence while it is pending.
+       */
+      allow delete: if resource != null && resource.data != null &&
+        resource.data.counted == false &&
+        (isAdmin() || (isSelf(resource.data.uid) && resource.data.status == 'pending'));
+
+      /** Append-only history. Admins write decisions; a submitter writes only the "submitted" entry. */
+      match /audit/{auditId} {
+        allow read: if isAdmin() ||
+          (signedIn() && (exists(evidencePath(eventId))
+            ? get(evidencePath(eventId)).data.uid == request.auth.uid
+            : false));
+
+        allow create: if signedIn() &&
+          request.resource.data.keys().hasOnly(['action', 'actor', 'actorName', 'at', 'note', 'changes']) &&
+          request.resource.data.keys().hasAll(['action', 'actor', 'at']) &&
+          request.resource.data.actor == request.auth.uid &&
+          request.resource.data.at is int &&
+          auditId == string(request.resource.data.at) &&
+          request.resource.data.action in ['submitted', 'verified', 'rejected', 'corrected', 'removed', 'restored', 'deleted'] &&
+          request.resource.data.get('note', '') is string &&
+          request.resource.data.get('note', '').size() <= 300 &&
+          (isAdmin() ||
+            (request.resource.data.action == 'submitted' &&
+             !exists(evidencePath(eventId)) &&
+             (existsAfter(evidencePath(eventId))
+               ? getAfter(evidencePath(eventId)).data.uid == request.auth.uid
+               : false)));
+
+        allow update, delete: if false;
+      }
+    }
+
+    match /deathEvidenceBlobs/{eventId} {
+      allow read: if signedIn();
+
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(['data', 'uid']) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.data is bytes &&
+        request.resource.data.data.size() < 900 * 1024 &&
+        (existsAfter(evidencePath(eventId))
+          ? getAfter(evidencePath(eventId)).data.uid == request.auth.uid
+          : false);
+
+      allow update: if false;
+
+      /** Admins may delete an image; a submitter only together with withdrawing the record. */
+      allow delete: if isAdmin() ||
+        (signedIn() && ownedBy(request.auth.uid) && !existsAfter(evidencePath(eventId)));
+    }
+
     // ==================================================================== game requests
 
     /**

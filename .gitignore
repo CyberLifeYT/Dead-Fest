@@ -16,3 +16,7 @@ node_modules/
 # Firebase emulator log
 firestore-debug.log
 firestore-debug.*.log
+# Xbox Death Detector (Python): local environment and caches; evidence lives in D:\XboxDeathDetector
+detector/.venv/
+__pycache__/
+.pytest_cache/

@@ -34,7 +34,16 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 
 ## 🔄 What's New
 
-### v2.1.2 – Stay in the loop *(Latest)*
+### v2.1.3 – Xbox death evidence *(Latest)*
+
+- **🎮 Xbox Death Detector** – A companion program for the PC next to the Xbox ([`detector/`](detector/README.md)). It watches the gameplay video (HDMI capture card or the Xbox app's Remote Play window), spots death screens in Dying Light 1/2/The Beast, World War Z, Dead Island/Riptide/2 and State of Decay 2, and saves each death's screenshot to `D:\XboxDeathDetector`. Each death is counted once however long the death screen stays up. Evidence stays private until you choose to share it.
+- **📸 More → Deaths Images** – Every survivor can browse the shared death screenshots: filter by game and status, sort, zoom, with clear empty, error and missing-image states.
+- **✅ Admin → Deaths** – Verify, reject, correct, remove, restore or permanently delete evidence, with search, filters, a missing-image check and a full audit history. Verifying adds exactly one death to the player's count, enforced by the security rules.
+- **🪙 Coins are never touched by death moderation** – The security rules refuse any moderation commit that changes a balance, and every case is tested against the Firestore emulator with real before/after balances.
+- **🛠️ R8 build fixed** – The small "R8" APK of 2.1.2 crashed on launch (R8 stripped a constructor the background check-ins need). Fixed, and the release build now checks for it automatically.
+- **Admins:** deploy the updated rules **and indexes** (`firebase deploy --only firestore:rules,firestore:indexes`). Full notes: [release/v2.1.3](release/v2.1.3/RELEASE_NOTES.md).
+
+### v2.1.2 – Stay in the loop
 
 - **🔔 Real Android notifications** – Six categories you can mute separately (alerts, chat, levels & achievements, broadcasts, Black Market, updates), the Dead-Fest skull in the status bar, tap to open the right screen, quick Reply from chat notifications, and grouping so bursts don't flood the tray.
 - **⏱️ Background check-ins** – About every 15 minutes, Android's scheduler checks for new alerts, chat, broadcasts, flash sales and updates while the app is closed. No server or paid plan needed; can be switched off in Settings.
@@ -187,6 +196,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **Levels, XP & Prestige** – A long‑term progression track with cosmetic rewards and a permanent prestige badge.
 - **Live Presence** – See who's in the app right now and when others were last seen.
 - **Images Gallery** – A shared photo wall for the whole community.
+- **Deaths Images** – Xbox death screenshots captured by the [Xbox Death Detector](detector/README.md), with their verification status.
 - **Survivor Dossiers** – Tap any survivor for deaths per sector, coins, level, gear, bankruptcy and status.
 - **Feed & Alert Filters** – Choose which events show in your live ticker and push notifications.
 
@@ -207,6 +217,7 @@ The original source was lost to a failed hard drive, so DeadFest was **rebuilt f
 - **XP & Levels** – Configure every XP source and the level curve.
 - **Player Control** – Coins, death injection (full tax pipeline), admin rights, clear penalties.
 - **Season & Event Control** – Rename the running season, schedule the next Dead-Fest (name, start time, blurb) and queue its games.
+- **Death Verification** – Review Xbox death evidence: verify (adds one death, never touches coins), reject, correct, remove, restore, with an audit trail.
 - **Game Requests Module** – Review the community queue: approve pending requests (making a game a candidate sector) or remove them. Only admins can decide.
 - **System Switches** – Market, Wheel, Revives, Lockdown, **Forced Spin Protocol kill switch** (stop deaths from adding penalty spins), firmware publishing (with forced updates) and broadcasts.
 
@@ -276,8 +287,11 @@ ship with the project before you let anybody in:
 ```bash
 npm install -g firebase-tools
 firebase login
-firebase deploy --only firestore:rules
+firebase deploy --only firestore:rules,firestore:indexes
 ```
+
+The indexes are used by the Deaths Images filters; without them a filtered view shows a message
+asking for them.
 
 The project is already selected in `.firebaserc`, so no project id is needed. See
 [docs/ADMIN.md](docs/ADMIN.md) for what the rules protect, and for how to test a change to them

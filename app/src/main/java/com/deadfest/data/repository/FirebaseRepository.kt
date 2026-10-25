@@ -1069,6 +1069,180 @@ class FirebaseRepository(
         }.await()
     }
 
+    // ================================================================ Xbox death evidence (v2.1.3)
+
+    private val evidenceRef get() = firestore.collection("deathEvidence")
+    private val evidenceBlobsRef get() = firestore.collection("deathEvidenceBlobs")
+
+    /** Server-side filters for the evidence galleries. Each combination has an index in firestore.indexes.json. */
+    data class EvidenceFilter(
+        val gameId: String? = null,
+        val status: String? = null,
+        /** Used when [status] is null: e.g. hide soft-deleted records from survivors. */
+        val statuses: List<String>? = null,
+        val subjectUid: String? = null,
+        val fromMs: Long? = null,
+        val toMs: Long? = null,
+        val newestFirst: Boolean = true
+    )
+
+    class EvidencePage(val items: List<DeathEvidence>, val cursor: DocumentSnapshot?, val endReached: Boolean)
+
+    sealed interface EvidenceModeration {
+        data class Applied(val action: String, val deathsDelta: Int, val subjectUid: String, val sector: String) : EvidenceModeration
+        data class NoChange(val problem: ModerationProblem) : EvidenceModeration
+        data class Refused(val problem: ModerationProblem) : EvidenceModeration
+    }
+
+    suspend fun evidencePage(filter: EvidenceFilter, after: DocumentSnapshot?, limit: Long = 24): EvidencePage {
+        var q: Query = evidenceRef
+        filter.gameId?.let { q = q.whereEqualTo("gameId", it) }
+        when {
+            filter.status != null -> q = q.whereEqualTo("status", filter.status)
+            !filter.statuses.isNullOrEmpty() -> q = q.whereIn("status", filter.statuses)
+        }
+        filter.subjectUid?.let { q = q.whereEqualTo("subjectUid", it) }
+        filter.fromMs?.let { q = q.whereGreaterThanOrEqualTo("detectedAt", it) }
+        filter.toMs?.let { q = q.whereLessThan("detectedAt", it) }
+        q = q.orderBy("detectedAt", if (filter.newestFirst) Query.Direction.DESCENDING else Query.Direction.ASCENDING)
+        if (after != null) q = q.startAfter(after)
+        val snap = q.limit(limit).get().await()
+        val items = snap.documents.mapNotNull { it.toEvidence() }
+        return EvidencePage(items, snap.documents.lastOrNull() ?: after, snap.size() < limit)
+    }
+
+    suspend fun getEvidence(id: String): DeathEvidence? {
+        if (!id.matches(Regex("^[A-Za-z0-9_-]{16,64}$"))) return null
+        return evidenceRef.document(id).get().await().toEvidence()
+    }
+
+    /** Full screenshot bytes, or null when the image is missing (deleted, never uploaded). */
+    suspend fun getEvidenceImage(id: String): ByteArray? =
+        evidenceBlobsRef.document(id).get().await().getBlob("data")?.toBytes()
+
+    /**
+     * Which of [ids] have no full image any more. Uses count() aggregations, so nothing is
+     * downloaded: a missing image can be told apart from a rejected record without fetching any.
+     */
+    suspend fun missingEvidenceImages(ids: List<String>): Set<String> {
+        val missing = mutableSetOf<String>()
+        ids.forEach { id ->
+            val count = evidenceBlobsRef.whereEqualTo(FieldPath.documentId(), id)
+                .count().get(com.google.firebase.firestore.AggregateSource.SERVER).await().count
+            if (count == 0L) missing += id
+        }
+        return missing
+    }
+
+    suspend fun evidenceAudit(id: String): List<DeathEvidenceAudit> =
+        evidenceRef.document(id).collection("audit")
+            .orderBy("at", Query.Direction.DESCENDING).limit(50).get().await()
+            .documents.map { d ->
+                DeathEvidenceAudit(
+                    id = d.id,
+                    action = d.getString("action").orEmpty(),
+                    actor = d.getString("actor").orEmpty(),
+                    actorName = d.getString("actorName").orEmpty(),
+                    at = d.getLong("at") ?: 0L,
+                    note = d.getString("note").orEmpty()
+                )
+            }
+
+    /**
+     * Applies an admin decision in one transaction: re-reads the record, plans against that fresh
+     * state (so a repeated request is a no-op), then writes the record, the affected death counts
+     * and the audit entry together. Only `playerData.games.<sector>.deaths` is ever written on a
+     * player: never coins. The security rules refuse any commit that breaks either guarantee.
+     */
+    suspend fun moderateEvidence(id: String, action: ModerationAction, adminUid: String, adminName: String): EvidenceModeration {
+        val ref = evidenceRef.document(id)
+        val result = firestore.runTransaction { tx ->
+            val evidence = tx.get(ref).toEvidence()
+                ?: return@runTransaction EvidenceModeration.Refused(ModerationProblem.NOT_FOUND)
+            when (val plan = DeathModeration.plan(evidence.toState(), action, adminUid, adminName, System.currentTimeMillis())) {
+                is ModerationPlan.NoOp -> EvidenceModeration.NoChange(plan.problem)
+                is ModerationPlan.Invalid -> EvidenceModeration.Refused(plan.problem)
+                is ModerationPlan.Apply -> {
+                    // Every read before any write, as transactions require.
+                    val players = plan.counts.map { it.uid }.distinct().associateWith { tx.get(usersRef.document(it)) }
+                    if (players.values.any { !it.exists() }) {
+                        return@runTransaction EvidenceModeration.Refused(ModerationProblem.PLAYER_MISSING)
+                    }
+                    val newCounts = DeathModeration.newDeathCounts(plan.counts) { uid, sector ->
+                        (players.getValue(uid).get(FieldPath.of("playerData", "games", sector, "deaths")) as? Number)?.toLong() ?: 0L
+                    }
+                    newCounts.forEach { (key, value) ->
+                        tx.update(usersRef.document(key.first), FieldPath.of("playerData", "games", key.second, "deaths"), value)
+                    }
+                    tx.update(ref, plan.fields)
+                    tx.set(ref.collection("audit").document(plan.at.toString()), mapOf(
+                        "action" to plan.auditAction,
+                        "actor" to adminUid,
+                        "actorName" to adminName.take(DeathModeration.MAX_LABEL),
+                        "at" to plan.at,
+                        "note" to plan.note.take(300),
+                        "changes" to plan.changes
+                    ))
+                    val net = plan.counts.sumOf { it.delta }
+                    val target = plan.counts.lastOrNull()
+                    EvidenceModeration.Applied(plan.auditAction, net, target?.uid ?: evidence.subjectUid, target?.sector ?: evidence.countedSector)
+                }
+            }
+        }.await()
+        if (result is EvidenceModeration.Applied) bumpGrandTotal(result.deathsDelta.toLong())
+        return result
+    }
+
+    /**
+     * Permanent deletion (admins, uncounted records only): the record and its image go, the audit
+     * history stays, with a final "deleted" entry, so the decision remains on file.
+     */
+    suspend fun deleteEvidencePermanently(id: String, adminUid: String, adminName: String) {
+        val at = System.currentTimeMillis()
+        firestore.batch()
+            .delete(evidenceRef.document(id))
+            .delete(evidenceBlobsRef.document(id))
+            .set(evidenceRef.document(id).collection("audit").document(at.toString()), mapOf(
+                "action" to "deleted",
+                "actor" to adminUid,
+                "actorName" to adminName.take(DeathModeration.MAX_LABEL),
+                "at" to at,
+                "note" to "",
+                "changes" to emptyMap<String, Any>()
+            ))
+            .commit().await()
+    }
+
+    private fun DocumentSnapshot.toEvidence(): DeathEvidence? {
+        if (!exists()) return null
+        return DeathEvidence(
+            id = id,
+            gameId = getString("gameId").orEmpty(),
+            uid = getString("uid").orEmpty(),
+            submitterName = getString("submitterName").orEmpty(),
+            playerLabel = getString("playerLabel").orEmpty(),
+            eventType = getString("eventType") ?: DeathEventType.UNKNOWN,
+            detectedAt = getLong("detectedAt") ?: 0L,
+            confidence = getDouble("confidence") ?: 0.0,
+            status = getString("status") ?: DeathEvidenceStatus.PENDING,
+            localRelativePath = getString("localRelativePath").orEmpty(),
+            hasImage = getBoolean("hasImage") ?: false,
+            thumb = getBlob("thumb")?.toBytes(),
+            width = getLong("width")?.toInt() ?: 0,
+            height = getLong("height")?.toInt() ?: 0,
+            sizeBytes = getLong("sizeBytes") ?: 0L,
+            createdAt = getLong("createdAt") ?: 0L,
+            updatedAt = getLong("updatedAt") ?: 0L,
+            counted = getBoolean("counted") ?: false,
+            countedSector = getString("countedSector").orEmpty(),
+            subjectUid = getString("subjectUid").orEmpty(),
+            reviewedBy = getString("reviewedBy").orEmpty(),
+            reviewerName = getString("reviewerName").orEmpty(),
+            reviewedAt = getLong("reviewedAt") ?: 0L,
+            rejectionReason = getString("rejectionReason").orEmpty()
+        )
+    }
+
     // ================================================================ image reactions & comments (v2.1.2)
 
     /** Who reacted with what: uid -> emoji. One reaction per survivor per image. */

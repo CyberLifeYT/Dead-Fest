@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MilitaryTech
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material3.Icon
@@ -203,6 +204,16 @@ fun MoreScreen(navController: NavController, viewModel: MainViewModel) {
                     icon = Icons.Default.PhotoLibrary,
                     accent = EmberGlow,
                     onClick = { navController.navigate("images") }
+                )
+            }
+            item {
+                HubButton(
+                    label = stringResource(R.string.hub_deaths_images),
+                    description = stringResource(R.string.hub_deaths_images_desc),
+                    icon = Icons.Default.PhotoCamera,
+                    accent = Ember,
+                    badge = stringResource(R.string.badge_new),
+                    onClick = { navController.navigate("death_images") }
                 )
             }
 

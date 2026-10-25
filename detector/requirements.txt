@@ -1,0 +1,12 @@
+# Dead-Fest Xbox Death Detector (Windows 10/11, Python 3.11+)
+numpy>=2.0
+opencv-python>=4.10
+mss>=9.0
+# Windows' built-in OCR engine (no separate OCR install needed)
+winrt-runtime>=2.0; sys_platform == "win32"
+winrt-Windows.Media.Ocr>=2.0; sys_platform == "win32"
+winrt-Windows.Graphics.Imaging>=2.0; sys_platform == "win32"
+winrt-Windows.Storage.Streams>=2.0; sys_platform == "win32"
+winrt-Windows.Globalization>=2.0; sys_platform == "win32"
+winrt-Windows.Foundation>=2.0; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=2.0; sys_platform == "win32"

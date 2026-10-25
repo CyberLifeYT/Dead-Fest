@@ -365,6 +365,7 @@ fun DeadFestApp(viewModel: MainViewModel) {
             composable("scratch") { ScratchScreen(navController, viewModel) }
             composable("progression") { ProgressionScreen(navController, viewModel) }
             composable("images") { ImagesScreen(navController, viewModel) }
+            composable("death_images") { DeathImagesScreen(navController, viewModel) }
             composable("edit_profile") { EditProfileScreen(navController, viewModel) }
             composable("alerts") { AlertsScreen(navController, viewModel) }
             composable("chat") { ChatScreen(navController, viewModel) }

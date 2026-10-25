@@ -37,3 +37,18 @@ jobs:
           tools/rules-tests/node_modules/.bin/firebase emulators:exec
           --only firestore --config firebase.json
           "node --test tools/rules-tests/firestore.rules.test.js"
+
+      # The Xbox Death Detector end to end against the same rules: detect, upload, moderate, mirror back.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the detector (headless OpenCV on Linux)
+        run: pip install numpy opencv-python-headless pytest
+
+      - name: Test the detector against the emulator
+        run: >
+          tools/rules-tests/node_modules/.bin/firebase emulators:exec
+          --only firestore --config firebase.json
+          "python -m pytest detector/tests/test_emulator.py -q -p no:cacheprovider"

@@ -953,6 +953,155 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ---------------------------------------------------------------- Xbox death evidence (v2.1.3)
+
+    /** A gallery's paged list. Survivors never see soft-deleted ("removed") records. */
+    fun evidenceBrowser(scope: kotlinx.coroutines.CoroutineScope, admin: Boolean): EvidenceBrowser =
+        EvidenceBrowser(
+            repository,
+            scope,
+            FirebaseRepository.EvidenceFilter(statuses = if (admin) null else DeathEvidenceStatus.VISIBLE),
+            describe = { describeEvidenceError(it) }
+        )
+
+    private fun describeEvidenceError(e: Throwable): String =
+        if (e is FirebaseFirestoreException && e.code == FirebaseFirestoreException.Code.FAILED_PRECONDITION) {
+            // A filter combination whose index has not been deployed (or is still building).
+            tr(R.string.evidence_index_missing)
+        } else friendlyError(e)
+
+    suspend fun evidenceImage(id: String): ByteArray? = try {
+        repository.getEvidenceImage(id)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        logError("evidenceImage", e)
+        null
+    }
+
+    suspend fun evidenceAudit(id: String): List<DeathEvidenceAudit>? = try {
+        repository.evidenceAudit(id)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        logError("evidenceAudit", e)
+        null
+    }
+
+    suspend fun findEvidence(id: String): DeathEvidence? = try {
+        repository.getEvidence(id.trim())
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        logError("findEvidence", e)
+        null
+    }
+
+    suspend fun missingEvidenceImages(items: List<DeathEvidence>): Set<String>? = try {
+        repository.missingEvidenceImages(items.filter { it.hasImage }.map { it.id }) + items.filter { !it.hasImage }.map { it.id }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        logError("missingEvidenceImages", e)
+        _events.tryEmit(tr(R.string.evidence_action_failed, friendlyError(e)))
+        null
+    }
+
+    fun evidenceProblemText(problem: ModerationProblem): String = when (problem) {
+        ModerationProblem.ALREADY_VERIFIED -> tr(R.string.evidence_problem_already_verified)
+        ModerationProblem.ALREADY_REJECTED -> tr(R.string.evidence_problem_already_rejected)
+        ModerationProblem.ALREADY_REMOVED -> tr(R.string.evidence_problem_already_removed)
+        ModerationProblem.NOT_REMOVED_OR_REJECTED -> tr(R.string.evidence_problem_not_restorable)
+        ModerationProblem.NOT_PENDING -> tr(R.string.evidence_problem_not_pending)
+        ModerationProblem.NEED_PLAYER -> tr(R.string.evidence_problem_need_player)
+        ModerationProblem.NEED_SECTOR -> tr(R.string.evidence_problem_need_sector)
+        ModerationProblem.NEED_REASON -> tr(R.string.evidence_problem_need_reason)
+        ModerationProblem.TOO_LONG -> tr(R.string.evidence_problem_too_long)
+        ModerationProblem.BAD_GAME -> tr(R.string.evidence_problem_bad_game)
+        ModerationProblem.BAD_TYPE -> tr(R.string.evidence_problem_bad_type)
+        ModerationProblem.NOTHING_TO_CHANGE -> tr(R.string.evidence_problem_nothing_to_change)
+        ModerationProblem.CANNOT_UNLINK_COUNTED -> tr(R.string.evidence_problem_cannot_unlink)
+        ModerationProblem.NOT_FOUND -> tr(R.string.evidence_problem_not_found)
+        ModerationProblem.PLAYER_MISSING -> tr(R.string.evidence_problem_player_missing)
+    }
+
+    /**
+     * Runs an admin decision and reports what the server actually did. [onDone] gets the record
+     * as re-read from the server afterwards (null if it could not be read), so the screen always
+     * shows the real state rather than an optimistic guess.
+     */
+    fun moderateEvidence(evidence: DeathEvidence, action: ModerationAction, onDone: (DeathEvidence?) -> Unit) {
+        val me = user.value ?: return
+        if (!me.admin) {
+            _events.tryEmit(tr(R.string.evidence_admin_only))
+            return
+        }
+        viewModelScope.launch {
+            val result = try {
+                repository.moderateEvidence(evidence.id, action, me.uid, me.handle)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logError("moderateEvidence", e)
+                _events.tryEmit(tr(R.string.evidence_action_failed, friendlyError(e)))
+                onDone(findEvidence(evidence.id))
+                return@launch
+            }
+            when (result) {
+                is FirebaseRepository.EvidenceModeration.Applied -> {
+                    val who = users.value.firstOrNull { it.uid == result.subjectUid }?.handle ?: evidence.playerLabel
+                    val game = DeathGames.name(evidence.gameId)
+                    _events.tryEmit(
+                        when (result.action) {
+                            "verified" -> tr(R.string.evidence_done_verified, who, result.sector)
+                            "rejected" -> if (result.deathsDelta < 0) tr(R.string.evidence_done_rejected_uncounted, who) else tr(R.string.evidence_done_rejected)
+                            "removed" -> if (result.deathsDelta < 0) tr(R.string.evidence_done_removed_uncounted, who) else tr(R.string.evidence_done_removed)
+                            "restored" -> if (result.deathsDelta > 0) tr(R.string.evidence_done_restored_counted, who, result.sector) else tr(R.string.evidence_done_restored_pending)
+                            else -> tr(R.string.evidence_done_corrected)
+                        }
+                    )
+                    if (result.deathsDelta != 0 && result.subjectUid.isNotBlank() && result.subjectUid != me.uid) {
+                        notifyPlayer(
+                            result.subjectUid, AlertItem.TYPE_ADMIN,
+                            if (result.deathsDelta > 0) tr(R.string.evidence_alert_counted_title) else tr(R.string.evidence_alert_uncounted_title),
+                            tr(R.string.evidence_alert_body, game, result.sector)
+                        )
+                    }
+                }
+                is FirebaseRepository.EvidenceModeration.NoChange -> _events.tryEmit(evidenceProblemText(result.problem))
+                is FirebaseRepository.EvidenceModeration.Refused -> _events.tryEmit(evidenceProblemText(result.problem))
+            }
+            onDone(findEvidence(evidence.id))
+        }
+    }
+
+    /** Permanent deletion of an uncounted record; the audit history is kept. */
+    fun deleteEvidencePermanently(evidence: DeathEvidence, onDone: (Boolean) -> Unit) {
+        val me = user.value ?: return
+        if (!me.admin) {
+            _events.tryEmit(tr(R.string.evidence_admin_only))
+            return
+        }
+        if (evidence.counted) {
+            _events.tryEmit(tr(R.string.evidence_delete_counted))
+            return
+        }
+        viewModelScope.launch {
+            val ok = try {
+                repository.deleteEvidencePermanently(evidence.id, me.uid, me.handle)
+                true
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                logError("deleteEvidence", e)
+                _events.tryEmit(tr(R.string.evidence_action_failed, friendlyError(e)))
+                false
+            }
+            if (ok) _events.tryEmit(tr(R.string.evidence_done_deleted))
+            onDone(ok)
+        }
+    }
+
     // ---------------------------------------------------------------- personal alerts (v2.1.0)
 
     /** Writes an alert into another survivor's inbox. Best effort: never fails the action itself. */

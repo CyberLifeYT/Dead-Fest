@@ -89,6 +89,11 @@ jobs:
           :app:assembleRelease
           --console=plain
 
+      # The 2.1.2 R8 build crashed on launch because R8 stripped a constructor Room creates by
+      # reflection. Unit tests can't see that; R8's keep report can, so check it before publishing.
+      - name: Check R8 kept the constructors the app creates by reflection
+        run: python3 tools/check-r8-keeps.py
+
       - name: Rename the artifacts for download
         run: |
           # GitHub does not allow spaces in release asset names and rewrites them to dots, so

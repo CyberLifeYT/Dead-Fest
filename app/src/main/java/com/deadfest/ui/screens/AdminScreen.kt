@@ -55,6 +55,7 @@ private enum class AdminModule(val label: String, val icon: androidx.compose.ui.
     OVERLOAD("Overload", Icons.Default.Bolt),
     WHEEL("Wheel", Icons.Default.Casino),
     GAME_REQUESTS("Requests", Icons.Default.SportsEsports),
+    DEATHS("Deaths", Icons.Default.PhotoCamera),
     GLOBAL("Global", Icons.Default.Tune),
     BACKUP("Backup", Icons.Default.Archive),
     BROADCAST("Broadcast", Icons.Default.Campaign)
@@ -75,6 +76,7 @@ private val AdminModule.accent: Color
         AdminModule.OVERLOAD -> AmberDeep
         AdminModule.WHEEL -> Silver
         AdminModule.GAME_REQUESTS -> Prestige
+        AdminModule.DEATHS -> Ember
         AdminModule.GLOBAL -> Ember
         AdminModule.BACKUP -> Ember
         AdminModule.BROADCAST -> Plasma
@@ -124,6 +126,7 @@ fun AdminScreen(navController: NavController, viewModel: MainViewModel) {
                 AdminModule.OVERLOAD -> OverloadAdmin(viewModel)
                 AdminModule.WHEEL -> WheelAdmin(viewModel)
                 AdminModule.GAME_REQUESTS -> GameRequestsAdmin(viewModel)
+                AdminModule.DEATHS -> AdminDeathEvidence(viewModel)
                 AdminModule.GLOBAL -> GlobalAdmin(viewModel)
                 AdminModule.BACKUP -> BackupAdmin(viewModel)
                 AdminModule.BROADCAST -> NotificationsAdmin(viewModel)
